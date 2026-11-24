@@ -21,7 +21,7 @@ h1,h2,h3{font-family:"Be Vietnam Pro",system-ui,sans-serif;font-weight:800;line-
 h2{font-size:clamp(26px,4vw,36px)}h3{font-size:19px;font-weight:700}
 header{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px)}
 .top{display:flex;align-items:center;gap:12px;padding:10px max(4vw,14px) 6px;flex-wrap:wrap}
-.brand{display:flex;align-items:center;gap:8px;font-weight:800;font-size:21px}.brand svg{width:34px;height:34px}
+.brand{display:flex;align-items:center;gap:8px;font-weight:800;font-size:21px;color:inherit;text-decoration:none}.brand svg{width:34px;height:34px}
 .stats{margin-left:auto;display:flex;gap:8px;font-size:13px;flex-wrap:wrap}
 .stats span{background:var(--card);border-radius:999px;padding:4px 10px;box-shadow:var(--shadow);font-weight:600;color:var(--mut)}.stats b{color:var(--ink)}
 .stats .s1 b{color:var(--sl)}.mechip{background:var(--navy);color:#fff;border-radius:999px;padding:4px 12px;font-weight:700;text-decoration:none;box-shadow:var(--shadow);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -113,7 +113,10 @@ textarea{min-height:110px;resize:vertical}
 .pair button{min-height:40px;padding:0 12px;background:var(--pale);box-shadow:none}
 .switch{display:flex;gap:12px;align-items:flex-start;background:var(--card);border-radius:18px;box-shadow:var(--shadow);padding:16px 18px;margin-top:16px}
 .switch input{width:22px;height:22px;margin-top:2px;flex:none;accent-color:var(--red)}
-.profile-locked .stats,.profile-locked nav,.profile-locked #voice-picker{display:none}
+.profile-locked .stats,.profile-locked nav,.profile-locked #voice-picker,.profile-locked #ai-picker{display:none}
+.preference-row{display:flex;gap:8px;flex-wrap:wrap;max-width:980px;margin:auto;padding:4px max(4vw,14px)}
+.preference-row .voice-picker{margin:0;padding:0}
+.preference-row .voice-panel{max-width:450px}
 .profile-access{max-width:540px;margin:24px auto}
 .profile-access .field label{display:block;margin-bottom:6px;font-weight:600}
 .profile-access .field input{width:100%}
@@ -129,14 +132,14 @@ table{border-collapse:collapse;width:100%;background:var(--card);border-radius:1
 <body class="profile-locked">
 <header>
   <div class="top">
-    <div class="brand"><svg viewBox="0 0 40 40"><rect x="2" y="4" width="26" height="20" rx="8" fill="#ff6b5a"/><path d="M8 24l-2 7 8-7z" fill="#ff6b5a"/><rect x="14" y="14" width="24" height="18" rx="8" fill="#4f8cff"/><path d="M32 32l2 6-8-6z" fill="#4f8cff"/><path d="M21 23v2M25 20v8M29 22v4M33 23v2" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>TCV Talks</div>
+    <a href="#today" class="brand" aria-label="TCV Talks – Trang chủ"><svg viewBox="0 0 40 40"><rect x="2" y="4" width="26" height="20" rx="8" fill="#ff6b5a"/><path d="M8 24l-2 7 8-7z" fill="#ff6b5a"/><rect x="14" y="14" width="24" height="18" rx="8" fill="#4f8cff"/><path d="M32 32l2 6-8-6z" fill="#4f8cff"/><path d="M21 23v2M25 20v8M29 22v4M33 23v2" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>TCV Talks</a>
     <div class="stats"><button type="button" id="lock-profile" hidden>Khóa hồ sơ</button><a class="mechip" href="#profile" id="me">Tạo hồ sơ</a><span class="s1">Cấp <b id="lvl">?</b></span><span class="s2">XP <b id="xp">0</b></span><span class="s3">Chuỗi <b id="streak">0</b> ngày</span></div>
   </div>
   <nav id="nav">
     <a href="#today">Hôm nay</a><a href="#path">Lộ trình</a><a href="#review">Ôn tập<span class="dot hide" id="due"></span></a><a href="#speak">Luyện nói</a><a href="#listen">Luyện nghe</a><a href="#trans">Dịch câu</a><a href="#quiz">Bài tập</a><a href="#fix">Sửa lỗi</a><a href="#chat">Hội thoại AI</a>
   </nav>
 </header>
-<details id="voice-picker" class="voice-picker" hidden>
+<div class="preference-row"><details id="voice-picker" class="voice-picker" hidden>
   <summary id="voice-summary">Giọng đọc</summary>
   <div class="voice-panel">
     <div class="row">
@@ -147,6 +150,19 @@ table{border-collapse:collapse;width:100%;background:var(--card);border-radius:1
     <p class="sm">Giọng bạn chọn được dùng cho các bài học và hội thoại AI trên trình duyệt này.</p>
   </div>
 </details>
+<details id="ai-picker" class="voice-picker" hidden>
+  <summary id="ai-summary">Trợ lý AI</summary>
+  <div class="voice-panel">
+    <div class="row">
+      <label class="sm" for="ai-provider">Chọn trợ lý</label>
+      <select id="ai-provider">
+        <option value="gemini">Google Gemini</option>
+        <option value="groq" disabled>Groq · GPT-OSS 20B</option>
+      </select>
+    </div>
+    <p class="sm" id="ai-provider-status" role="status"></p>
+  </div>
+</details></div>
 <p id="voice-status" class="sm" role="status" hidden style="max-width:960px;margin:8px auto;padding:0 16px"></p>
 <p id="save-message" class="sm" role="status" hidden style="max-width:960px;margin:8px auto;padding:0 16px"></p>
 <main id="app"></main>
@@ -2223,6 +2239,7 @@ function initProfile(learner,progress){
   $("#save-message").hidden=true;
   profileSaveFailed=false;
   setupVoicePicker();
+  setupAIPicker();
   stats();
   route();
 }
@@ -2356,7 +2373,35 @@ function ipaText(text){const r=refOf(text);if(!r)return"";return"/"+r.map(x=>x.p
 /* ---------- đọc mẫu ---------- */
 let tts=null,dict=null,ai=null;
 const AIWEB=!IN_CLAUDE&&/^https:/.test(CFG.aiUrl);
-async function gem(body,signal){let r;try{r=await fetch(CFG.aiUrl,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body),signal})}catch(e){throw{code:"network"}}
+const selectedAI=()=>S.aiProvider==="groq"?"groq":"gemini";
+const aiLabel=()=>selectedAI()==="groq"?"Groq · GPT-OSS 20B":"Google Gemini";
+
+function updateAIPicker(){
+  const picker=$("#ai-provider");
+  picker.value=selectedAI();
+  $("#ai-summary").textContent="Trợ lý AI · "+aiLabel();
+}
+
+async function setupAIPicker(){
+  if(!AIWEB)return;
+  $("#ai-picker").hidden=false;
+  const picker=$("#ai-provider"),groq=picker.querySelector('[value="groq"]'),status=$("#ai-provider-status");
+  const help="Áp dụng cho hội thoại, sửa câu và chấm bài viết. Chấm phát âm bằng bản thu dùng Gemini.";
+  updateAIPicker();
+  picker.onchange=()=>{
+    S.aiProvider=picker.value;
+    save();
+    updateAIPicker();
+  };
+  status.textContent="Đang kiểm tra Groq… "+help;
+  try{
+    const response=await fetch(CFG.aiUrl,{cache:"no-store",signal:AbortSignal.timeout(5000)});
+    const config=await response.json();
+    groq.disabled=config.providers?.groq!==true;
+    status.textContent=(groq.disabled?"Groq chưa được cấu hình trên máy chủ. ":"")+help;
+  }catch(e){status.textContent="Chưa kiểm tra được trạng thái Groq. "+help}
+}
+async function gem(body,signal){let r;try{r=await fetch(CFG.aiUrl,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...body,provider:body.audio?"gemini":selectedAI()}),signal})}catch(e){throw{code:"network"}}
   const j=await r.json().catch(()=>({}));if(!r.ok)throw{code:j.error==="rate_limited"?"rate_limited":(j.error||"upstream")};return j}
 function jparse(t){const m=String(t).match(/\{[\s\S]*\}/);return JSON.parse(m?m[0]:t)}
 if(AIWEB){ai=async(prompt,o)=>{const j=await gem({prompt});o&&o.onText&&o.onText({text:j.text});return{text:j.text}};
@@ -2879,7 +2924,7 @@ function vTest(){
       '<section class="box assessment-card"><p>'+esc(instruction)+'</p>'+
       '<label for="test-writing"><strong>Câu trả lời tiếng Anh</strong> · Khoảng 30–70 từ</label>'+
       '<textarea id="test-writing" maxlength="1600" rows="6"></textarea>'+
-      '<p class="sm">Khi bấm Chấm bài viết, nội dung được gửi cho Gemini. Dùng chi tiết giả định nếu đề có thông tin công việc.</p>'+
+      '<p class="sm">Khi bấm Chấm bài viết, nội dung được gửi cho trợ lý AI đang chọn. Dùng chi tiết giả định nếu đề có thông tin công việc.</p>'+
       '<div class="row"><button class="pri" id="submit-writing">Chấm bài viết</button><button id="skip-writing">Kết thúc và lưu</button></div>'+
       '<p id="test-writing-status" class="sm" role="status"></p></section>';
     const input=$("#test-writing"),grade=$("#submit-writing"),skip=$("#skip-writing"),status=$("#test-writing-status");
