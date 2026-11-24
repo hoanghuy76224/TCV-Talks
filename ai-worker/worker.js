@@ -2,6 +2,45 @@
 // Biến môi trường: GEMINI_KEY (secret, bắt buộc), MODEL (tuỳ chọn), ALLOW (tuỳ chọn, danh sách origin cách nhau dấu phẩy)
 const DEF_MODELS = ["gemini-flash-latest", "gemini-flash-lite-latest", "gemini-3.1-flash-lite"];
 const MAX_BODY = 4 * 1024 * 1024;
+const GROQ_MODEL = "openai/gpt-oss-20b";
+
+async function generateWithGroq(req, env, headers, prompt, json) {
+  if (!env.GROQ_API_KEY || !env.GROQ_RATE_LIMIT) {
+    return out({ error: "groq_unavailable" }, 503, headers);
+  }
+
+  try {
+    const client = req.headers.get("CF-Connecting-IP") || "unknown";
+    const { success } = await env.GROQ_RATE_LIMIT.limit({ key: client });
+    if (!success) return out({ error: "rate_limited" }, 429, headers);
+
+    const body = {
+      model: GROQ_MODEL,
+      messages: [{ role: "user", content: prompt }],
+      temperature: json ? 0.2 : 0.7,
+      reasoning_effort: "low",
+      max_completion_tokens: 1800
+    };
+    if (json) body.response_format = { type: "json_object" };
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer " + env.GROQ_API_KEY,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15000)
+    });
+    if (response.status === 429) return out({ error: "rate_limited" }, 429, headers);
+    if (!response.ok) return out({ error: "groq_upstream" }, 502, headers);
+    const result = await response.json();
+    const text = result.choices?.[0]?.message?.content;
+    if (typeof text !== "string" || !text.trim()) return out({ error: "empty_reply" }, 502, headers);
+    return out({ text, model: GROQ_MODEL }, 200, headers);
+  } catch (e) {
+    return out({ error: "groq_upstream" }, 502, headers);
+  }
+}
 
 function allowed(origin, env) {
   if (!origin) return false;
@@ -109,16 +148,27 @@ export default {
     if (path === "/tts") {
       return ok ? synthesize(req, env, h) : out({ error: "origin" }, 403, h);
     }
-    if (req.method === "GET") return out({ ok: true, key: !!env.GEMINI_KEY }, 200, h);
+    if (req.method === "GET") return out({
+      ok: true,
+      key: !!env.GEMINI_KEY,
+      providers: { gemini: !!env.GEMINI_KEY, groq: !!(env.GROQ_API_KEY && env.GROQ_RATE_LIMIT) }
+    }, 200, { ...h, "Cache-Control": "no-store" });
     if (req.method !== "POST") return out({ error: "method" }, 405, h);
     if (!ok) return out({ error: "origin" }, 403, h);
-    if (!env.GEMINI_KEY) return out({ error: "no_key" }, 500, h);
     if (+(req.headers.get("Content-Length") || 0) > MAX_BODY) return out({ error: "too_big" }, 413, h);
 
     let b;
     try { b = await req.json() } catch (e) { return out({ error: "bad_json" }, 400, h) }
-    const prompt = String(b.prompt || "").slice(0, 20000);
+    const prompt = typeof b?.prompt === "string" ? b.prompt.trim().slice(0, 20000) : "";
     if (!prompt) return out({ error: "no_prompt" }, 400, h);
+    if (b.provider && b.provider !== "gemini" && b.provider !== "groq") {
+      return out({ error: "invalid_provider" }, 400, h);
+    }
+    if (b.provider === "groq") {
+      if (b.audio) return out({ error: "unsupported_media" }, 400, h);
+      return generateWithGroq(req, env, h, prompt, b.json);
+    }
+    if (!env.GEMINI_KEY) return out({ error: "no_key" }, 500, h);
 
     const parts = [];
     if (b.audio && b.audio.data) {
