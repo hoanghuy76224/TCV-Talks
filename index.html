@@ -33,6 +33,12 @@ nav a.on{color:#fff;background:var(--navy)}:root[data-theme=dark] nav a.on{backg
 @media(prefers-color-scheme:dark){:root:not([data-theme=light]) nav a.on{background:var(--sl)}}
 nav a .dot{display:inline-block;min-width:18px;padding:0 5px;margin-left:5px;border-radius:9px;background:var(--red);color:#fff;font-size:12px;text-align:center}
 main{max-width:980px;margin:0 auto;padding:12px max(4vw,14px) 80px}
+.voice-picker{max-width:980px;margin:0 auto;padding:4px max(4vw,14px)}
+.voice-picker summary{width:fit-content;max-width:100%;padding:9px 13px;border-radius:12px;background:var(--card);color:var(--ink);font-size:14px;font-weight:600;cursor:pointer}
+.voice-picker summary:focus-visible{outline:3px solid var(--sl);outline-offset:2px}
+.voice-panel{padding:12px 0 4px}
+.voice-panel select{width:auto;max-width:100%;flex:1 1 190px}
+.voice-panel p{margin:8px 0 0}
 .lead{color:var(--mut);margin:8px 0 18px}
 .hero{position:relative;overflow:hidden;border-radius:24px;background:linear-gradient(135deg,#13294b 0%,#1f4d8f 100%);color:#fff;padding:clamp(22px,4vw,38px);display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:16px;align-items:center;margin-bottom:16px}
 .hero h2{color:#fff}.hero p{color:#c9d7f2;margin:10px 0 16px}.hero svg{width:100%;height:auto;max-height:230px}
@@ -121,6 +127,17 @@ table{border-collapse:collapse;width:100%;background:var(--card);border-radius:1
     <a href="#today">Hôm nay</a><a href="#path">Lộ trình</a><a href="#review">Ôn tập<span class="dot hide" id="due"></span></a><a href="#speak">Luyện nói</a><a href="#listen">Luyện nghe</a><a href="#trans">Dịch câu</a><a href="#quiz">Bài tập</a><a href="#fix">Sửa lỗi</a><a href="#chat">Hội thoại AI</a>
   </nav>
 </header>
+<details id="voice-picker" class="voice-picker" hidden>
+  <summary id="voice-summary">Giọng đọc</summary>
+  <div class="voice-panel">
+    <div class="row">
+      <label class="sm" for="voice-select">Chọn giọng</label>
+      <select id="voice-select"></select>
+      <button type="button" id="voice-preview">Nghe thử</button>
+    </div>
+    <p class="sm">Giọng bạn chọn được dùng cho các bài học và hội thoại AI trên trình duyệt này.</p>
+  </div>
+</details>
 <p id="voice-status" class="sm" role="status" hidden style="max-width:960px;margin:8px auto;padding:0 16px"></p>
 <main id="app"></main>
 <script>(function (global, factory) {
@@ -2224,7 +2241,46 @@ let voice=null;function pickVoice(){try{const v=speechSynthesis.getVoices().filt
 try{pickVoice();speechSynthesis.onvoiceschanged=pickVoice}catch(e){}
 /* ---------- phát giọng tiếng Anh ---------- */
 const VOICE_SPEAKERS={f:"luna",m:"orion",f2:"thalia",m2:"apollo"};
-const cloudVoiceOn=()=>!IN_CLAUDE&&S.kvoice!==false;
+const VOICE_OPTIONS=[
+  ["auto","Tự động theo bài"],
+  ["luna","Luna · Nữ · Mỹ"],
+  ["orion","Orion · Nam · Mỹ"],
+  ["thalia","Thalia · Nữ · Mỹ"],
+  ["apollo","Apollo · Nam · Mỹ"],
+  ["pandora","Pandora · Nữ · Anh"],
+  ["draco","Draco · Nam · Anh"],
+  ["theia","Theia · Nữ · Úc"],
+  ["hyperion","Hyperion · Nam · Úc"],
+  ["browser","Giọng trình duyệt"]
+];
+const voiceChoice=()=>{
+  if(S.kvoice===false)return "browser";
+  return VOICE_OPTIONS.some(([id])=>id===S.voiceSpeaker&&id!=="browser")?S.voiceSpeaker:"auto";
+};
+const cloudVoiceOn=()=>!IN_CLAUDE&&voiceChoice()!=="browser";
+
+function setupVoicePicker(){
+  if(IN_CLAUDE)return;
+  const picker=$("#voice-picker");
+  const select=$("#voice-select");
+  const summary=$("#voice-summary");
+  for(const [id,name] of VOICE_OPTIONS)select.add(new Option(name,id));
+  const sync=()=>{
+    select.value=voiceChoice();
+    const name=select.selectedOptions[0].text;
+    summary.textContent="Giọng đọc · "+name;
+  };
+  select.onchange=()=>{
+    stopAudio();
+    S.kvoice=select.value!=="browser";
+    S.voiceSpeaker=select.value;
+    save();
+    sync();
+  };
+  $("#voice-preview").onclick=()=>say("Could you give me a quick update before the meeting?");
+  sync();
+  picker.hidden=false;
+}
 const voiceBuffers=new Map();
 let voiceContext, voiceRequest;
 
@@ -2324,7 +2380,9 @@ async function say(text,rate=1,vk="f"){
     const ctx=prepareVoiceContext();
     if(ctx){
       voiceStatus("Đang tải âm thanh…");
-      const buffer=await voiceBuffer(text,VOICE_SPEAKERS[vk],ctx,signal);
+      const choice=voiceChoice();
+      const speaker=choice==="auto"?VOICE_SPEAKERS[vk]:choice;
+      const buffer=await voiceBuffer(text,speaker,ctx,signal);
       if(signal.aborted)return;
       if(ctx.state!=="running")throw new Error("Audio context is suspended");
       voiceStatus("Đang phát giọng AI…");
@@ -2493,10 +2551,10 @@ function vToday(){
   ${S.prof&&rc.length?`<h3 class="sec-h">Gợi ý riêng cho ${nm}</h3><div class="grid">${rc.map(unitCard).join("")}</div>`:""}
   <h3 class="sec-h">Cách học hiệu quả với web này</h3>
   <div class="tip"><p>Mỗi ngày 15 đến 20 phút đều đặn tốt hơn học dồn. Thứ tự gợi ý: ôn câu đến hạn, học một bài mới, rồi luyện nghe.</p><p>Với mỗi câu: nghe mẫu, bấm Nghe rồi nhại để bắt chước ngay ngữ điệu (kỹ thuật shadowing), xem từ nào đỏ, bấm vào từ đó để nghe lại và sửa. Câu nào đã luyện sẽ tự quay lại đúng lúc sắp quên.</p></div>
-  ${!IN_CLAUDE?`<label class="switch"><input type="checkbox" id="kv" ${cloudVoiceOn()?"checked":""}><span><b>Giọng đọc AI tự nhiên</b><br><span class="sm">Giọng tiếng Anh Deepgram Aura-2. Cần mạng để tải âm thanh. Khi dịch vụ bận, web sẽ thử dùng giọng trình duyệt.</span></span></label><label class="switch"><input type="checkbox" id="pm" ${S.phone?"checked":""} ${canMedia?"":"disabled"}><span><b>Chấm chi tiết từng âm như Elsa</b><br><span class="sm">Dùng mô hình nhận dạng âm vị chạy ngay trên máy bạn, không gửi giọng nói đi đâu. Lần đầu tải khoảng 355 MB, các lần sau dùng lại bản đã lưu. Nên bật trên máy tính hoặc điện thoại mạnh, dùng wifi.</span></span></label>`:`<p class="note">Bản này chạy trong Claude nên có AI sửa lỗi và hội thoại, chấm phát âm theo từ.${CFG.webUrl.startsWith("http")?` Muốn chấm chi tiết từng âm, mở <a href="${esc(CFG.webUrl)}">bản web TCV Talks</a> bằng Chrome.`:""}</p>`}
+  ${!IN_CLAUDE?`<label class="switch"><input type="checkbox" id="pm" ${S.phone?"checked":""} ${canMedia?"":"disabled"}><span><b>Chấm chi tiết từng âm như Elsa</b><br><span class="sm">Dùng mô hình nhận dạng âm vị chạy ngay trên máy bạn, không gửi giọng nói đi đâu. Lần đầu tải khoảng 355 MB, các lần sau dùng lại bản đã lưu. Nên bật trên máy tính hoặc điện thoại mạnh, dùng wifi.</span></span></label>`:`<p class="note">Bản này chạy trong Claude nên có AI sửa lỗi và hội thoại, chấm phát âm theo từ.${CFG.webUrl.startsWith("http")?` Muốn chấm chi tiết từng âm, mở <a href="${esc(CFG.webUrl)}">bản web TCV Talks</a> bằng Chrome.`:""}</p>`}
   ${weak.length?`<h3 class="sec-h">Âm bạn hay sai nhất</h3><table>${weak.map(([p,v])=>`<tr><td class="ipa" style="font-size:18px">/${esc(p)}/</td><td><div class="bar"><i style="width:${v}%;background:${v>=80?"var(--ok)":v>=50?"var(--mid)":"var(--red)"}"></i></div></td><td class="n">${v}%</td></tr>`).join("")}</table>`:""}`;
   app.querySelectorAll(".unit").forEach(b=>b.onclick=()=>location.hash=b.dataset.u);
-  const kv=$("#kv");if(kv)kv.onchange=()=>{stopAudio();S.kvoice=kv.checked;save()};const pm=$("#pm");if(pm)pm.onchange=()=>{S.phone=pm.checked;save();if(S.phone)loadModel().catch(()=>{})}}
+  const pm=$("#pm");if(pm)pm.onchange=()=>{S.phone=pm.checked;save();if(S.phone)loadModel().catch(()=>{})}}
 
 /* ---------- màn hình: hồ sơ cá nhân ---------- */
 function vProfile(){
@@ -2708,7 +2766,7 @@ function route(){
   window.scrollTo(0,0)}
 window.addEventListener("hashchange",route);
 window.__ot={finishPhones,splitPh,refOf,loadModel,recognize,toPCM,S};
-stats();route();
+setupVoicePicker();stats();route();
 }
 </script>
 </body>
