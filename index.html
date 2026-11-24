@@ -136,7 +136,7 @@ table{border-collapse:collapse;width:100%;background:var(--card);border-radius:1
     <div class="stats"><button type="button" id="lock-profile" hidden>Khóa hồ sơ</button><a class="mechip" href="#profile" id="me">Tạo hồ sơ</a><span class="s1">Cấp <b id="lvl">?</b></span><span class="s2">XP <b id="xp">0</b></span><span class="s3">Chuỗi <b id="streak">0</b> ngày</span></div>
   </div>
   <nav id="nav">
-    <a href="#today">Hôm nay</a><a href="#path">Lộ trình</a><a href="#review">Ôn tập<span class="dot hide" id="due"></span></a><a href="#speak">Luyện nói</a><a href="#listen">Luyện nghe</a><a href="#trans">Dịch câu</a><a href="#quiz">Bài tập</a><a href="#fix">Sửa lỗi</a><a href="#chat">Hội thoại AI</a>
+    <a href="#today">Hôm nay</a><a href="#path">Lộ trình</a><a href="#review">Ôn tập<span class="dot hide" id="due"></span></a><a href="#speak">Luyện nói</a><a href="#listen">Luyện nghe</a><a href="#trans">Dịch câu</a><a href="#quiz">Bài tập</a><a href="#fix">Sửa lỗi</a><a href="#chat">Học 1-1 với AI</a>
   </nav>
 </header>
 <div class="preference-row"><details id="voice-picker" class="voice-picker" hidden>
@@ -2197,7 +2197,7 @@ const SENT=[];UNITS.forEach(u=>u.p.forEach((p,i)=>SENT.push({uid:u.id,i,en:p[0],
 const uById=id=>UNITS.find(u=>u.id===id);
 
 /* ---------- hồ sơ học viên: tên + mã PIN, lưu trên máy chủ ---------- */
-const emptyProgress=()=>({xp:0,lv:0,best:{},days:{},cards:{},ph:{},done:{},phone:false,mine:[]});
+const emptyProgress=()=>({xp:0,lv:0,best:{},days:{},cards:{},ph:{},done:{},phone:false,mine:[],sessions:[],hw:null});
 let S=emptyProgress(), activeLearner=null, profileWrite=Promise.resolve(), profileSaveFailed=false, profileTimer=0, profileDirty=false;
 let profileScreenMode="open";
 let profileAccessBusy=false;
@@ -2769,6 +2769,7 @@ function vToday(){
   +`
   <div class="kpi"><div class="k1"><span class="sm">Mục tiêu hôm nay</span><b>${t}/${goal} XP</b><div class="goal"><i style="width:${Math.min(100,t/goal*100)}%"></i></div></div><div class="k2"><span class="sm">Câu cần ôn</span><b>${due}</b></div><div class="k3"><span class="sm">Câu đã đạt</span><b>${mast}/${SENT.length}</b></div><div class="k4"><span class="sm">Chuỗi ngày</span><b>${streak()}</b></div></div>
   <div class="row">${due?`<a class="btn pri" href="#review">Ôn ${due} câu đến hạn</a>`:""}${next?`<a class="btn ${due?"":"pri"}" href="#${next.id}">Học tiếp: ${esc(next.t)}</a>`:""}${S.lv?'<a class="btn" href="#test">Làm lại bài kiểm tra</a>':""}</div>
+  ${S.hw&&S.hw.items&&S.hw.items.some(h=>!h.done)?`<div class="box"><b>Bài về nhà</b><p class="sm">Còn ${S.hw.items.filter(h=>!h.done).length} bài chưa làm từ buổi học ngày ${esc(S.hw.given)}.</p><a class="btn pri" href="#chat">Làm bài về nhà</a></div>`:""}
   ${S.prof&&rc.length?`<h3 class="sec-h">Gợi ý riêng cho ${nm}</h3><div class="grid">${rc.map(unitCard).join("")}</div>`:""}
   <h3 class="sec-h">Cách học hiệu quả với web này</h3>
   <div class="tip"><p>Mỗi ngày 15 đến 20 phút đều đặn tốt hơn học dồn. Thứ tự gợi ý: ôn câu đến hạn, học một bài mới, rồi luyện nghe.</p><p>Với mỗi câu: nghe mẫu, bấm Nghe rồi nhại để bắt chước ngay ngữ điệu (kỹ thuật shadowing), xem từ nào đỏ, bấm vào từ đó để nghe lại và sửa. Câu nào đã luyện sẽ tự quay lại đúng lúc sắp quên.</p></div>
@@ -3131,7 +3132,7 @@ function vFix(){
       <div class="row"><button class="sec" id="prn">${I.mic} Luyện nói câu này</button></div></div>`;
       o.querySelectorAll("[data-say]").forEach(x=>x.onclick=()=>say(x.dataset.say));$("#prn").onclick=()=>{curList=[{en:r.natural,vi:""}];cur=0;location.hash="speak"};gain(3)}
     catch(e){o.innerHTML=`<div class="box">${e&&e.code==="rate_limited"?"AI đang bận, thử lại sau ít phút.":"Không sửa được lúc này, thử lại."}</div>`}b.disabled=false}}
-const SCN=[["Họp 1-1 với sếp","your manager in a weekly one-on-one meeting, asking about project progress and blockers"],["Phỏng vấn xin việc","an interviewer at a tech company interviewing the learner for a team leader role"],["Khách hàng phàn nàn","an upset customer whose order was charged twice; the learner is the support agent"],["Góp ý cho nhân viên","a junior agent receiving coaching feedback from the learner, who is their team leader"],["Đồng nghiệp mới","a friendly new colleague making small talk in the office kitchen"],["Báo cáo sự cố","a senior manager asking the learner about an urgent production incident"]];
+const SCN=[["Học 1-1 với giáo viên AI","a friendly English teacher giving a one-on-one speaking lesson: chat about the learner's work and daily life, ask follow-up questions, keep the learner talking"],["Họp 1-1 với sếp","your manager in a weekly one-on-one meeting, asking about project progress and blockers"],["Phỏng vấn xin việc","an interviewer at a tech company interviewing the learner for a team leader role"],["Khách hàng phàn nàn","an upset customer whose order was charged twice; the learner is the support agent"],["Góp ý cho nhân viên","a junior agent receiving coaching feedback from the learner, who is their team leader"],["Đồng nghiệp mới","a friendly new colleague making small talk in the office kitchen"],["Báo cáo sự cố","a senior manager asking the learner about an urgent production incident"]];
 let chat={s:-1,log:[]};
 let chatMicSession;
 function cancelChatMic(){
@@ -3174,31 +3175,59 @@ async function transcriptFromAudio(blob,signal){
   }
 }
 
-function defScn(){const p=P(),g=p.goals||[];if(p.role==="lead")return 3;if(g.includes("customer")||p.role==="cs")return 2;if(g.includes("interview"))return 1;if(g.includes("meet"))return 0;if(g.includes("small"))return 4;return 0}
+
+const HWT={speaking:"Nói",writing:"Viết",reading:"Đọc",listening:"Nghe"};
+const fbHTML=f=>`<b>Nhận xét</b><p>${esc(f.feedback||"")}</p>${f.better?`<p>Bản tốt hơn: <b class="good">${esc(f.better)}</b> <button class="ico" data-say="${esc(f.better)}" aria-label="Nghe">${I.spk}</button></p>`:""}`;
+function drawHw(box){
+  const hw=S.hw;
+  if(!hw||!hw.items||!hw.items.length){box.innerHTML="";return}
+  box.innerHTML=`<div class="box"><b>Bài về nhà</b> <span class="sm">giao ngày ${esc(hw.given)}</span>`+hw.items.map((h,i)=>`<div style="margin-top:14px"><label><input type="checkbox" data-done="${i}" ${h.done?"checked":""}> <b>${HWT[h.type]||"Bài tập"}:</b> ${esc(h.task)}</label>${h.en?`<div class="sm" style="margin:6px 0">${esc(h.en)} <button class="ico" data-say="${esc(h.en)}" aria-label="Nghe">${I.spk}</button></div>`:""}<textarea data-ans="${i}" rows="2" style="min-height:70px" placeholder="Viết hoặc dán câu trả lời để AI nhận xét">${esc(h.ans||"")}</textarea><div class="row"><button class="sec" data-sub="${i}">Nộp bài, AI nhận xét</button></div><div class="box ${h.fb?"":"hide"}" data-fb="${i}">${h.fb?fbHTML(h.fb):""}</div></div>`).join("")+`</div>`;
+  box.querySelectorAll("[data-say]").forEach(b=>b.onclick=()=>say(b.dataset.say));
+  box.querySelectorAll("[data-done]").forEach(c=>c.onchange=()=>{S.hw.items[+c.dataset.done].done=c.checked;save()});
+  box.querySelectorAll("[data-ans]").forEach(t=>t.onchange=()=>{S.hw.items[+t.dataset.ans].ans=t.value;save()});
+  box.querySelectorAll("[data-sub]").forEach(b=>b.onclick=async()=>{
+    const i=+b.dataset.sub,h=S.hw.items[i],ans=box.querySelector(`[data-ans="${i}"]`).value.trim(),out=box.querySelector(`[data-fb="${i}"]`);
+    if(!ans){out.classList.remove("hide");out.textContent="Bạn viết câu trả lời vào ô trên trước nhé.";return}
+    out.classList.remove("hide");out.textContent="Giáo viên AI đang chấm…";b.disabled=true;
+    try{
+      const f=await askJSON(`You are an English teacher marking homework for a Vietnamese office worker${roleText()?" working as: "+roleText():""}. Homework type: ${h.type}. Task: ${h.task}. ${h.en?"Material: "+h.en+". ":""}The learner's answer: "${ans}". Give feedback in Vietnamese: what was good, the mistakes with a very short explanation, and a better English version if useful. Return only JSON: {"feedback":"tối đa 5 câu","better":"bản tiếng Anh tốt hơn hoặc chuỗi rỗng"}`);
+      h.ans=ans;h.fb={feedback:String(f.feedback||""),better:String(f.better||"")};h.done=true;gain(5);save();
+      out.innerHTML=fbHTML(h.fb);out.querySelectorAll("[data-say]").forEach(x=>x.onclick=()=>say(x.dataset.say));
+      const c=box.querySelector(`[data-done="${i}"]`);if(c)c.checked=true;
+    }catch(e){out.textContent=e&&e.code==="rate_limited"?"AI đang bận, thử lại sau ít phút.":"Chưa chấm được lúc này, thử lại nhé."}
+    b.disabled=false})}
+const nz=v=>v==null||isNaN(+v)?null:Math.max(0,Math.min(100,Math.round(+v)));
+function reviewHTML(r){
+  const sc=r.scores||{},parts=[["Trôi chảy",sc.fluency],["Ngữ pháp",sc.grammar],["Từ vựng",sc.vocabulary],["Phát âm",sc.pronunciation]].filter(x=>nz(x[1])!=null).map(x=>x[0]+" <b>"+nz(x[1])+"</b>").join(" · ");
+  const ul=a=>"<ul>"+(a||[]).map(x=>`<li>${esc(x)}</li>`).join("")+"</ul>";
+  return `<div class="box"><h3 class="sec-h" style="margin-top:0">Nhận xét buổi học</h3><p>${esc(r.summary||"")}</p><p class="sm">Trình độ ước lượng: <b>${esc(r.level||"?")}</b>${parts?" · "+parts:""}. Điểm do AI ước lượng, dùng để theo dõi tiến bộ chứ không phải điểm thi.</p><b>Điểm mạnh</b>${ul(r.strengths)}<b>Cần cải thiện</b>${ul(r.weaknesses)}</div>`}
 function vChat(){
-  if(chat.s<0)chat.s=defScn();
+  if(chat.s<0)chat.s=0;
   const localMic=Boolean(dict||WSR);
   const cloudMic=AIWEB&&canMedia;
   const canUseMic=cloudMic||localMic;
-  app.innerHTML=`<h2>Hội thoại với AI</h2><p class="lead">Chọn tình huống, AI đóng vai người đối diện. Bạn nói hoặc gõ trả lời, AI vừa đáp vừa sửa câu cho bạn.</p>${ai?"":noAI()}
+  app.innerHTML=`<h2>Hội thoại với AI</h2><p class="lead">Nói chuyện 1-1 với giáo viên AI hoặc chọn một tình huống khác. AI nghe giọng thật của bạn, sửa câu và phát âm ngay trong lúc nói. Cuối buổi bấm Kết thúc để nhận nhận xét điểm mạnh, điểm yếu và bài về nhà.</p>${ai?"":noAI()}
   <label class="sm" for="cs">Tình huống</label>
   <select id="cs">${SCN.map((s,i)=>`<option value="${i}" ${i===chat.s?"selected":""}>${esc(s[0])}</option>`).join("")}</select>
   <div class="chat" id="cl"></div>
+  <div id="rv"></div>
+  <div id="hw"></div>
   <div class="row"><input type="text" id="ci" placeholder="Trả lời bằng tiếng Anh" autocomplete="off" style="flex:1 1 220px">
     ${canUseMic?`<button id="cm" type="button" aria-pressed="false">${I.mic}<span id="cm-label">Bật mic</span></button>`:""}<button class="pri" id="cg">Gửi</button></div>
   <p class="sm" id="chat-status" role="status"></p>
-  ${cloudMic?'<p class="sm">Sau khi dừng ghi, bản thu được gửi đến Cloudflare để chuyển thành chữ. Bạn có thể sửa câu trước khi bấm Gửi.</p>':!canUseMic?'<p class="sm">Mic chưa dùng được trong trình duyệt này. Bạn có thể gõ câu trả lời.</p>':""}
-  <div class="row"><button id="cr" class="sec">${chat.log.length?"Bắt đầu lại":"Bắt đầu"}</button></div>`;
-  const input=$("#ci"),cm=$("#cm"),status=$("#chat-status"),start=$("#cr"),sendButton=$("#cg"),scenario=$("#cs"),cl=$("#cl");
+  ${cloudMic?'<p class="sm">Bấm Bật mic, nói tối đa 15 giây, bấm Dừng ghi: bản thu được gửi cho Gemini nghe và trả lời ngay. Nếu Gemini bận, web chuyển giọng thành chữ để bạn sửa rồi bấm Gửi.</p>':!canUseMic?'<p class="sm">Mic chưa dùng được trong trình duyệt này. Bạn có thể gõ câu trả lời.</p>':""}
+  <div class="row"><button id="cr" class="sec">${chat.log.length?"Bắt đầu lại":"Bắt đầu"}</button><button id="ce" class="pri">Kết thúc buổi học và nhận xét</button></div>`;
+  const input=$("#ci"),cm=$("#cm"),status=$("#chat-status"),start=$("#cr"),sendButton=$("#cg"),scenario=$("#cs"),cl=$("#cl"),endBtn=$("#ce"),rv=$("#rv");
   let recorder,working=false;
   function draw(){
-    cl.innerHTML=chat.log.length?chat.log.map(m=>m.r==="ai"?`<div class="msg ai">${esc(m.t)}</div>`:`<div class="msg me">${esc(m.t)}</div>${m.fix?`<div class="fixn">Nên nói: <b class="good">${esc(m.fix)}</b>${m.note?" · "+esc(m.note):""}</div>`:""}`).join(""):'<p class="sm">Bấm Bắt đầu để AI mở lời.</p>';
+    cl.innerHTML=chat.log.length?chat.log.map(m=>m.r==="ai"?`<div class="msg ai">${esc(m.t)}</div>`:`<div class="msg me">${esc(m.t)}</div>${m.fix?`<div class="fixn">Nên nói: <b class="good">${esc(m.fix)}</b>${m.note?" · "+esc(m.note):""}</div>`:""}${m.pron?`<div class="fixn">Phát âm: ${esc(m.pron)}</div>`:""}`).join(""):'<p class="sm">Bấm Bắt đầu để AI mở lời.</p>';
     cl.scrollTop=cl.scrollHeight;
   }
   function controls(){
     const recording=recorder?.state==="recording"||(!cloudMic&&rec.on);
     sendButton.disabled=!ai||working||!!chatMicSession;
     start.disabled=!ai||working||!!chatMicSession;
+    endBtn.disabled=!ai||working||!!chatMicSession||chat.log.filter(m=>m.r==="me").length<2;
     scenario.disabled=working||!!chatMicSession;
     if(cm){
       cm.disabled=working||(!!chatMicSession&&!recording);
@@ -3207,37 +3236,80 @@ function vChat(){
       $("#cm-label").textContent=recording?"Dừng ghi":"Bật mic";
     }
   }
-  async function turn(u){
-    if(!ai||working||chatMicSession)return;
+  async function turn(u,blob){
+    if(!ai||working||chatMicSession)return true;
     working=true;
     controls();
     prepareVoiceContext();
     if(u)chat.log.push({r:"me",t:u});
     draw();
-    status.textContent="AI đang chuẩn bị trả lời…";
+    status.textContent=blob?"Giáo viên AI đang nghe bạn nói…":"AI đang chuẩn bị trả lời…";
     const history=chat.log.slice(-16).map(m=>(m.r==="ai"?"AI: ":"Learner: ")+m.t).join("\n");
-    const prompt=`Role-play for English speaking practice. You are ${SCN[chat.s][1]}. The learner is a Vietnamese office worker${roleText()?" working as: "+roleText():""}${S.lv?" at "+["","A2","B1","B2"][S.lv]+" level":""}. Conversation so far:\n${history||"(none yet, open the conversation)"}\nReply in character with 1-3 short natural spoken sentences and end with a question. Also check the learner’s last message only, if there is one. Return only JSON: {"reply":"your line","fix":"corrected natural version of the learner’s last message, or empty string","note":"giải thích lỗi rất ngắn bằng tiếng Việt, hoặc chuỗi rỗng"}`;
+    const prev=(S.sessions||[])[0],opening=!u&&!blob&&!chat.log.length;
+    let extra="";
+    if(prev&&prev.weaknesses&&prev.weaknesses.length)extra+=` Weak points from the learner's earlier lessons: ${prev.weaknesses.slice(0,3).join("; ")}. Create natural chances to practise them.`;
+    if(opening&&S.hw&&S.hw.items&&S.hw.items.length)extra+=` Last lesson's homework: ${S.hw.items.map(h=>h.task).join(" | ")}. Greet ${P().name||"the learner"} warmly, ask in one short sentence whether they did it, then ask a first question.`;
+    const fmt=blob?
+      `The learner's latest turn is the attached audio. Listen to the real voice. Return only JSON: {"heard":"exact transcript of what the learner said, empty if nothing intelligible","reply":"your line","fix":"corrected natural version of what the learner said, or empty string","note":"giải thích lỗi ngữ pháp, từ vựng rất ngắn bằng tiếng Việt, hoặc chuỗi rỗng","pron":"lỗi phát âm chính bạn NGHE được, tiếng Việt kèm IPA, hoặc chuỗi rỗng nếu phát âm tốt"}`:
+      `Also check the learner’s last message only, if there is one. Return only JSON: {"reply":"your line","fix":"corrected natural version of the learner’s last message, or empty string","note":"giải thích lỗi rất ngắn bằng tiếng Việt, hoặc chuỗi rỗng"}`;
+    const prompt=`Role-play for English speaking practice. You are ${SCN[chat.s][1]}. The learner is a Vietnamese office worker${roleText()?" working as: "+roleText():""}${S.lv?" at "+["","A2","B1","B2"][S.lv]+" level":""}.${extra} Conversation so far:\n${history||"(none yet, open the conversation)"}\nReply in character with 1-3 short natural spoken sentences and end with a question. ${fmt}`;
     const request=new AbortController();
-    let timer;
+    let timer,ok=true;
     try{
-      const reply=AIWEB?gem({prompt,json:true},request.signal).then(v=>jparse(v.text)):askJSON(prompt);
+      const body=blob?{prompt,json:true,audio:{mime:(blob.type||"audio/webm").split(";")[0],data:await b64(blob)}}:{prompt,json:true};
+      const reply=AIWEB?gem(body,request.signal).then(v=>jparse(v.text)):askJSON(prompt);
       const deadline=new Promise((_,reject)=>{
-        timer=setTimeout(()=>{reject({code:"timeout"});request.abort()},25000);
+        timer=setTimeout(()=>{reject({code:"timeout"});request.abort()},blob?35000:25000);
       });
       const r=await Promise.race([reply,deadline]);
-      if(!app.contains(cl))return;
+      if(!app.contains(cl))return true;
+      if(blob){
+        const heard=typeof r.heard==="string"?r.heard.trim():"";
+        if(!heard){status.textContent="Chưa nghe rõ, bạn nói lại gần mic hơn nhé.";return true}
+        chat.log.push({r:"me",t:heard,aud:true,pron:String(r.pron||"")});
+      }
       const last=chat.log[chat.log.length-1];
-      if(u&&last?.r==="me"&&r.fix){last.fix=r.fix;last.note=r.note}
+      if((u||blob)&&last?.r==="me"&&r.fix){last.fix=r.fix;last.note=r.note}
       if(typeof r.reply!=="string"||!r.reply.trim())throw new Error("Empty chat reply");
       chat.log.push({r:"ai",t:r.reply});
       draw();
       status.textContent="";
       say(r.reply);
-      if(u)gain(2);
+      if(u||blob)gain(blob?3:2);
     }catch(e){
-      if(app.contains(cl))status.textContent=e?.code==="rate_limited"||e?.code==="timeout"?"AI phản hồi chậm. Bạn có thể thử lại.":"Chưa kết nối được với AI. Thử lại nhé.";
+      ok=!blob;
+      if(app.contains(cl))status.textContent=blob?"Gemini chưa nghe được, chuyển sang chuyển giọng thành chữ…":(e?.code==="rate_limited"||e?.code==="timeout"?"AI phản hồi chậm. Bạn có thể thử lại.":"Chưa kết nối được với AI. Thử lại nhé.");
     }finally{
       clearTimeout(timer);
+      working=false;
+      if(app.contains(cl))controls();
+    }
+    return ok;
+  }
+  async function endSession(){
+    const mine=chat.log.filter(m=>m.r==="me");
+    if(mine.length<2||working||!ai)return;
+    working=true;controls();
+    status.textContent="Giáo viên AI đang viết nhận xét buổi học…";
+    const audio=mine.filter(m=>m.aud).length;
+    const transcript=chat.log.slice(-40).map(m=>m.r==="ai"?"Teacher: "+m.t:"Learner: "+m.t+(m.fix?` [correction: ${m.fix}]`:"")+(m.note?` [note: ${m.note}]`:"")+(m.pron?` [pronunciation: ${m.pron}]`:"")).join("\n");
+    const oldHw=S.hw&&S.hw.items&&S.hw.items.length?` Homework from the previous lesson: ${S.hw.items.map(h=>h.task+(h.done?" (marked done)":" (not done)")).join(" | ")}.`:"";
+    const prompt=`You are a warm but honest English teacher who has just finished a one-on-one speaking lesson with a Vietnamese office worker${roleText()?" working as: "+roleText():""}${S.lv?" at "+["","A2","B1","B2"][S.lv]+" level":""}. Lesson transcript with the corrections already noted:\n${transcript}\n${audio?`${audio} of ${mine.length} learner turns were heard as real audio, so pronunciation can be judged.`:"No learner turn was heard as audio, so set pronunciation to null."}${oldHw}\nWrite the review in Vietnamese. Base every point on what the learner really said and quote real mistakes. Return only JSON: {"summary":"3 đến 4 câu nhận xét buổi học như giáo viên","level":"A2 hoặc B1 hoặc B2 (ước lượng)","scores":{"fluency":0-100,"grammar":0-100,"vocabulary":0-100,"pronunciation":0-100 hoặc null},"strengths":["2 đến 3 điểm mạnh cụ thể"],"weaknesses":["2 đến 3 điểm yếu cụ thể kèm ví dụ lỗi thật của học viên"],"homework":[{"type":"speaking hoặc writing hoặc reading hoặc listening","task":"hướng dẫn rõ ràng bằng tiếng Việt, làm được trong 5 đến 10 phút","en":"nội dung tiếng Anh cần dùng (đoạn văn ngắn để đọc, đề bài, câu mẫu) hoặc chuỗi rỗng"}]}. Give exactly 3 homework items, each aimed at one of the weaknesses.`;
+    try{
+      const r=AIWEB?jparse((await gem({prompt,json:true})).text):await askJSON(prompt);
+      if(!app.contains(cl))return;
+      const arr=a=>(Array.isArray(a)?a:[]).map(x=>String(x)).filter(Boolean).slice(0,4);
+      const rev={d:today(),scn:SCN[chat.s][0],turns:mine.length,summary:String(r.summary||""),level:String(r.level||""),scores:r.scores||{},strengths:arr(r.strengths),weaknesses:arr(r.weaknesses)};
+      S.sessions=[rev,...(S.sessions||[])].slice(0,30);
+      S.hw={given:today(),items:(Array.isArray(r.homework)?r.homework:[]).slice(0,3).map(h=>({type:HWT[h&&h.type]?h.type:"speaking",task:String(h&&h.task||""),en:String(h&&h.en||""),done:false})).filter(h=>h.task)};
+      gain(10);save();
+      rv.innerHTML=reviewHTML(rev);
+      drawHw($("#hw"));
+      status.textContent="";
+      rv.scrollIntoView({behavior:"smooth",block:"start"});
+    }catch(e){
+      if(app.contains(cl))status.textContent=e?.code==="rate_limited"?"AI đang bận, thử lại sau ít phút.":"Chưa viết được nhận xét lúc này, bạn bấm lại nhé."
+    }finally{
       working=false;
       if(app.contains(cl))controls();
     }
@@ -3276,12 +3348,20 @@ function vChat(){
     try{
       recorder=await recordAudio(async blob=>{
         if(!blob?.size){finishMic(session,"Chưa thu được tiếng. Bật mic và thử lại.");return}
-        status.textContent="Đang chuyển lời nói thành chữ…";
+        if(session.signal.aborted||chatMicSession!==session||!app.contains(cl))return;
+        chatMicSession=null;recorder=null;
         controls();
+        const sent=await turn(null,blob);
+        if(sent||!app.contains(cl))return;
+        const fb=new AbortController();
+        status.textContent="Đang chuyển lời nói thành chữ…";
         try{
-          const text=await transcriptFromAudio(blob,session.signal);
-          finishMic(session,text?"Sửa lại câu nếu cần, rồi bấm Gửi.":"Chưa nghe rõ. Nói lại gần mic hơn nhé.",text);
-        }catch(e){finishMic(session,"Chưa nhận dạng được lời nói. Bạn có thể thử lại hoặc gõ câu trả lời.")}
+          const text=await transcriptFromAudio(blob,fb.signal);
+          if(text)input.value=text;
+          status.textContent=text?"Sửa lại câu nếu cần, rồi bấm Gửi.":"Chưa nghe rõ. Nói lại gần mic hơn nhé.";
+          if(text)input.focus();
+        }catch(e){status.textContent="Chưa nhận dạng được lời nói. Bạn có thể thử lại hoặc gõ câu trả lời."}
+        controls();
       },session.signal);
       if(session.signal.aborted)return;
       status.textContent="Đang ghi âm. Bấm Dừng ghi khi nói xong.";
@@ -3293,8 +3373,10 @@ function vChat(){
   }
   sendButton.onclick=send;
   input.onkeydown=e=>{if(e.key==="Enter"&&!e.isComposing)send()};
-  scenario.onchange=()=>{chat={s:+scenario.value,log:[]};status.textContent="";draw()};
-  start.onclick=()=>{chat={s:chat.s,log:[]};start.textContent="Bắt đầu lại";turn()};
+  scenario.onchange=()=>{chat={s:+scenario.value,log:[]};status.textContent="";rv.innerHTML="";draw();controls()};
+  start.onclick=()=>{chat={s:chat.s,log:[]};rv.innerHTML="";start.textContent="Bắt đầu lại";turn()};
+  endBtn.onclick=endSession;
+  drawHw($("#hw"));
   if(cm)cm.onclick=useMic;
   draw();
   controls();
