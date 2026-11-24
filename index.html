@@ -128,6 +128,7 @@ textarea{min-height:110px;resize:vertical}
 table{border-collapse:collapse;width:100%;background:var(--card);border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}td,th{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left}td.n{text-align:right;white-space:nowrap}
 @media(max-width:600px){.stats{width:100%;margin:0}.mic{width:80px;height:80px}.score{width:100px;height:100px;font-size:34px}}
 .course-room{display:grid;gap:16px}.course-room h3,.course-room p{margin:0}.course-room textarea{display:block;width:100%;margin-top:8px}.course-copy,#course-feedback{white-space:pre-line}.course-link{display:block;color:inherit;text-decoration:none;border:1px solid var(--line)}.course-link:hover,.course-link:focus-visible{border-color:var(--sl)}#course-start{display:grid;gap:18px;max-width:620px}#course-start label{display:grid;gap:6px}#course-start select,.course-room select{font:inherit;padding:8px}.course-room summary{cursor:pointer}#course-welcome{margin-bottom:20px}
+@media(max-width:600px){.course-room .row,.course-room .row button{width:100%}.course-room .row button{min-height:46px}.course-room textarea,.course-room input,#course-start select{font-size:16px;max-width:100%}.course-link{min-width:0}.kpi{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 </head>
 <body class="profile-locked">
@@ -2346,7 +2347,7 @@ const MINS=[[10,30],[15,50],[20,70],[30,100]];
 const TAGS={o1:["small","interview"],o2:["small"],o3:["meet"],o4:["call","meet","customer"],o5:["meet"],o6:["present"],o7:["customer"],o8:["meet"],o9:["customer"],o10:["interview"]};
 const ROLEU={cs:["o7","o9","o4"],lead:["o8","o9","o3","o6"],it:["o5","o9","o3"],sales:["o6","o7","o4"],admin:["o4","o2","o5"],mkt:["o6","o3","o2"]};
 const P=()=>S.prof||{};
-function goalXP(){const m=MINS.find(x=>x[0]===P().mins);return m?m[1]:50}
+function goalXP(){const minutes=S.courseV1?.minutes||P().mins;const m=MINS.find(x=>x[0]===minutes);return m?m[1]:minutes===5?15:50}
 function roleText(){const p=P();return p.role==="other"?(p.roleText||""):((ROLES.find(r=>r[0]===p.role)||[])[1]||"")}
 function fitScore(u){const p=P(),g=p.goals||[];let s=0;if(u.kind==="o"){(TAGS[u.id]||[]).forEach(t=>{if(g.includes(t))s+=3});if((ROLEU[p.role]||[]).includes(u.id))s+=2}else{if(g.includes("pron"))s+=3;if(S.lv===1)s+=2}const writing=S.lastAssessment?.writing;
   if(writing?.review?.score<75&&u.id===writing.unit)s+=6;
@@ -2579,7 +2580,7 @@ function webSay(text,rate,signal){
     const u=new SpeechSynthesisUtterance(text);
     u.lang="en-US";
     u.rate=rate*.95;
-    if(voice)u.voice=voice;
+    if(voice&&voice.lang.toLowerCase().startsWith("en"))u.voice=voice;
     const finish=ok=>{
       signal.removeEventListener("abort",cancel);
       resolve(ok);
@@ -2601,6 +2602,12 @@ async function say(text,rate=1,vk="f"){
   const {signal}=request;
   try{
     if(tts){await tts.speak(text,{language:"en",rate});return}
+    if(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)){
+      voiceStatus("Đang phát giọng đọc…");
+      const played=await webSay(text,rate,signal);
+      if(!signal.aborted)voiceStatus(played?"":"Không phát được âm thanh. Kiểm tra âm lượng và bấm nghe lại.");
+      return;
+    }
     const ctx=prepareVoiceContext();
     if(ctx){
       voiceStatus("Đang tải âm thanh…");
@@ -2770,6 +2777,7 @@ function vToday(){
   const weak=Object.entries(S.ph).filter(([p,v])=>v[1]>=4).map(([p,v])=>[p,Math.round(v[0]/v[1]*100)]).sort((a,b)=>a[1]-b[1]).slice(0,6);
   app.innerHTML=course.hero()
   +`
+  ${t>=goal?`<div class="tip" role="status"><strong>Giỏi lắm ${nm}! Bạn đã đạt mục tiêu hôm nay. Mỗi ngày một chút, bạn đang tiến bộ rồi.</strong></div>`:""}
   <div class="kpi"><div class="k1"><span class="sm">Mục tiêu hôm nay</span><b>${t}/${goal} XP</b><div class="goal"><i style="width:${Math.min(100,t/goal*100)}%"></i></div></div><div class="k2"><span class="sm">Câu cần ôn</span><b>${due}</b></div><div class="k3"><span class="sm">Câu đã đạt</span><b>${mast}/${SENT.length}</b></div><div class="k4"><span class="sm">Chuỗi ngày</span><b>${streak()}</b></div></div>
   <div class="row">${due?`<a class="btn pri" href="#review">Ôn ${due} câu đến hạn</a>`:""}${next?`<a class="btn ${due?"":"pri"}" href="#${next.id}">Luyện thêm: ${esc(next.t)}</a>`:""}${S.lv?'<a class="btn" href="#test">Làm lại bài kiểm tra</a>':""}</div>
   ${S.hw&&S.hw.items&&S.hw.items.some(h=>!h.done)?`<div class="box"><b>Bài về nhà</b><p class="sm">Còn ${S.hw.items.filter(h=>!h.done).length} bài chưa làm từ buổi học ngày ${esc(S.hw.given)}.</p><a class="btn pri" href="#chat">Làm bài về nhà</a></div>`:""}
@@ -3435,7 +3443,7 @@ function createCourse(rows){
     const head=`<div class="row">${link("#course-path","← Lộ trình")}<span>${l.level} · ${w.finished?"Đã hoàn thành":"Bước "+(w.step+1)+"/3"}</span></div><h2>${esc(l.title)}</h2><p class="lead">${esc(l.outcome)}</p>`;
     if(w.finished){
       const following=next();
-      app.innerHTML=head+`<section class="box"><h3>Bài làm của bạn</h3><p class="course-copy">${esc(w.draft)}</p><p>${w.first===l.key?"Bạn trả lời đúng câu hiểu tình huống ngay lần đầu.":"Bạn đã sửa câu hiểu tình huống sau khi xem gợi ý."}</p>${w.feedback?"<p>"+esc(w.feedback)+"</p>":""}<div class="row">${following?link(url(following),"Bài tiếp theo",true):link("#course-path","Chọn bài tiếp",true)}<button id="revise">Sửa bài viết</button>${link("#notebook","Sổ tay và ôn tập")}${!activeLearner?link("#access","Mở hồ sơ"):""}</div></section>`;
+      app.innerHTML=head+`<section class="box">${activeLearner&&(S.days[today()]||0)>=goalXP()?"<p><strong>Giỏi lắm! Bạn đã đạt mục tiêu hôm nay. Cảm ơn bạn đã dành thời gian học tiếng Anh!</strong></p>":"<p><strong>Hoàn thành bài rồi, bạn làm tốt lắm!</strong></p>"}<h3>Bài làm của bạn</h3><p class="course-copy">${esc(w.draft)}</p><p>${w.first===l.key?"Bạn trả lời đúng câu hiểu tình huống ngay lần đầu.":"Bạn đã sửa câu hiểu tình huống sau khi xem gợi ý."}</p>${w.feedback?"<p>"+esc(w.feedback)+"</p>":""}<div class="row">${following?link(url(following),"Bài tiếp theo",true):link("#course-path","Chọn bài tiếp",true)}<button id="revise">Sửa bài viết</button>${link("#notebook","Sổ tay và ôn tập")}${!activeLearner?link("#access","Mở hồ sơ"):""}</div></section>`;
       $("#revise").onclick=()=>{w.finished=false;w.step=2;lesson(l)};return;
     }
     const parts=l.source.split(" | ");
@@ -3472,7 +3480,7 @@ function createCourse(rows){
         }catch{if(out.isConnected)out.textContent="AI chưa phản hồi. Bạn có thể thử lại hoặc xem cách diễn đạt tham khảo."}finally{button.disabled=false}
       };
     }
-    advance.onclick=()=>{if(w.step===2){w.finished=true;w.date=today()}else w.step++;lesson(l)};
+    advance.onclick=()=>{if(w.step===2){w.finished=true;w.date=today();if(activeLearner&&!w.awarded){w.awarded=true;gain(25)}}else w.step++;lesson(l)};
   }
   function notebook(){
     const d=db(),finished=Object.values(d.work).filter(w=>w.finished),attempted=Object.values(d.work).filter(w=>w.first!=null);
