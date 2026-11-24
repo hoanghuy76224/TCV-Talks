@@ -53,13 +53,60 @@ async function synthesize(req, env, headers) {
   }
 }
 
+async function transcribe(req, env, headers) {
+  if (req.method !== "POST") return out({ error: "method" }, 405, headers);
+  if (!env.AI) return out({ error: "transcription_unavailable" }, 503, headers);
+  const limit = 650000;
+  if (!req.body || +(req.headers.get("Content-Length") || 0) > limit) {
+    return out({ error: "invalid_audio_size" }, 400, headers);
+  }
+
+  const reader = req.body.getReader();
+  const bytes = new Uint8Array(limit);
+  let size = 0;
+  let audio;
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (size + value.length > limit) {
+        await reader.cancel();
+        return out({ error: "too_big" }, 413, headers);
+      }
+      bytes.set(value, size);
+      size += value.length;
+    }
+    audio = JSON.parse(new TextDecoder().decode(bytes.subarray(0, size))).audio;
+  } catch (e) {
+    return out({ error: "bad_json" }, 400, headers);
+  } finally {
+    reader.releaseLock();
+  }
+  if (typeof audio !== "string" || !audio.startsWith("UklGR") || /[^A-Za-z0-9+/=]/.test(audio)) {
+    return out({ error: "invalid_audio" }, 400, headers);
+  }
+
+  try {
+    const result = await env.AI.run("@cf/openai/whisper-large-v3-turbo", {
+      audio, language: "en", task: "transcribe", vad_filter: true
+    });
+    return out({ text: result.text?.trim() || "" }, 200, { ...headers, "Cache-Control": "no-store" });
+  } catch (e) {
+    return out({ error: "transcription_unavailable" }, 503, headers);
+  }
+}
+
 export default {
   async fetch(req, env) {
     const origin = req.headers.get("Origin") || "";
     const ok = allowed(origin, env);
     const h = ok ? cors(origin) : {};
     if (req.method === "OPTIONS") return new Response(null, { status: ok ? 204 : 403, headers: h });
-    if (new URL(req.url).pathname === "/tts") {
+    const path = new URL(req.url).pathname;
+    if (path === "/transcribe") {
+      return ok ? transcribe(req, env, h) : out({ error: "origin" }, 403, h);
+    }
+    if (path === "/tts") {
       return ok ? synthesize(req, env, h) : out({ error: "origin" }, 403, h);
     }
     if (req.method === "GET") return out({ ok: true, key: !!env.GEMINI_KEY }, 200, h);
