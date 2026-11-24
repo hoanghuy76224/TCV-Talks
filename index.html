@@ -121,6 +121,7 @@ table{border-collapse:collapse;width:100%;background:var(--card);border-radius:1
     <a href="#today">Hôm nay</a><a href="#path">Lộ trình</a><a href="#review">Ôn tập<span class="dot hide" id="due"></span></a><a href="#speak">Luyện nói</a><a href="#listen">Luyện nghe</a><a href="#trans">Dịch câu</a><a href="#quiz">Bài tập</a><a href="#fix">Sửa lỗi</a><a href="#chat">Hội thoại AI</a>
   </nav>
 </header>
+<p id="voice-status" class="sm" role="status" hidden style="max-width:960px;margin:8px auto;padding:0 16px"></p>
 <main id="app"></main>
 <script>(function (global, factory) {
   typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
@@ -2221,45 +2222,122 @@ async function gemRecord(onStop){try{const st=await navigator.mediaDevices.getUs
 if(IN_CLAUDE){window.claude.use("tts").then(x=>tts=x).catch(()=>{});window.claude.use("dictation").then(x=>{dict=x;if(x)wireDict()}).catch(()=>{});window.claude.use("sample").then(x=>{ai=x;if(/fix|chat|speak/.test(location.hash))route()}).catch(()=>{})}
 let voice=null;function pickVoice(){try{const v=speechSynthesis.getVoices().filter(v=>/^en[-_]US/i.test(v.lang));voice=v.find(v=>v.localService&&/Aria|Jenny|Natural|Samantha|Zira/i.test(v.name))||v.find(v=>v.localService)||v[0]||null}catch(e){}}
 try{pickVoice();speechSynthesis.onvoiceschanged=pickVoice}catch(e){}
-/* ---------- giọng AI Kokoro chạy trên máy (bản web) ---------- */
-const KV={f:"af_heart",m:"am_michael",f2:"af_bella",m2:"am_fenrir"};
-const KWORK=`let tts=null;self.onmessage=async e=>{const d=e.data;try{if(d.t==="init"){const {KokoroTTS}=await import("https://cdn.jsdelivr.net/npm/kokoro-js@1.2.1/dist/kokoro.web.js");let dev="wasm";try{if(navigator.gpu&&await navigator.gpu.requestAdapter())dev="webgpu"}catch(x){}
-tts=await KokoroTTS.from_pretrained("onnx-community/Kokoro-82M-v1.0-ONNX",{dtype:dev==="webgpu"?"fp32":"q8",device:dev,progress_callback:p=>{if(p&&p.file&&p.total)self.postMessage({t:"prog",file:p.file,loaded:p.loaded||0,total:p.total})}});self.postMessage({t:"ready",dev})}
-else{const r=await tts.generate(d.text,{voice:d.voice,speed:d.speed});self.postMessage({t:"done",id:d.id,blob:r.toBlob()})}}catch(err){self.postMessage({t:d.t==="init"?"fail":"done",id:d.id,err:String(err)})}}`;
-const K={w:null,ready:false,failed:false,busy:false,q:[],mem:new Map(),cb:new Map(),id:0,p:0};
-const kOn=()=>!IN_CLAUDE&&S.kvoice!==false;
-function kStatus(){const el=$("#kst");if(!el)return;el.textContent=K.ready?"Giọng AI tự nhiên đã sẵn sàng"+(K.dev==="webgpu"?" (dùng card đồ họa)":""):K.failed?"Máy này chưa chạy được giọng AI, đang dùng giọng có sẵn của trình duyệt.":K.w?"Đang tải giọng AI… "+Math.round(K.p*100)+"%":"Giọng AI đang tắt."}
-function kInit(){if(K.w||K.failed||!kOn())return;
-  try{K.w=new Worker(URL.createObjectURL(new Blob([KWORK],{type:"text/javascript"})),{type:"module"})}catch(e){K.failed=true;return}
-  const seen={};
-  K.w.onmessage=e=>{const d=e.data;
-    if(d.t==="prog"){seen[d.file]=[d.loaded,d.total];let a=0,b=0;for(const k in seen){a+=seen[k][0];b+=seen[k][1]}K.p=a/b;kStatus()}
-    else if(d.t==="ready"){K.ready=true;K.dev=d.dev;kStatus();kRun()}
-    else if(d.t==="fail"){K.failed=true;K.w.terminate();K.w=null;K.q.forEach(x=>x.res(null));K.q=[];kStatus()}
-    else{const c=K.cb.get(d.id);K.cb.delete(d.id);K.busy=false;c&&c(d.blob||null);kRun()}};
-  K.w.onerror=()=>{if(!K.ready){K.failed=true;kStatus()}};
-  K.w.postMessage({t:"init"});kStatus()}
-function kRun(){if(!K.ready||K.busy||!K.q.length)return;const x=K.q.shift();K.busy=true;const id=++K.id;K.cb.set(id,x.res);K.w.postMessage({t:"gen",id,text:x.text,voice:x.voice,speed:x.speed})}
-async function kCache(key,blob){try{const c=await caches.open("tcv-tts-1");const u="/__tts/"+encodeURIComponent(key);if(blob){await c.put(u,new Response(blob));return null}const r=await c.match(u);return r?await r.blob():null}catch(e){return null}}
-function kGet(text,voice,speed,urgent){
-  const key=voice+"|"+speed+"|"+text;let p=K.mem.get(key);
-  if(p){if(urgent){const i=K.q.findIndex(x=>x.key===key);if(i>0)K.q.unshift(K.q.splice(i,1)[0])}return p}
-  p=(async()=>{const c=await kCache(key);if(c)return URL.createObjectURL(c);
-    if(!kOn()||K.failed)return null;kInit();
-    const blob=await new Promise(res=>{const x={key,text,voice,speed,res};urgent?K.q.unshift(x):K.q.push(x);kRun()});
-    if(!blob)return null;kCache(key,blob);return URL.createObjectURL(blob)})();
-  K.mem.set(key,p);p.then(u=>{if(!u)K.mem.delete(key)});return p}
-function kPre(list){if(!kOn()||K.failed)return;list.forEach(([t,v,sp])=>t&&kGet(t,KV[v||"f"],sp||1,false))}
-let curAud=null;
-function stopAudio(){try{if(curAud){curAud.pause();curAud.onended&&curAud.onended()}}catch(e){}curAud=null;try{speechSynthesis.cancel()}catch(e){}}
-function playUrl(u){return new Promise(res=>{stopAudio();const a=new Audio(u);curAud=a;let d=false;const f=()=>{if(!d){d=true;res()}};a.onended=f;a.onerror=f;a.onpause=f;a.play().catch(f)})}
-function say(text,rate=1,vk){return new Promise(async res=>{
-  if(tts){tts.speak(text,{language:"en",rate}).then(res,()=>webSay(text,rate,res));return}
-  if(kOn()&&!K.failed){const sp=rate<1?.8:1;const key=KV[vk||"f"]+"|"+sp+"|"+text;
-    if(K.ready||K.mem.has(key)){const u=await kGet(text,KV[vk||"f"],sp,true);if(u){await playUrl(u);return res()}}
-    else{const c=await kCache(key);if(c){K.mem.set(key,Promise.resolve(URL.createObjectURL(c)));await playUrl(await K.mem.get(key));return res()}}}
-  stopAudio();webSay(text,rate,res)})}
-function webSay(text,rate,res){try{const s=window.speechSynthesis;s.cancel();const u=new SpeechSynthesisUtterance(text);u.lang="en-US";u.rate=rate*.95;if(voice)u.voice=voice;u.onend=()=>res();u.onerror=()=>res();s.speak(u)}catch(e){res()}}
+/* ---------- phát giọng tiếng Anh ---------- */
+const VOICE_SPEAKERS={f:"luna",m:"orion",f2:"thalia",m2:"apollo"};
+const cloudVoiceOn=()=>!IN_CLAUDE&&S.kvoice!==false;
+const voiceBuffers=new Map();
+let voiceContext, voiceRequest;
+
+function voiceStatus(message=""){
+  const el=$("#voice-status");
+  el.textContent=message;
+  el.hidden=!message;
+}
+
+function prepareVoiceContext(){
+  const Context=window.AudioContext||window.webkitAudioContext;
+  if(!cloudVoiceOn()||!Context)return;
+  try{
+    voiceContext??=new Context();
+    if(voiceContext.state!=="running")voiceContext.resume().catch(()=>{});
+    return voiceContext;
+  }catch(e){return null}
+}
+
+function stopAudio(){
+  voiceRequest?.abort();
+  voiceRequest=null;
+  window.speechSynthesis?.cancel();
+  voiceStatus();
+}
+
+async function voiceBuffer(text,speaker,ctx,signal){
+  const key=JSON.stringify([speaker,text]);
+  if(voiceBuffers.has(key))return voiceBuffers.get(key);
+  const controller=new AbortController();
+  const cancel=()=>controller.abort();
+  signal.addEventListener("abort",cancel,{once:true});
+  if(signal.aborted)cancel();
+  const timer=setTimeout(cancel,12000);
+  try{
+    const response=await fetch(new URL("/tts",CFG.aiUrl),{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({text,speaker}),signal:controller.signal
+    });
+    if(!response.ok)throw new Error("TTS "+response.status);
+    const buffer=await ctx.decodeAudioData(await response.arrayBuffer());
+    voiceBuffers.set(key,buffer);
+    if(voiceBuffers.size>24)voiceBuffers.delete(voiceBuffers.keys().next().value);
+    return buffer;
+  }finally{
+    clearTimeout(timer);
+    signal.removeEventListener("abort",cancel);
+  }
+}
+
+function playVoice(ctx,buffer,rate,signal){
+  return new Promise(resolve=>{
+    const source=ctx.createBufferSource();
+    source.buffer=buffer;
+    source.playbackRate.value=rate;
+    source.connect(ctx.destination);
+    const stop=()=>source.stop();
+    source.onended=()=>{
+      signal.removeEventListener("abort",stop);
+      source.disconnect();
+      resolve();
+    };
+    source.start();
+    signal.addEventListener("abort",stop,{once:true});
+  });
+}
+
+function webSay(text,rate,signal){
+  return new Promise(resolve=>{
+    const synth=window.speechSynthesis;
+    if(!synth||!window.SpeechSynthesisUtterance){resolve(false);return}
+    const u=new SpeechSynthesisUtterance(text);
+    u.lang="en-US";
+    u.rate=rate*.95;
+    if(voice)u.voice=voice;
+    const finish=ok=>{
+      signal.removeEventListener("abort",cancel);
+      resolve(ok);
+    };
+    const cancel=()=>{synth.cancel();finish(false)};
+    u.onend=()=>finish(true);
+    u.onerror=()=>finish(false);
+    signal.addEventListener("abort",cancel,{once:true});
+    try{synth.speak(u)}catch(e){finish(false)}
+  });
+}
+
+async function say(text,rate=1,vk="f"){
+  text=text.trim();
+  if(!text)return;
+  stopAudio();
+  const request=new AbortController();
+  voiceRequest=request;
+  const {signal}=request;
+  try{
+    if(tts){await tts.speak(text,{language:"en",rate});return}
+    const ctx=prepareVoiceContext();
+    if(ctx){
+      voiceStatus("Đang tải âm thanh…");
+      const buffer=await voiceBuffer(text,VOICE_SPEAKERS[vk],ctx,signal);
+      if(signal.aborted)return;
+      if(ctx.state!=="running")throw new Error("Audio context is suspended");
+      voiceStatus("Đang phát giọng AI…");
+      await playVoice(ctx,buffer,rate,signal);
+      if(!signal.aborted)voiceStatus();
+      return;
+    }
+  }catch(e){}
+  if(signal.aborted)return;
+  voiceStatus("Đang dùng giọng trình duyệt…");
+  const played=await webSay(text,rate,signal);
+  if(!signal.aborted)voiceStatus(played?"":"Không phát được giọng. Bấm Nghe để thử lại.");
+}
 
 /* ---------- ghi âm và nhận dạng ---------- */
 let rec={on:false};
@@ -2355,7 +2433,7 @@ const cls=s=>s>=80?"g":s>=50?"y":"r";
 
 /* ---------- thẻ luyện nói dùng chung ---------- */
 function speakCard(el,item,opt={}){
-  const ipa=ipaText(item.en);kPre([[item.en]]);
+  const ipa=ipaText(item.en);
   el.innerHTML=`<div class="card">
     <div class="target" id="tg">${esc(item.en)}</div>${ipa?`<div class="ipa">${esc(ipa)}</div>`:""}<div class="sm" style="margin-top:4px">${esc(item.vi||"")}</div>
     <div class="row center" style="margin-top:14px"><button data-a="say">${I.spk} Nghe mẫu</button><button data-a="slow">${I.slow} Nghe chậm</button><button data-a="shadow">${I.rep} Nghe rồi nhại</button></div>
@@ -2415,10 +2493,10 @@ function vToday(){
   ${S.prof&&rc.length?`<h3 class="sec-h">Gợi ý riêng cho ${nm}</h3><div class="grid">${rc.map(unitCard).join("")}</div>`:""}
   <h3 class="sec-h">Cách học hiệu quả với web này</h3>
   <div class="tip"><p>Mỗi ngày 15 đến 20 phút đều đặn tốt hơn học dồn. Thứ tự gợi ý: ôn câu đến hạn, học một bài mới, rồi luyện nghe.</p><p>Với mỗi câu: nghe mẫu, bấm Nghe rồi nhại để bắt chước ngay ngữ điệu (kỹ thuật shadowing), xem từ nào đỏ, bấm vào từ đó để nghe lại và sửa. Câu nào đã luyện sẽ tự quay lại đúng lúc sắp quên.</p></div>
-  ${!IN_CLAUDE?`<label class="switch"><input type="checkbox" id="kv" ${kOn()?"checked":""}><span><b>Giọng đọc AI tự nhiên</b><br><span class="sm">Giọng người thật do AI tạo, chạy ngay trên máy bạn. Lần đầu tải khoảng 90 đến 330 MB tùy máy, câu nào nghe rồi được lưu lại, lần sau phát ngay. <span id="kst"></span></span></span></label><label class="switch"><input type="checkbox" id="pm" ${S.phone?"checked":""} ${canMedia?"":"disabled"}><span><b>Chấm chi tiết từng âm như Elsa</b><br><span class="sm">Dùng mô hình nhận dạng âm vị chạy ngay trên máy bạn, không gửi giọng nói đi đâu. Lần đầu tải khoảng 355 MB, các lần sau dùng lại bản đã lưu. Nên bật trên máy tính hoặc điện thoại mạnh, dùng wifi.</span></span></label>`:`<p class="note">Bản này chạy trong Claude nên có AI sửa lỗi và hội thoại, chấm phát âm theo từ.${CFG.webUrl.startsWith("http")?` Muốn chấm chi tiết từng âm, mở <a href="${esc(CFG.webUrl)}">bản web TCV Talks</a> bằng Chrome.`:""}</p>`}
+  ${!IN_CLAUDE?`<label class="switch"><input type="checkbox" id="kv" ${cloudVoiceOn()?"checked":""}><span><b>Giọng đọc AI tự nhiên</b><br><span class="sm">Giọng tiếng Anh Deepgram Aura-2. Cần mạng để tải âm thanh. Khi dịch vụ bận, web sẽ thử dùng giọng trình duyệt.</span></span></label><label class="switch"><input type="checkbox" id="pm" ${S.phone?"checked":""} ${canMedia?"":"disabled"}><span><b>Chấm chi tiết từng âm như Elsa</b><br><span class="sm">Dùng mô hình nhận dạng âm vị chạy ngay trên máy bạn, không gửi giọng nói đi đâu. Lần đầu tải khoảng 355 MB, các lần sau dùng lại bản đã lưu. Nên bật trên máy tính hoặc điện thoại mạnh, dùng wifi.</span></span></label>`:`<p class="note">Bản này chạy trong Claude nên có AI sửa lỗi và hội thoại, chấm phát âm theo từ.${CFG.webUrl.startsWith("http")?` Muốn chấm chi tiết từng âm, mở <a href="${esc(CFG.webUrl)}">bản web TCV Talks</a> bằng Chrome.`:""}</p>`}
   ${weak.length?`<h3 class="sec-h">Âm bạn hay sai nhất</h3><table>${weak.map(([p,v])=>`<tr><td class="ipa" style="font-size:18px">/${esc(p)}/</td><td><div class="bar"><i style="width:${v}%;background:${v>=80?"var(--ok)":v>=50?"var(--mid)":"var(--red)"}"></i></div></td><td class="n">${v}%</td></tr>`).join("")}</table>`:""}`;
   app.querySelectorAll(".unit").forEach(b=>b.onclick=()=>location.hash=b.dataset.u);
-  kStatus();const kv=$("#kv");if(kv)kv.onchange=()=>{S.kvoice=kv.checked;save();if(kv.checked){K.failed=false;kInit()}kStatus()};const pm=$("#pm");if(pm)pm.onchange=()=>{S.phone=pm.checked;save();if(S.phone)loadModel().catch(()=>{})}}
+  const kv=$("#kv");if(kv)kv.onchange=()=>{stopAudio();S.kvoice=kv.checked;save()};const pm=$("#pm");if(pm)pm.onchange=()=>{S.phone=pm.checked;save();if(S.phone)loadModel().catch(()=>{})}}
 
 /* ---------- màn hình: hồ sơ cá nhân ---------- */
 function vProfile(){
@@ -2464,7 +2542,7 @@ function vPath(){
 let curList=SENT.map(s=>s),cur=0;
 function vUnit(u){
   const idx=UNITS.indexOf(u),prev=UNITS[idx-1],nxt=UNITS[idx+1];
-  const sents=u.p.map(p=>({en:p[0],vi:p[1]}));const vk0=["f","m","f2","m2"],sp0=[...new Set((u.d||[]).map(l=>l[0]))];kPre([...u.p.map(p=>[p[0]]),...(u.d||[]).map(l=>[l[1],vk0[sp0.indexOf(l[0])%4]])]);
+  const sents=u.p.map(p=>({en:p[0],vi:p[1]}));
   app.innerHTML=`<div class="row"><a class="btn" href="#path">← Lộ trình</a><span class="num">${u.kind==="p"?"Phát âm":"Văn phòng"} ${u.n} · ${LV[u.lv]}</span></div>
   <h2 style="margin-top:14px">${esc(u.t)}</h2><p class="lead">${esc(u.s)}</p>
   ${u.g?`<div class="tip">${u.g.map(x=>`<p>${esc(x)}</p>`).join("")}</div>`:`<div class="tip"><b>Mẹo phát âm:</b> ${esc(u.tip)}</div>`}
@@ -2551,7 +2629,7 @@ function vTrans(){
   $("#ta").focus()}
 
 function vListen(mode){
-  mode=mode||"type";const pool=SENT.filter(s=>!S.lv||uById(s.uid).lv<=S.lv+1);const it=pool[Math.floor(Math.random()*pool.length)];kPre([[it.en]]);
+  mode=mode||"type";const pool=SENT.filter(s=>!S.lv||uById(s.uid).lv<=S.lv+1);const it=pool[Math.floor(Math.random()*pool.length)];
   app.innerHTML=`<h2>Luyện nghe</h2><p class="lead">Nghe câu văn phòng thật rồi chép lại, hoặc chọn nghĩa đúng.</p>
   <div class="row"><button id="m1" class="${mode==="type"?"sec":""}">Nghe và chép</button><button id="m2" class="${mode==="mc"?"sec":""}">Nghe và chọn nghĩa</button></div>
   <div class="card" style="margin-top:14px"><div class="row center"><button class="pri" id="pl">${I.spk} Nghe</button><button id="pls">${I.slow} Nghe chậm</button></div><div id="lz" style="text-align:left;margin-top:16px"></div></div>
@@ -2610,28 +2688,27 @@ function vChat(){
   <div class="row" style="margin-top:10px"><button id="cr" class="sec" ${ai?"":"disabled"}>${chat.log.length?"Bắt đầu lại":"Bắt đầu"}</button></div>`;
   const cl=$("#cl");
   const draw=()=>{cl.innerHTML=chat.log.length?chat.log.map(m=>m.r==="ai"?`<div class="msg ai">${esc(m.t)}</div>`:`<div class="msg me">${esc(m.t)}</div>${m.fix?`<div class="fixn">Nên nói: <b class="good">${esc(m.fix)}</b>${m.note?" · "+esc(m.note):""}</div>`:""}`).join(""):'<p class="sm">Bấm Bắt đầu để AI mở lời.</p>';cl.scrollTop=cl.scrollHeight};
-  const turn=async u=>{if(!ai)return;const sc=SCN[chat.s];if(u)chat.log.push({r:"me",t:u});draw();const tr=chat.log.map(m=>(m.r==="ai"?"AI: ":"Learner: ")+m.t).join("\n");$("#cg").disabled=true;
+  const turn=async u=>{if(!ai)return;prepareVoiceContext();const sc=SCN[chat.s];if(u)chat.log.push({r:"me",t:u});draw();const tr=chat.log.map(m=>(m.r==="ai"?"AI: ":"Learner: ")+m.t).join("\n");$("#cg").disabled=true;
     try{const r=await askJSON(`Role-play for English speaking practice. You are ${sc[1]}. The learner is a Vietnamese office worker${P().name?" named "+P().name:""}${roleText()?" working as: "+roleText():""}${S.lv?" at "+["","A2","B1","B2"][S.lv]+" level":""}. Conversation so far:\n${tr||"(none yet, open the conversation)"}\nReply in character with 1-3 short natural spoken sentences and end with a question. Also check the learner's LAST message only. Return ONLY JSON: {"reply":"your line","fix":"corrected natural version of the learner's last message, or empty string if it was already good or there is none","note":"giải thích lỗi rất ngắn bằng tiếng Việt, hoặc chuỗi rỗng"}`);
       const last=chat.log[chat.log.length-1];if(u&&last&&last.r==="me"&&r.fix){last.fix=r.fix;last.note=r.note}chat.log.push({r:"ai",t:r.reply||"…"});draw();say(r.reply||"");if(u)gain(2)}
     catch(e){chat.log.push({r:"ai",t:e&&e.code==="rate_limited"?"(AI đang bận, thử lại sau)":"(Không kết nối được AI)"});draw()}$("#cg").disabled=false};
   const send=()=>{const v=$("#ci").value.trim();if(!v)return;$("#ci").value="";turn(v)};
   $("#cg").onclick=send;$("#ci").onkeydown=e=>{if(e.key==="Enter")send()};
   $("#cs").onchange=()=>{chat={s:+$("#cs").value,log:[]};draw()};$("#cr").onclick=()=>{chat={s:chat.s,log:[]};$("#cr").textContent="Bắt đầu lại";draw();turn()};
-  const cm=$("#cm");if(cm)cm.onclick=()=>{if(rec.on){stopRec();return}cm.classList.add("sec");startRec(t=>$("#ci").value=t,r=>{cm.classList.remove("sec");if(r.text){$("#ci").value="";turn(r.text)}})};
+  const cm=$("#cm");if(cm)cm.onclick=()=>{if(rec.on){stopRec();return}prepareVoiceContext();cm.classList.add("sec");startRec(t=>$("#ci").value=t,r=>{cm.classList.remove("sec");if(r.text){$("#ci").value="";turn(r.text)}})};
   draw()}
 
 /* ---------- điều hướng ---------- */
 function route(){
   const h=(location.hash||"#today").slice(1);
   document.querySelectorAll("#nav a").forEach(a=>{const t=a.getAttribute("href").slice(1);a.classList.toggle("on",t===h||(t==="path"&&/^[po]\d+$/.test(h))||(t==="today"&&(h==="test"||h==="profile")))});
-  if(rec.on)stopRec();try{speechSynthesis.cancel()}catch(e){}
+  if(rec.on)stopRec();stopAudio();
   const u=uById(h);
   if(u)vUnit(u);else if(h==="path")vPath();else if(h==="test")vTest();else if(h==="profile")vProfile();else if(h==="speak")vSpeak();else if(h==="review")vReview();else if(h==="listen")vListen();else if(h==="trans")vTrans();else if(h==="quiz")vQuiz();else if(h==="fix")vFix();else if(h==="chat")vChat();else vToday();
   window.scrollTo(0,0)}
 window.addEventListener("hashchange",route);
 window.__ot={finishPhones,splitPh,refOf,loadModel,recognize,toPCM,S};
 stats();route();
-if(kOn())setTimeout(kInit,1200);
 }
 </script>
 </body>
