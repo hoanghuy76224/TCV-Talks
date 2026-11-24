@@ -2196,13 +2196,9 @@ const UNITS=[...C.pron.map((u,i)=>({...u,kind:"p",n:i+1})),...C.office.map((u,i)
 const SENT=[];UNITS.forEach(u=>u.p.forEach((p,i)=>SENT.push({uid:u.id,i,en:p[0],vi:p[1]})));
 const uById=id=>UNITS.find(u=>u.id===id);
 
-/* ---------- lưu tiến độ trong trình duyệt ---------- */
+/* ---------- hồ sơ học viên: tên + mã PIN, lưu trên máy chủ ---------- */
 const emptyProgress=()=>({xp:0,lv:0,best:{},days:{},cards:{},ph:{},done:{},phone:false,mine:[]});
-const PROFILE_PREFIX="tcv:learner:";
-const PROFILE_ITERATIONS=600000;
-const encodeBytes=bytes=>btoa(Array.from(bytes,byte=>String.fromCharCode(byte)).join(""));
-const decodeBytes=value=>Uint8Array.from(atob(value),byte=>byte.charCodeAt(0));
-let S=emptyProgress(), activeLearner=null, profileWrite=Promise.resolve(), profileSaveFailed=false;
+let S=emptyProgress(), activeLearner=null, profileWrite=Promise.resolve(), profileSaveFailed=false, profileTimer=0, profileDirty=false;
 let profileScreenMode="open";
 let profileAccessBusy=false;
 
@@ -2210,25 +2206,13 @@ function readLegacyProgress(){
   try{return JSON.parse(localStorage.getItem("ot2")||"null")}catch(e){return null}
 }
 
-async function profileKey(passphrase,salt){
-  const subtle=crypto.subtle;
-  const password=await subtle.importKey("raw",new TextEncoder().encode(passphrase),"PBKDF2",false,["deriveKey"]);
-  return subtle.deriveKey({name:"PBKDF2",salt,iterations:PROFILE_ITERATIONS,hash:"SHA-256"},password,
-    {name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
-}
-
-function profileCipher(learner,iv){
-  return {name:"AES-GCM",iv,additionalData:new TextEncoder().encode(PROFILE_PREFIX+learner.id)};
-}
-
-async function writeProfile(learner,serialized,create=false){
-  const iv=crypto.getRandomValues(new Uint8Array(12));
-  const data=await crypto.subtle.encrypt(profileCipher(learner,iv),learner.key,new TextEncoder().encode(serialized));
-  const storageKey=PROFILE_PREFIX+learner.id;
-  const current=localStorage.getItem(storageKey);
-  if(create?current!==null:current!==learner.version)throw new Error("profile_changed");
-  learner.version=JSON.stringify({v:1,salt:encodeBytes(learner.salt),iv:encodeBytes(iv),data:encodeBytes(new Uint8Array(data))});
-  try{localStorage.setItem(storageKey,learner.version)}catch(e){learner.version=current;throw e}
+async function profileCall(action,body,keepalive=false){
+  let res;
+  try{res=await fetch(CFG.aiUrl+"profile/"+action,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body),keepalive})}
+  catch(e){const err=new Error("network");throw err}
+  const out=await res.json().catch(()=>({}));
+  if(!res.ok){const err=new Error(out.error||"server");err.info=out;throw err}
+  return out;
 }
 
 function initProfile(learner,progress){
@@ -2244,37 +2228,62 @@ function initProfile(learner,progress){
   route();
 }
 
-function queueProfileSave(){
-  if(!activeLearner)return;
+function flushProfile(keepalive=false){
+  clearTimeout(profileTimer);profileTimer=0;
+  if(!activeLearner||!profileDirty)return profileWrite;
   const learner=activeLearner;
-  const snapshot=JSON.stringify(S);
+  profileDirty=false;
+  const snapshot=JSON.parse(JSON.stringify(S));
   profileWrite=profileWrite.then(async()=>{
+    if(activeLearner!==learner)return;
     try{
-      await writeProfile(learner,snapshot);
+      const r=await profileCall("save",{id:learner.id,pin:learner.pin,ver:learner.ver,data:snapshot},keepalive);
+      learner.ver=r.ver;
       profileSaveFailed=false;
       $("#save-message").hidden=true;
     }catch(e){
       profileSaveFailed=true;
-      $("#save-message").textContent=e.message==="profile_changed"?
-        "Hồ sơ vừa được cập nhật ở tab khác. Khóa hồ sơ rồi mở lại để lấy dữ liệu mới nhất.":
-        "Chưa lưu được tiến độ. Kiểm tra dung lượng trình duyệt rồi thử lại.";
+      const conflict=e.message==="conflict";
+      $("#save-message").textContent=conflict?
+        "Hồ sơ vừa được cập nhật ở máy hoặc tab khác. Khóa hồ sơ rồi mở lại để lấy dữ liệu mới nhất.":
+        "Chưa lưu được tiến độ lên máy chủ. Web sẽ tự thử lại, bạn kiểm tra mạng giúp nhé.";
       $("#save-message").hidden=false;
+      if(!conflict){profileDirty=true;profileTimer=setTimeout(()=>flushProfile(),8000)}
     }
   });
+  return profileWrite;
+}
+
+function queueProfileSave(){
+  if(!activeLearner)return;
+  profileDirty=true;
+  clearTimeout(profileTimer);
+  profileTimer=setTimeout(()=>flushProfile(),1200);
+}
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden")flushProfile(true)});
+
+function accessError(e,creating){
+  const i=e.info||{};
+  if(e.message==="network")return "Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.";
+  if(e.message==="name_taken")return "Tên này đã có người dùng, bạn chọn tên khác nhé.";
+  if(e.message==="locked")return "Nhập sai quá nhiều lần. Thử lại sau "+Math.ceil((i.wait||900)/60)+" phút.";
+  if(e.message==="bad_credentials")return "Tên hoặc mã PIN chưa đúng."+(i.left&&i.left<=2?" Còn "+i.left+" lần thử.":"");
+  if(e.message==="bad_name")return "Tên chỉ gồm chữ không dấu, số hoặc dấu _, dài 3 đến 30 ký tự.";
+  if(e.message==="bad_pin")return "Mã PIN gồm đúng 4 chữ số.";
+  return creating?"Chưa tạo được hồ sơ. Thử lại sau ít phút.":"Chưa mở được hồ sơ. Thử lại sau ít phút.";
 }
 
 function vAccess(){
   const creating=profileScreenMode==="create";
   const legacy=creating&&readLegacyProgress();
   document.body.classList.add("profile-locked");
-  app.innerHTML='<section class="box profile-access"><h2>'+ (creating?"Tạo hồ sơ riêng":"Mở hồ sơ học viên")+
-    '</h2><p class="lead">Tiến độ và nhận xét được mã hóa trên trình duyệt này. Hãy khóa hồ sơ khi dùng chung máy.</p>'+
-    '<form id="profile-access-form"><div class="field"><label for="learner-id">Tên đăng nhập</label>'+
-    '<input id="learner-id" required minlength="3" maxlength="30" pattern="[A-Za-z0-9_]+" autocomplete="username" placeholder="Ví dụ: huy_english"></div>'+
-    '<div class="field"><label for="learner-key">Mật khẩu</label><input id="learner-key" type="password" required maxlength="128" '+
-    (creating?'minlength="12" autocomplete="new-password"':'autocomplete="current-password"')+'></div>'+
-    (creating?'<p class="sm">Dùng ít nhất 12 ký tự. Hồ sơ này mở được trên trình duyệt hiện tại bằng mật khẩu bạn đặt.</p>':'')+
-    (legacy?'<label class="sm legacy-progress"><input type="checkbox" id="claim-progress"> Chuyển tiến độ cũ của tôi trên trình duyệt này vào hồ sơ riêng</label>':'')+
+  app.innerHTML='<section class="box profile-access"><h2>'+ (creating?"Tạo hồ sơ":"Mở hồ sơ của bạn")+
+    '</h2><p class="lead">'+(creating?"Đặt một cái tên và mã PIN 4 số. Hồ sơ được lưu trên máy chủ, lần sau chỉ cần nhập tên và mã PIN là học tiếp, ở máy nào cũng được.":"Nhập tên hồ sơ và mã PIN 4 số để học tiếp.")+'</p>'+
+    '<form id="profile-access-form"><div class="field"><label for="learner-id">Tên hồ sơ</label>'+
+    '<input id="learner-id" required minlength="3" maxlength="30" pattern="[A-Za-z0-9_]+" autocomplete="off" autocapitalize="none" placeholder="Ví dụ: huy_english"></div>'+
+    '<div class="field"><label for="learner-key">Mã PIN (4 số)</label><input id="learner-key" type="password" inputmode="numeric" required maxlength="4" minlength="4" pattern="[0-9]{4}" autocomplete="off"></div>'+
+    (creating?'<div class="field"><label for="learner-key2">Nhập lại mã PIN</label><input id="learner-key2" type="password" inputmode="numeric" required maxlength="4" minlength="4" pattern="[0-9]{4}" autocomplete="off"></div><p class="sm">Nhớ kỹ mã PIN nhé, quên thì không lấy lại được.</p>':'')+
+    (legacy?'<label class="sm legacy-progress"><input type="checkbox" id="claim-progress"> Chuyển tiến độ cũ của tôi trên trình duyệt này vào hồ sơ</label>':'')+
     '<div class="row"><button class="pri" id="profile-enter" type="submit">'+(creating?"Tạo hồ sơ":"Mở hồ sơ")+
     '</button><button type="button" id="profile-mode">'+(creating?"Tôi đã có hồ sơ":"Tạo hồ sơ mới")+
     '</button></div><p class="sm" id="profile-message" role="status"></p></form></section>';
@@ -2283,36 +2292,31 @@ function vAccess(){
     event.preventDefault();
     if(profileAccessBusy)return;
     const id=$("#learner-id").value.trim().toLowerCase();
-    const password=$("#learner-key");
-    const phrase=password.value;
+    const pinInput=$("#learner-key");
+    const pin=pinInput.value;
     const claim=Boolean($("#claim-progress")?.checked);
     const message=$("#profile-message");
+    if(creating&&pin!==$("#learner-key2").value){message.textContent="Hai lần nhập mã PIN chưa giống nhau.";return}
     profileAccessBusy=true;
     $("#profile-mode").disabled=true;
     $("#profile-enter").disabled=true;
-    message.textContent="Đang mở hồ sơ…";
+    message.textContent=creating?"Đang tạo hồ sơ…":"Đang mở hồ sơ…";
     try{
-      const raw=localStorage.getItem(PROFILE_PREFIX+id);
-      if(creating&&raw){message.textContent="Tên đăng nhập đã có trên trình duyệt này.";return}
-      if(!creating&&!raw){message.textContent="Tên đăng nhập hoặc mật khẩu chưa đúng.";return}
-      const payload=raw?JSON.parse(raw):null;
-      const salt=payload?decodeBytes(payload.salt):crypto.getRandomValues(new Uint8Array(16));
-      const learner={id,salt,key:await profileKey(phrase,salt),version:raw};
-      let progress;
+      let progress,ver;
       if(creating){
         progress=claim?Object.assign(emptyProgress(),readLegacyProgress()):emptyProgress();
-        await writeProfile(learner,JSON.stringify(progress),true);
+        const r=await profileCall("create",{id,pin,data:progress});
+        ver=r.ver;
         if(claim)localStorage.removeItem("ot2");
         if(!progress.prof)history.replaceState(null,"","#profile");
       }else{
-        if(payload.v!==1)throw new Error("unsupported");
-        const decrypted=await crypto.subtle.decrypt(profileCipher(learner,decodeBytes(payload.iv)),learner.key,decodeBytes(payload.data));
-        progress=JSON.parse(new TextDecoder().decode(decrypted));
+        const r=await profileCall("open",{id,pin});
+        progress=r.data;ver=r.ver;
       }
-      password.value="";
-      initProfile(learner,progress);
+      pinInput.value="";
+      initProfile({id,pin,ver},progress);
     }catch(e){
-      message.textContent=creating?"Chưa lưu được hồ sơ. Kiểm tra trình duyệt rồi thử lại.":"Không mở được hồ sơ. Kiểm tra tên đăng nhập và mật khẩu.";
+      message.textContent=accessError(e,creating);
     }finally{
       profileAccessBusy=false;
       if(message.isConnected){$("#profile-mode").disabled=false;$("#profile-enter").disabled=false}
@@ -2323,6 +2327,8 @@ function vAccess(){
 async function lockProfile(){
   const button=$("#lock-profile");
   button.disabled=true;
+  profileDirty=profileDirty||false;
+  await flushProfile();
   await profileWrite;
   if(profileSaveFailed){
     const proceed=window.confirm("Thay đổi gần nhất chưa lưu được. Bạn vẫn muốn khóa hồ sơ?");

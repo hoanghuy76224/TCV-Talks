@@ -1,5 +1,6 @@
 // TCV Talks AI proxy: giữ Gemini API key ở phía Cloudflare, web chỉ gọi qua đây.
 // Biến môi trường: GEMINI_KEY (secret, bắt buộc), MODEL (tuỳ chọn), ALLOW (tuỳ chọn, danh sách origin cách nhau dấu phẩy)
+// Binding DB (D1) lưu hồ sơ học viên.
 const DEF_MODELS = ["gemini-flash-latest", "gemini-flash-lite-latest", "gemini-3.1-flash-lite"];
 const MAX_BODY = 4 * 1024 * 1024;
 const GROQ_MODEL = "openai/gpt-oss-20b";
@@ -135,6 +136,88 @@ async function transcribe(req, env, headers) {
   }
 }
 
+/* ---------- hồ sơ học viên: tên + mã PIN 4 số, lưu trong D1 ---------- */
+const MAX_PROFILE = 300000;
+const PIN_TRIES = 5, LOCK_MS = 15 * 60 * 1000;
+let tableReady = null;
+const initTable = env => tableReady ||= env.DB.exec(
+  "CREATE TABLE IF NOT EXISTS profiles (id TEXT PRIMARY KEY, salt TEXT NOT NULL, hash TEXT NOT NULL, data TEXT NOT NULL, ver INTEGER NOT NULL DEFAULT 1, fails INTEGER NOT NULL DEFAULT 0, locked_until INTEGER NOT NULL DEFAULT 0, created INTEGER NOT NULL, updated INTEGER NOT NULL)"
+).catch(e => { tableReady = null; throw e; });
+
+const hex = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
+async function pinHash(salt, id, pin) {
+  return hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(salt + ":" + id + ":" + pin)));
+}
+function sameText(a, b) {
+  if (a.length !== b.length) return false;
+  let d = 0;
+  for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return d === 0;
+}
+
+async function profileApi(req, env, headers, path) {
+  if (req.method !== "POST") return out({ error: "method" }, 405, headers);
+  if (!env.DB) return out({ error: "profile_unavailable" }, 503, headers);
+  if (+(req.headers.get("Content-Length") || 0) > MAX_PROFILE + 2000) return out({ error: "too_big" }, 413, headers);
+  let b;
+  try { b = await req.json() } catch (e) { return out({ error: "bad_json" }, 400, headers) }
+  const id = typeof b?.id === "string" ? b.id.trim().toLowerCase() : "";
+  const pin = typeof b?.pin === "string" ? b.pin : "";
+  if (!/^[a-z0-9_]{3,30}$/.test(id)) return out({ error: "bad_name" }, 400, headers);
+  if (!/^\d{4}$/.test(pin)) return out({ error: "bad_pin" }, 400, headers);
+  const no = { ...headers, "Cache-Control": "no-store" };
+
+  try {
+    await initTable(env);
+    const now = Date.now();
+
+    if (path === "/profile/create") {
+      const data = JSON.stringify(b.data ?? {});
+      if (data.length > MAX_PROFILE) return out({ error: "too_big" }, 413, no);
+      const salt = hex(crypto.getRandomValues(new Uint8Array(16)));
+      const r = await env.DB.prepare(
+        "INSERT OR IGNORE INTO profiles (id, salt, hash, data, ver, created, updated) VALUES (?, ?, ?, ?, 1, ?, ?)"
+      ).bind(id, salt, await pinHash(salt, id, pin), data, now, now).run();
+      if (!r.meta.changes) return out({ error: "name_taken" }, 409, no);
+      return out({ ok: true, ver: 1 }, 200, no);
+    }
+
+    const row = await env.DB.prepare("SELECT salt, hash, data, ver, fails, locked_until FROM profiles WHERE id = ?").bind(id).first();
+    if (!row) return out({ error: "bad_credentials" }, 401, no);
+    if (row.locked_until > now) {
+      return out({ error: "locked", wait: Math.ceil((row.locked_until - now) / 1000) }, 429, no);
+    }
+    if (!sameText(row.hash, await pinHash(row.salt, id, pin))) {
+      const fails = row.fails + 1;
+      if (fails >= PIN_TRIES) {
+        await env.DB.prepare("UPDATE profiles SET fails = 0, locked_until = ? WHERE id = ?").bind(now + LOCK_MS, id).run();
+        return out({ error: "locked", wait: LOCK_MS / 1000 }, 429, no);
+      }
+      await env.DB.prepare("UPDATE profiles SET fails = ? WHERE id = ?").bind(fails, id).run();
+      return out({ error: "bad_credentials", left: PIN_TRIES - fails }, 401, no);
+    }
+    if (row.fails) await env.DB.prepare("UPDATE profiles SET fails = 0 WHERE id = ?").bind(id).run();
+
+    if (path === "/profile/open") {
+      let data = {};
+      try { data = JSON.parse(row.data) } catch (e) {}
+      return out({ ok: true, data, ver: row.ver }, 200, no);
+    }
+
+    if (path === "/profile/save") {
+      const data = JSON.stringify(b.data ?? {});
+      if (data.length > MAX_PROFILE) return out({ error: "too_big" }, 413, no);
+      const r = await env.DB.prepare("UPDATE profiles SET data = ?, ver = ver + 1, updated = ? WHERE id = ? AND ver = ?")
+        .bind(data, now, id, +b.ver || 0).run();
+      if (!r.meta.changes) return out({ error: "conflict" }, 409, no);
+      return out({ ok: true, ver: (+b.ver || 0) + 1 }, 200, no);
+    }
+    return out({ error: "not_found" }, 404, no);
+  } catch (e) {
+    return out({ error: "profile_unavailable" }, 503, no);
+  }
+}
+
 export default {
   async fetch(req, env) {
     const origin = req.headers.get("Origin") || "";
@@ -145,13 +228,17 @@ export default {
     if (path === "/transcribe") {
       return ok ? transcribe(req, env, h) : out({ error: "origin" }, 403, h);
     }
+    if (path.startsWith("/profile/")) {
+      return ok ? profileApi(req, env, h, path) : out({ error: "origin" }, 403, h);
+    }
     if (path === "/tts") {
       return ok ? synthesize(req, env, h) : out({ error: "origin" }, 403, h);
     }
     if (req.method === "GET") return out({
       ok: true,
       key: !!env.GEMINI_KEY,
-      providers: { gemini: !!env.GEMINI_KEY, groq: !!(env.GROQ_API_KEY && env.GROQ_RATE_LIMIT) }
+      providers: { gemini: !!env.GEMINI_KEY, groq: !!(env.GROQ_API_KEY && env.GROQ_RATE_LIMIT) },
+      profiles: !!env.DB
     }, 200, { ...h, "Cache-Control": "no-store" });
     if (req.method !== "POST") return out({ error: "method" }, 405, h);
     if (!ok) return out({ error: "origin" }, 403, h);

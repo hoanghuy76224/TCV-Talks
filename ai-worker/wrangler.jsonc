@@ -7,6 +7,13 @@
   "ai": {
     "binding": "AI"
   },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "tcv-profiles",
+      "database_id": "422b8c17-deaa-4fbd-a47c-c0891aecc8c6"
+    }
+  ],
   "ratelimits": [
     {
       "name": "GROQ_RATE_LIMIT",
