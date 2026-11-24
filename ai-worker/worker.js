@@ -24,7 +24,7 @@ function cors(origin) {
 const out = (obj, status, h) =>
   new Response(JSON.stringify(obj), { status, headers: { ...h, "Content-Type": "application/json; charset=utf-8" } });
 
-const SPEAKERS = new Set(["luna", "orion", "thalia", "apollo"]);
+const SPEAKERS = new Set(["luna","orion","thalia","apollo","pandora","draco","theia","hyperion"]);
 
 async function synthesize(req, env, headers) {
   if (req.method !== "POST") return out({ error: "method" }, 405, headers);
