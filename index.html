@@ -2607,6 +2607,47 @@ function webSay(text,rate,signal){
   });
 }
 
+function mobileVoice(text,rate,vk,signal){
+  const status=document.getElementById("voice-status");
+  const panel=document.createElement("div"), info=document.createElement("p"), player=document.createElement("audio"), retry=document.createElement("button");
+  panel.className="box";panel.style.maxWidth="34rem";
+  info.setAttribute("role","status");info.textContent="Đang tải bản nghe…";
+  player.controls=true;player.preload="auto";player.style.width="100%";player.hidden=true;
+  retry.type="button";retry.textContent="Nghe bằng giọng của thiết bị";
+  panel.append(info,player,retry);
+  const focused=document.activeElement;
+  if(focused?.tagName==="BUTTON"&&focused.closest("main"))focused.parentElement.after(panel);else status.after(panel);
+  return new Promise(resolve=>{
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),15000);
+    let url="",usingDevice=false;
+    function finish(){clearTimeout(timer);controller.abort();player.pause();player.removeAttribute("src");player.load();panel.remove();if(url)URL.revokeObjectURL(url);signal.removeEventListener("abort",finish);resolve()}
+    signal.addEventListener("abort",finish,{once:true});
+    retry.onclick=async()=>{
+      usingDevice=true;controller.abort();player.pause();player.hidden=true;retry.disabled=true;info.textContent="Đang dùng giọng của thiết bị…";
+      const ok=await webSay(text,rate,signal);
+      if(ok||signal.aborted){finish();return}
+      info.textContent="Thiết bị chưa phát được tiếng. Bấm lại nút Nghe để tải lại bản nghe.";retry.disabled=false;
+    };
+    player.onended=finish;
+    player.onplaying=()=>{info.textContent="Đang phát bản nghe."};
+    player.onerror=()=>{if(url&&panel.isConnected)info.textContent="Thiết bị không đọc được bản nghe. Bạn có thể dùng giọng của thiết bị."};
+    (async()=>{
+      try{
+        const choice=voiceChoice(),speaker=VOICE_SPEAKERS[vk]||"luna";
+        const response=await fetch(new URL("/tts",CFG.aiUrl),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text,speaker:["auto","browser"].includes(choice)?speaker:choice}),signal:controller.signal});
+        if(!response.ok)throw Error();
+        const blob=await response.blob();if(!blob.size)throw Error();
+        if(signal.aborted||usingDevice)return;
+        url=URL.createObjectURL(blob);player.src=url;player.playbackRate=rate;player.hidden=false;
+        info.textContent="Bấm ▶ để nghe.";
+        try{await player.play()}catch{}
+      }catch{if(!signal.aborted&&!usingDevice)info.textContent="Chưa tải được bản nghe. Bấm bên dưới để dùng giọng của thiết bị."}
+      finally{clearTimeout(timer)}
+    })();
+  });
+}
+
 async function say(text,rate=1,vk="f"){
   text=text.trim();
   if(!text)return;
@@ -2616,10 +2657,8 @@ async function say(text,rate=1,vk="f"){
   const {signal}=request;
   try{
     if(tts){await tts.speak(text,{language:"en",rate});return}
-    if(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)){
-      voiceStatus("Đang phát giọng đọc…");
-      const played=await webSay(text,rate,signal);
-      if(!signal.aborted)voiceStatus(played?"":"Không phát được âm thanh. Kiểm tra âm lượng và bấm nghe lại.");
+    if(/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1)||matchMedia("(pointer: coarse)").matches){
+      await mobileVoice(text,rate,vk,signal);
       return;
     }
     const ctx=prepareVoiceContext();
