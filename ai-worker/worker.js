@@ -24,12 +24,43 @@ function cors(origin) {
 const out = (obj, status, h) =>
   new Response(JSON.stringify(obj), { status, headers: { ...h, "Content-Type": "application/json; charset=utf-8" } });
 
+const SPEAKERS = new Set(["luna", "orion", "thalia", "apollo"]);
+
+async function synthesize(req, env, headers) {
+  if (req.method !== "POST") return out({ error: "method" }, 405, headers);
+  if (!env.AI) return out({ error: "voice_unavailable" }, 503, headers);
+  if (+(req.headers.get("Content-Length") || 0) > 8192) {
+    return out({ error: "too_big" }, 413, headers);
+  }
+
+  let input;
+  try { input = await req.json() } catch (e) { return out({ error: "bad_json" }, 400, headers) }
+  const text = typeof input?.text === "string" ? input.text.trim() : "";
+  if (!text || text.length > 1000 || !SPEAKERS.has(input?.speaker)) {
+    return out({ error: "invalid_voice_input" }, 400, headers);
+  }
+
+  try {
+    const audio = await env.AI.run("@cf/deepgram/aura-2-en", {
+      text, speaker: input.speaker, encoding: "mp3"
+    });
+    return new Response(audio, {
+      headers: { ...headers, "Content-Type": "audio/mpeg", "Cache-Control": "no-store" }
+    });
+  } catch (e) {
+    return out({ error: "voice_unavailable" }, 503, headers);
+  }
+}
+
 export default {
   async fetch(req, env) {
     const origin = req.headers.get("Origin") || "";
     const ok = allowed(origin, env);
     const h = ok ? cors(origin) : {};
     if (req.method === "OPTIONS") return new Response(null, { status: ok ? 204 : 403, headers: h });
+    if (new URL(req.url).pathname === "/tts") {
+      return ok ? synthesize(req, env, h) : out({ error: "origin" }, 403, h);
+    }
     if (req.method === "GET") return out({ ok: true, key: !!env.GEMINI_KEY }, 200, h);
     if (req.method !== "POST") return out({ error: "method" }, 405, h);
     if (!ok) return out({ error: "origin" }, 403, h);
