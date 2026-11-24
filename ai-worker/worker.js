@@ -173,7 +173,7 @@ async function profileApi(req, env, headers, path) {
 
     await env.DB.exec("CREATE TABLE IF NOT EXISTS recovery_codes (id TEXT PRIMARY KEY, hash TEXT NOT NULL, FOREIGN KEY(id) REFERENCES profiles(id))");
     if (path === "/profile/reset") {
-      const code = typeof b.code === "string" ? b.code.replace(/[-\\s]/g, "").toLowerCase() : "";
+      const code = typeof b.code === "string" ? b.code.replace(/[-\s]/g, "").toLowerCase() : "";
       if (!/^[a-f0-9]{32}$/.test(code)) return out({ error: "bad_recovery" }, 401, no);
       const digest = await pinHash("recovery", id, code);
       const salt = hex(crypto.getRandomValues(new Uint8Array(16)));
