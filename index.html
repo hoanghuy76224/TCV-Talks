@@ -2209,7 +2209,7 @@ Mảng words phải có đúng ${en.split(/\s+/).length} phần tử, khớp l�
   const raw=en.split(/\s+/),W=j.words||[];
   const words=raw.map((w,k)=>{const x=W[k]||{};return{w,sc:Math.max(0,Math.min(100,Math.round(+x.sc||0))),note:x.note||""}});
   const sc=Math.max(0,Math.min(100,Math.round(+j.score||0)));
-  const fb=words.filter(w=>w.note).map(w=>w.w.replace(/[^\w']/g,"")+": "+w.note);
+  const fb=words.filter(w=>w.note&&w.sc<85).map(w=>w.w.replace(/[^\w']/g,"")+": "+w.note);
   if(j.fluency!=null||j.intonation!=null)fb.push(`Độ trôi chảy ${Math.round(+j.fluency||0)}/100, ngữ điệu ${Math.round(+j.intonation||0)}/100.`);
   (j.tips||[]).slice(0,3).forEach(t=>fb.push(t));
   return{sc,words,fb,heard:j.heard||"",gem:true}}
