@@ -5,6 +5,7 @@ const MAX_BODY = 4 * 1024 * 1024;
 
 function allowed(origin, env) {
   if (!origin) return false;
+  if (origin === "https://hoctienganh.khunglongcon.com") return true;
   const list = (env.ALLOW || "").split(",").map(s => s.trim()).filter(Boolean);
   if (list.includes(origin)) return true;
   return /^https:\/\/([a-z0-9-]+\.)?tcv-talks\.pages\.dev$/.test(origin) ||
