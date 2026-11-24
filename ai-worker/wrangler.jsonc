@@ -4,5 +4,17 @@
   "compatibility_date": "2026-11-01",
   "workers_dev": true,
   "keep_vars": true,
-  "ai": { "binding": "AI" }
+  "ai": {
+    "binding": "AI"
+  },
+  "ratelimits": [
+    {
+      "name": "GROQ_RATE_LIMIT",
+      "namespace_id": "2026112501",
+      "simple": {
+        "limit": 12,
+        "period": 60
+      }
+    }
+  ]
 }
