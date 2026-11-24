@@ -1,6 +1,6 @@
 // TCV Talks AI proxy: giữ Gemini API key ở phía Cloudflare, web chỉ gọi qua đây.
 // Biến môi trường: GEMINI_KEY (secret, bắt buộc), MODEL (tuỳ chọn), ALLOW (tuỳ chọn, danh sách origin cách nhau dấu phẩy)
-const DEF_MODELS = ["gemini-flash-latest", "gemini-flash-lite-latest"];
+const DEF_MODELS = ["gemini-flash-latest", "gemini-flash-lite-latest", "gemini-3.1-flash-lite"];
 const MAX_BODY = 4 * 1024 * 1024;
 
 function allowed(origin, env) {
@@ -56,7 +56,8 @@ export default {
 
     const models = env.MODEL ? [env.MODEL, ...DEF_MODELS.filter(m => m !== env.MODEL)] : DEF_MODELS;
     let last = null;
-    for (const m of models) {
+    for (const m of models) for (let tr = 0; tr < 2; tr++) {
+      if (tr) await new Promise(r => setTimeout(r, 1200));
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_KEY },
@@ -68,7 +69,9 @@ export default {
         return out({ text, model: m }, 200, h);
       }
       last = { status: r.status, msg: j.error && j.error.message };
-      if (![404, 429, 500, 503].includes(r.status)) break; // lỗi khác thì không thử model dự phòng
+      if (r.status === 503 || r.status === 500) continue; // quá tải: thử lại model này một lần
+      if (r.status === 404 || r.status === 429) break; // sang model dự phòng
+      return out({ error: "upstream", detail: last }, 502, h); // lỗi khác thì dừng
     }
     const code = last && last.status === 429 ? "rate_limited" : "upstream";
     return out({ error: code, detail: last }, last && last.status === 429 ? 429 : 502, h);
