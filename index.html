@@ -1,0 +1,2522 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TCV Talks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* VOICE: vui, năng lượng, như một app học nói hiện đại
+   IDEA: những bong bóng hội thoại nảy ra từ bàn làm việc, mỗi bài là một bong bóng màu
+   PICTURE: dải hero xanh đậm với bong bóng thoại và sóng âm; thẻ bài có ô ký hiệu âm to; vòng điểm tròn
+   COLOUR and TYPE: navy #13294b, san hô #ff6b5a, vàng #ffc845, ngọc #19b39b, xanh trời #4f8cff; Be Vietnam Pro
+   LAYOUT: tab dạng viên thuốc, một cột 980px, thẻ bo 20px có bóng mềm */
+:root{color-scheme:light dark;--bg:light-dark(#f4f6fb,#0d1626);--card:light-dark(#fff,#16223a);--ink:light-dark(#13294b,#eaf0ff);--mut:light-dark(#5d6b85,#9fb0cf);--line:light-dark(#e3e8f2,#253455);--pale:light-dark(#eef2fa,#1c2a46);
+--red:light-dark(#ff5a48,#ff7a6b);--sl:light-dark(#3b7bff,#6b9dff);--ok:light-dark(#12a58c,#3ad4b4);--mid:light-dark(#e8a400,#ffc845);--navy:#13294b;--yel:#ffc845;--tq:#19b39b;--sky:#4f8cff;--cor:#ff6b5a;--shadow:0 6px 24px light-dark(rgba(19,41,75,.08),rgba(0,0,0,.35))}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Be Vietnam Pro",system-ui,sans-serif;overflow-x:clip}
+h1,h2,h3{font-family:"Be Vietnam Pro",system-ui,sans-serif;font-weight:800;line-height:1.15;margin:0;text-wrap:balance;letter-spacing:-.01em}
+h2{font-size:clamp(26px,4vw,36px)}h3{font-size:19px;font-weight:700}
+header{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px)}
+.top{display:flex;align-items:center;gap:12px;padding:10px max(4vw,14px) 6px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:8px;font-weight:800;font-size:21px}.brand svg{width:34px;height:34px}
+.stats{margin-left:auto;display:flex;gap:8px;font-size:13px;flex-wrap:wrap}
+.stats span{background:var(--card);border-radius:999px;padding:4px 10px;box-shadow:var(--shadow);font-weight:600;color:var(--mut)}.stats b{color:var(--ink)}
+.stats .s1 b{color:var(--sl)}.mechip{background:var(--navy);color:#fff;border-radius:999px;padding:4px 12px;font-weight:700;text-decoration:none;box-shadow:var(--shadow);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chips{display:flex;flex-wrap:wrap;gap:8px}.chips label{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:999px;background:var(--card);box-shadow:var(--shadow);cursor:pointer;font-weight:600;min-height:44px}.chips input{accent-color:var(--red);width:18px;height:18px}.chips label:has(input:checked){background:var(--navy);color:#fff}
+.field{margin:18px 0}.field>b{display:block;margin-bottom:8px}.stats .s2 b{color:var(--mid)}.stats .s3 b{color:var(--red)}
+nav{display:flex;gap:6px;overflow-x:auto;padding:6px max(4vw,14px) 10px;scrollbar-width:none}
+nav a{flex:none;padding:8px 14px;color:var(--mut);text-decoration:none;font-weight:600;font-size:15px;border-radius:999px;background:var(--card);box-shadow:0 1px 3px rgba(19,41,75,.06)}
+nav a.on{color:#fff;background:var(--navy)}:root[data-theme=dark] nav a.on{background:var(--sl)}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]) nav a.on{background:var(--sl)}}
+nav a .dot{display:inline-block;min-width:18px;padding:0 5px;margin-left:5px;border-radius:9px;background:var(--red);color:#fff;font-size:12px;text-align:center}
+main{max-width:980px;margin:0 auto;padding:12px max(4vw,14px) 80px}
+.lead{color:var(--mut);margin:8px 0 18px}
+.hero{position:relative;overflow:hidden;border-radius:24px;background:linear-gradient(135deg,#13294b 0%,#1f4d8f 100%);color:#fff;padding:clamp(22px,4vw,38px);display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:16px;align-items:center;margin-bottom:16px}
+.hero h2{color:#fff}.hero p{color:#c9d7f2;margin:10px 0 16px}.hero svg{width:100%;height:auto;max-height:230px}
+@media(max-width:620px){.hero{grid-template-columns:1fr}.hero svg{max-height:170px;order:-1}}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,270px),1fr));gap:14px}
+.unit{border:0;background:var(--card);padding:16px;cursor:pointer;display:grid;align-content:start;grid-template-columns:64px minmax(0,1fr);gap:4px 14px;text-align:left;font:inherit;color:inherit;border-radius:20px;height:auto;box-shadow:var(--shadow);transition:transform .15s}
+.unit:hover,.unit:focus-visible{transform:translateY(-3px)}
+.unit .ic{grid-row:1 / span 5;align-self:start;width:64px;height:64px;border-radius:18px;display:grid;place-items:center;font:800 22px "Be Vietnam Pro",sans-serif;color:#fff}
+.unit .ic svg{width:30px;height:30px}
+.unit.rec{outline:3px solid var(--yel);outline-offset:-3px}
+.c0{background:var(--cor)}.c1{background:var(--sky)}.c2{background:var(--tq)}.c3{background:var(--yel);color:var(--navy)!important}.c4{background:#8a6bff}.c5{background:#ff8fb1}
+.num{font-size:12px;color:var(--mut);font-weight:700;text-transform:none}
+.bar{height:8px;background:var(--pale);border-radius:4px;overflow:hidden}.bar i{display:block;height:100%;background:var(--ok);border-radius:4px}
+.sm{font-size:14px;color:var(--mut)}
+button,.btn{font:600 15px "Be Vietnam Pro",sans-serif;min-height:44px;padding:0 18px;border-radius:999px;border:0;background:var(--card);color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;gap:8px;justify-content:center;text-decoration:none;box-shadow:0 2px 8px rgba(19,41,75,.1);transition:transform .1s}
+button:active,.btn:active{transform:scale(.97)}
+button:focus-visible,a:focus-visible,textarea:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid var(--sl);outline-offset:2px}
+button.pri,.btn.pri{background:var(--red);color:#fff;box-shadow:0 4px 0 color-mix(in srgb,var(--red) 70%,#000)}
+.hero .btn.pri{background:var(--yel);color:var(--navy);box-shadow:0 4px 0 #c99a1f}
+button.sec{background:var(--sl);color:#fff;box-shadow:0 4px 0 color-mix(in srgb,var(--sl) 70%,#000)}
+button:disabled{opacity:.5;cursor:default}
+button svg,.btn svg{width:18px;height:18px;flex:none}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.center{justify-content:center}.between{justify-content:space-between}
+.sec-h{margin:30px 0 12px}
+.tip{background:var(--card);padding:16px 18px;border-radius:18px;box-shadow:var(--shadow);border-left:6px solid var(--yel)}.tip p{margin:6px 0}
+.ph{display:flex;gap:12px;align-items:center;padding:14px;margin-bottom:10px;background:var(--card);border-radius:18px;box-shadow:var(--shadow);flex-wrap:wrap}
+.ph .t{flex:1 1 240px}.ph .en{font-weight:700}.ph .vi,.ipa{font-size:14px;color:var(--mut)}
+.ipa{font-family:"Doulos SIL","Charis SIL","Lucida Sans Unicode","Be Vietnam Pro",sans-serif}
+.ico{width:44px;padding:0;flex:none;background:var(--pale);box-shadow:none;color:var(--sl)}.ico svg{width:20px;height:20px}
+.badge{font-size:13px;font-weight:700;padding:3px 10px;border-radius:999px;background:var(--pale);white-space:nowrap}
+.dl{display:grid;grid-template-columns:auto 1fr;gap:10px 12px;align-items:baseline;background:var(--card);padding:16px;border-radius:18px;box-shadow:var(--shadow)}.dl .sp{font-weight:700;color:var(--sl)}
+.card{background:var(--card);border-radius:26px;box-shadow:var(--shadow);padding:clamp(20px,3vw,34px);text-align:center;position:relative;overflow:hidden}
+.card::before{content:"";position:absolute;inset:0 0 auto 0;height:8px;background:linear-gradient(90deg,var(--cor),var(--yel),var(--tq),var(--sky))}
+.target{font-weight:700;font-size:clamp(24px,4.4vw,36px);line-height:1.3;margin:10px 0 4px;text-wrap:balance}
+.wd{cursor:pointer;border-radius:6px;padding:0 2px}.wd.sel{background:var(--pale)}
+.g{color:var(--ok)}.y{color:var(--mid)}.r{color:var(--red)}.r.wd{text-decoration:underline wavy;text-underline-offset:6px}
+.mic{width:92px;height:92px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#ff8a7a,var(--red));color:#fff;margin:18px auto 8px;padding:0;box-shadow:0 8px 24px color-mix(in srgb,var(--red) 45%,transparent)}
+.mic svg{width:38px;height:38px}.mic.live{animation:pulse 1.2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(255,90,72,.55)}100%{box-shadow:0 0 0 26px rgba(255,90,72,0)}}
+@media(prefers-reduced-motion:reduce){.mic.live{animation:none;outline:4px solid var(--red)}.unit{transition:none}}
+.score{--p:0;--c:var(--ok);width:120px;height:120px;margin:6px auto;border-radius:50%;display:grid;place-items:center;font:800 40px/1 "Be Vietnam Pro",sans-serif;background:radial-gradient(closest-side,var(--card) 79%,transparent 80% 100%),conic-gradient(var(--c) calc(var(--p)*1%),var(--pale) 0)}
+.score.g{--c:var(--ok)}.score.y{--c:var(--mid)}.score.r{--c:var(--red)}.score.small{width:84px;height:84px;font-size:28px}
+.heard{color:var(--mut);font-size:15px;min-height:22px}
+.opt{display:block;width:100%;text-align:left;border-radius:14px;margin:8px 0;padding:12px 16px;height:auto;line-height:1.4;border:2px solid var(--line);box-shadow:none}
+.opt:hover{border-color:var(--sl)}
+.opt.right{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 14%,var(--card))}
+.opt.wrong{border-color:var(--red);background:color-mix(in srgb,var(--red) 12%,var(--card))}
+.opt:disabled{opacity:1;color:var(--ink)}
+textarea,input[type=text],select{width:100%;font:16px "Be Vietnam Pro",sans-serif;padding:12px 14px;border:2px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink)}
+textarea{min-height:110px;resize:vertical}
+.box{background:var(--card);padding:18px;margin-top:14px;border-radius:20px;box-shadow:var(--shadow);text-align:left}
+.err{padding:8px 0;border-top:1px solid var(--line)}
+.strike{color:var(--red);text-decoration:line-through}.good{color:var(--ok);font-weight:700}
+.chat{display:flex;flex-direction:column;gap:10px;margin:14px 0;max-height:52vh;overflow-y:auto;padding:14px;background:var(--card);border-radius:20px;box-shadow:var(--shadow)}
+.msg{max-width:85%;padding:10px 14px;border-radius:18px;line-height:1.45}
+.msg.ai{background:var(--pale);align-self:flex-start;border-bottom-left-radius:4px}.msg.me{background:var(--sl);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
+.fixn{font-size:14px;align-self:flex-end;max-width:85%;color:var(--mut)}
+.note{font-size:14px;color:var(--mut);margin-top:10px}
+.hide{display:none!important}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:12px;margin:14px 0}
+.kpi div{background:var(--card);border-radius:20px;padding:14px 16px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.kpi div::after{content:"";position:absolute;right:-18px;top:-18px;width:64px;height:64px;border-radius:50%;opacity:.18;background:var(--k,var(--sky))}
+.kpi b{display:block;font-size:30px;line-height:1.15;font-weight:800;color:var(--k,var(--ink))}
+.kpi .k1{--k:var(--cor)}.kpi .k2{--k:var(--sky)}.kpi .k3{--k:var(--tq)}.kpi .k4{--k:#e8a400}
+.goal{height:10px;background:var(--pale);border-radius:5px;overflow:hidden;margin-top:6px}.goal i{display:block;height:100%;background:linear-gradient(90deg,var(--cor),var(--yel))}
+.phs{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:10px}
+.phs span{padding:4px 10px;border-radius:10px;font-size:19px;background:var(--pale)}
+.phs span.g{background:color-mix(in srgb,var(--ok) 18%,transparent)}.phs span.r{background:color-mix(in srgb,var(--red) 16%,transparent)}.phs span.y{background:color-mix(in srgb,var(--mid) 20%,transparent)}
+.prog{height:8px;background:var(--pale);border-radius:4px;overflow:hidden;margin-top:8px}.prog i{display:block;height:100%;background:linear-gradient(90deg,var(--sky),var(--tq));width:0;border-radius:4px}
+.pairs{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,210px),1fr));gap:10px}
+.pair{background:var(--card);border-radius:16px;box-shadow:var(--shadow);padding:10px 12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.pair button{min-height:40px;padding:0 12px;background:var(--pale);box-shadow:none}
+.switch{display:flex;gap:12px;align-items:flex-start;background:var(--card);border-radius:18px;box-shadow:var(--shadow);padding:16px 18px;margin-top:16px}
+.switch input{width:22px;height:22px;margin-top:2px;flex:none;accent-color:var(--red)}
+table{border-collapse:collapse;width:100%;background:var(--card);border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}td,th{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left}td.n{text-align:right;white-space:nowrap}
+@media(max-width:600px){.stats{width:100%;margin:0}.mic{width:80px;height:80px}.score{width:100px;height:100px;font-size:34px}}
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <div class="brand"><svg viewBox="0 0 40 40"><rect x="2" y="4" width="26" height="20" rx="8" fill="#ff6b5a"/><path d="M8 24l-2 7 8-7z" fill="#ff6b5a"/><rect x="14" y="14" width="24" height="18" rx="8" fill="#4f8cff"/><path d="M32 32l2 6-8-6z" fill="#4f8cff"/><path d="M21 23v2M25 20v8M29 22v4M33 23v2" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>TCV Talks</div>
+    <div class="stats"><a class="mechip" href="#profile" id="me">Tạo hồ sơ</a><span class="s1">Cấp <b id="lvl">?</b></span><span class="s2">XP <b id="xp">0</b></span><span class="s3">Chuỗi <b id="streak">0</b> ngày</span></div>
+  </div>
+  <nav id="nav">
+    <a href="#today">Hôm nay</a><a href="#path">Lộ trình</a><a href="#review">Ôn tập<span class="dot hide" id="due"></span></a><a href="#speak">Luyện nói</a><a href="#listen">Luyện nghe</a><a href="#quiz">Bài tập</a><a href="#fix">Sửa lỗi</a><a href="#chat">Hội thoại AI</a>
+  </nav>
+</header>
+<main id="app"></main>
+<script>(function (global, factory) {
+  typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
+  typeof define === 'function' && define.amd ? define(['exports'], factory) :
+  (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory(global.FSRS = {}));
+})(this, (function (exports) { 'use strict';
+
+  class FSRSError extends Error {
+    constructor(message = "FSRS Error") {
+      var _a;
+      super(message);
+      this.name = "FSRSError";
+      (_a = Error.captureStackTrace) == null ? void 0 : _a.call(Error, this, FSRSError);
+    }
+  }
+  class FSRSValidationError extends FSRSError {
+    constructor(message) {
+      var _a;
+      super(message);
+      this.name = "FSRSValidationError";
+      (_a = Error.captureStackTrace) == null ? void 0 : _a.call(Error, this, FSRSValidationError);
+    }
+  }
+
+  var State = /* @__PURE__ */ ((State2) => {
+    State2[State2["New"] = 0] = "New";
+    State2[State2["Learning"] = 1] = "Learning";
+    State2[State2["Review"] = 2] = "Review";
+    State2[State2["Relearning"] = 3] = "Relearning";
+    return State2;
+  })(State || {});
+  var Rating = /* @__PURE__ */ ((Rating2) => {
+    Rating2[Rating2["Manual"] = 0] = "Manual";
+    Rating2[Rating2["Again"] = 1] = "Again";
+    Rating2[Rating2["Hard"] = 2] = "Hard";
+    Rating2[Rating2["Good"] = 3] = "Good";
+    Rating2[Rating2["Easy"] = 4] = "Easy";
+    return Rating2;
+  })(Rating || {});
+
+  var __defProp$6 = Object.defineProperty;
+  var __defProps$2 = Object.defineProperties;
+  var __getOwnPropDescs$2 = Object.getOwnPropertyDescriptors;
+  var __getOwnPropSymbols$2 = Object.getOwnPropertySymbols;
+  var __hasOwnProp$2 = Object.prototype.hasOwnProperty;
+  var __propIsEnum$2 = Object.prototype.propertyIsEnumerable;
+  var __defNormalProp$6 = (obj, key, value) => key in obj ? __defProp$6(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+  var __spreadValues$2 = (a, b) => {
+    for (var prop in b || (b = {}))
+      if (__hasOwnProp$2.call(b, prop))
+        __defNormalProp$6(a, prop, b[prop]);
+    if (__getOwnPropSymbols$2)
+      for (var prop of __getOwnPropSymbols$2(b)) {
+        if (__propIsEnum$2.call(b, prop))
+          __defNormalProp$6(a, prop, b[prop]);
+      }
+    return a;
+  };
+  var __spreadProps$2 = (a, b) => __defProps$2(a, __getOwnPropDescs$2(b));
+  class TypeConvert {
+    static card(card) {
+      return __spreadProps$2(__spreadValues$2({}, card), {
+        state: TypeConvert.state(card.state),
+        due: TypeConvert.time(card.due),
+        last_review: card.last_review ? TypeConvert.time(card.last_review) : void 0
+      });
+    }
+    static rating(value) {
+      if (typeof value === "string") {
+        const firstLetter = value.charAt(0).toUpperCase();
+        const restOfString = value.slice(1).toLowerCase();
+        const ret = Rating[`${firstLetter}${restOfString}`];
+        if (ret === void 0) {
+          throw new FSRSValidationError(`Invalid rating:[${value}]`);
+        }
+        return ret;
+      } else if (typeof value === "number") {
+        return value;
+      }
+      throw new FSRSValidationError(`Invalid rating:[${value}]`);
+    }
+    static state(value) {
+      if (typeof value === "string") {
+        const firstLetter = value.charAt(0).toUpperCase();
+        const restOfString = value.slice(1).toLowerCase();
+        const ret = State[`${firstLetter}${restOfString}`];
+        if (ret === void 0) {
+          throw new FSRSValidationError(`Invalid state:[${value}]`);
+        }
+        return ret;
+      } else if (typeof value === "number") {
+        return value;
+      }
+      throw new FSRSValidationError(`Invalid state:[${value}]`);
+    }
+    static time(value) {
+      if (value instanceof Date) {
+        return value;
+      }
+      const date = new Date(value);
+      if (typeof value === "object" && value !== null && !Number.isNaN(Date.parse(value) || +date)) {
+        return date;
+      } else if (typeof value === "string") {
+        const timestamp = Date.parse(value);
+        if (!Number.isNaN(timestamp)) {
+          return new Date(timestamp);
+        } else {
+          throw new FSRSValidationError(`Invalid date:[${value}]`);
+        }
+      } else if (typeof value === "number") {
+        return new Date(value);
+      }
+      throw new FSRSValidationError(`Invalid date:[${value}]`);
+    }
+    static review_log(log) {
+      return __spreadProps$2(__spreadValues$2({}, log), {
+        due: TypeConvert.time(log.due),
+        rating: TypeConvert.rating(log.rating),
+        state: TypeConvert.state(log.state),
+        review: TypeConvert.time(log.review)
+      });
+    }
+  }
+
+  /* istanbul ignore next -- @preserve */
+  Date.prototype.scheduler = function(t, isDay) {
+    return date_scheduler(this, t, isDay);
+  };
+  /* istanbul ignore next -- @preserve */
+  Date.prototype.diff = function(pre, unit) {
+    return date_diff(this, pre, unit);
+  };
+  /* istanbul ignore next -- @preserve */
+  Date.prototype.format = function() {
+    return formatDate(this);
+  };
+  /* istanbul ignore next -- @preserve */
+  Date.prototype.dueFormat = function(last_review, unit, timeUnit) {
+    return show_diff_message(this, last_review, unit, timeUnit);
+  };
+  function date_scheduler(now, t, isDay) {
+    return new Date(
+      isDay ? TypeConvert.time(now).getTime() + t * 24 * 60 * 60 * 1e3 : TypeConvert.time(now).getTime() + t * 60 * 1e3
+    );
+  }
+  function date_diff(now, pre, unit) {
+    if (!now || !pre) {
+      throw new FSRSValidationError("Invalid date");
+    }
+    const diff = TypeConvert.time(now).getTime() - TypeConvert.time(pre).getTime();
+    let r = 0;
+    switch (unit) {
+      case "days":
+        r = Math.floor(diff / (24 * 60 * 60 * 1e3));
+        break;
+      case "minutes":
+        r = Math.floor(diff / (60 * 1e3));
+        break;
+    }
+    return r;
+  }
+  function formatDate(dateInput) {
+    const date = TypeConvert.time(dateInput);
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+    const seconds = date.getSeconds();
+    return `${year}-${padZero(month)}-${padZero(day)} ${padZero(hours)}:${padZero(
+    minutes
+  )}:${padZero(seconds)}`;
+  }
+  function padZero(num) {
+    return num < 10 ? `0${num}` : `${num}`;
+  }
+  const TIMEUNIT = [60, 60, 24, 31, 12];
+  const TIMEUNITFORMAT = ["second", "min", "hour", "day", "month", "year"];
+  function show_diff_message(due, last_review, unit, timeUnit = TIMEUNITFORMAT) {
+    due = TypeConvert.time(due);
+    last_review = TypeConvert.time(last_review);
+    if (timeUnit.length !== TIMEUNITFORMAT.length) {
+      timeUnit = TIMEUNITFORMAT;
+    }
+    let diff = due.getTime() - last_review.getTime();
+    let i = 0;
+    diff /= 1e3;
+    for (i = 0; i < TIMEUNIT.length; i++) {
+      if (diff < TIMEUNIT[i]) {
+        break;
+      } else {
+        diff /= TIMEUNIT[i];
+      }
+    }
+    return `${Math.floor(diff)}${unit ? timeUnit[i] : ""}`;
+  }
+  /* istanbul ignore next -- @preserve */
+  function fixDate(value) {
+    return TypeConvert.time(value);
+  }
+  /* istanbul ignore next -- @preserve */
+  function fixState(value) {
+    return TypeConvert.state(value);
+  }
+  /* istanbul ignore next -- @preserve */
+  function fixRating(value) {
+    return TypeConvert.rating(value);
+  }
+  const Grades = Object.freeze([
+    Rating.Again,
+    Rating.Hard,
+    Rating.Good,
+    Rating.Easy
+  ]);
+  const FUZZ_RANGES = [
+    {
+      start: 2.5,
+      end: 7,
+      factor: 0.15
+    },
+    {
+      start: 7,
+      end: 20,
+      factor: 0.1
+    },
+    {
+      start: 20,
+      end: Infinity,
+      factor: 0.05
+    }
+  ];
+  function get_fuzz_range(interval, elapsed_days, maximum_interval) {
+    let delta = 1;
+    for (const range of FUZZ_RANGES) {
+      delta += range.factor * Math.max(Math.min(interval, range.end) - range.start, 0);
+    }
+    interval = Math.min(interval, maximum_interval);
+    let min_ivl = Math.max(2, Math.round(interval - delta));
+    const max_ivl = Math.min(Math.round(interval + delta), maximum_interval);
+    if (interval > elapsed_days) {
+      min_ivl = Math.max(min_ivl, elapsed_days + 1);
+    }
+    min_ivl = Math.min(min_ivl, max_ivl);
+    return { min_ivl, max_ivl };
+  }
+  function clamp(value, min, max) {
+    return Math.min(Math.max(value, min), max);
+  }
+  function roundTo(num, decimals) {
+    const factor = 10 ** decimals;
+    return Math.round(num * factor) / factor;
+  }
+  function dateDiffInDays(last, cur) {
+    const utc1 = Date.UTC(
+      last.getUTCFullYear(),
+      last.getUTCMonth(),
+      last.getUTCDate()
+    );
+    const utc2 = Date.UTC(
+      cur.getUTCFullYear(),
+      cur.getUTCMonth(),
+      cur.getUTCDate()
+    );
+    return Math.floor(
+      (utc2 - utc1) / 864e5
+      /** 1000 * 60 * 60 * 24*/
+    );
+  }
+
+  const ConvertStepUnitToMinutes = (step) => {
+    const unit = step.slice(-1);
+    const value = parseInt(step.slice(0, -1), 10);
+    if (Number.isNaN(value) || !Number.isFinite(value) || value < 0) {
+      throw new FSRSValidationError(`Invalid step value: ${step}`);
+    }
+    switch (unit) {
+      case "m":
+        return value;
+      case "h":
+        return value * 60;
+      case "d":
+        return value * 1440;
+      default:
+        throw new FSRSValidationError(
+          `Invalid step unit: ${step}, expected m/h/d`
+        );
+    }
+  };
+  const BasicLearningStepsStrategy = (params, state, cur_step) => {
+    const learning_steps = state === State.Relearning || state === State.Review ? params.relearning_steps : params.learning_steps;
+    const steps_length = learning_steps.length;
+    if (steps_length === 0 || cur_step >= steps_length) return {};
+    const firstStep = learning_steps[0];
+    const toMinutes = ConvertStepUnitToMinutes;
+    const getAgainInterval = () => {
+      return toMinutes(firstStep);
+    };
+    const getHardInterval = () => {
+      if (steps_length === 1) return Math.round(toMinutes(firstStep) * 1.5);
+      const nextStep = learning_steps[1];
+      return Math.round((toMinutes(firstStep) + toMinutes(nextStep)) / 2);
+    };
+    const getStepInfo = (index) => {
+      if (index < 0 || index >= steps_length) {
+        return null;
+      } else {
+        return learning_steps[index];
+      }
+    };
+    const getGoodMinutes = (step) => {
+      return toMinutes(step);
+    };
+    const result = {};
+    const step_info = getStepInfo(Math.max(0, cur_step));
+    if (state === State.Review) {
+      result[Rating.Again] = {
+        scheduled_minutes: toMinutes(step_info),
+        next_step: 0
+      };
+      return result;
+    } else {
+      result[Rating.Again] = {
+        scheduled_minutes: getAgainInterval(),
+        next_step: 0
+      };
+      result[Rating.Hard] = {
+        scheduled_minutes: getHardInterval(),
+        next_step: cur_step
+      };
+      const next_info = getStepInfo(cur_step + 1);
+      if (next_info) {
+        const nextMin = getGoodMinutes(next_info);
+        if (nextMin) {
+          result[Rating.Good] = {
+            scheduled_minutes: Math.round(nextMin),
+            next_step: cur_step + 1
+          };
+        }
+      }
+    }
+    return result;
+  };
+
+  function DefaultInitSeedStrategy() {
+    const time = this.review_time.getTime();
+    const reps = this.current.reps;
+    const mul = this.current.difficulty * this.current.stability;
+    return `${time}_${reps}_${mul}`;
+  }
+  function GenSeedStrategyWithCardId(card_id_field) {
+    return function() {
+      var _a;
+      const card_id = (_a = Reflect.get(this.current, card_id_field)) != null ? _a : 0;
+      const reps = this.current.reps;
+      return String(card_id + reps || 0);
+    };
+  }
+
+  var StrategyMode = /* @__PURE__ */ ((StrategyMode2) => {
+    StrategyMode2["SCHEDULER"] = "Scheduler";
+    StrategyMode2["LEARNING_STEPS"] = "LearningSteps";
+    StrategyMode2["SEED"] = "Seed";
+    return StrategyMode2;
+  })(StrategyMode || {});
+
+  var __defProp$5 = Object.defineProperty;
+  var __defNormalProp$5 = (obj, key, value) => key in obj ? __defProp$5(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+  var __publicField$5 = (obj, key, value) => __defNormalProp$5(obj, typeof key !== "symbol" ? key + "" : key, value);
+  class AbstractScheduler {
+    // init
+    constructor(card, now, algorithm, strategies) {
+      __publicField$5(this, "last");
+      __publicField$5(this, "current");
+      __publicField$5(this, "review_time");
+      __publicField$5(this, "next", /* @__PURE__ */ new Map());
+      __publicField$5(this, "algorithm");
+      __publicField$5(this, "strategies");
+      __publicField$5(this, "elapsed_days", 0);
+      this.algorithm = algorithm;
+      this.last = TypeConvert.card(card);
+      this.current = TypeConvert.card(card);
+      this.review_time = TypeConvert.time(now);
+      this.strategies = strategies;
+      this.init();
+    }
+    checkGrade(grade) {
+      if (!Number.isFinite(grade) || grade < 1 || grade > 4) {
+        throw new FSRSValidationError(`Invalid grade "${grade}",expected 1-4`);
+      }
+    }
+    init() {
+      const { state, last_review } = this.current;
+      let interval = 0;
+      if (state !== State.New && last_review) {
+        interval = dateDiffInDays(last_review, this.review_time);
+      }
+      this.current.last_review = this.review_time;
+      this.elapsed_days = interval;
+      this.current.elapsed_days = interval;
+      this.current.reps += 1;
+      let seed_strategy = DefaultInitSeedStrategy;
+      if (this.strategies) {
+        const custom_strategy = this.strategies.get(StrategyMode.SEED);
+        if (custom_strategy) {
+          seed_strategy = custom_strategy;
+        }
+      }
+      this.algorithm.seed = seed_strategy.call(this);
+    }
+    preview() {
+      return {
+        [Rating.Again]: this.review(Rating.Again),
+        [Rating.Hard]: this.review(Rating.Hard),
+        [Rating.Good]: this.review(Rating.Good),
+        [Rating.Easy]: this.review(Rating.Easy),
+        [Symbol.iterator]: this.previewIterator.bind(this)
+      };
+    }
+    *previewIterator() {
+      for (const grade of Grades) {
+        yield this.review(grade);
+      }
+    }
+    review(grade) {
+      const { state } = this.last;
+      let item;
+      this.checkGrade(grade);
+      switch (state) {
+        case State.New:
+          item = this.newState(grade);
+          break;
+        case State.Learning:
+        case State.Relearning:
+          item = this.learningState(grade);
+          break;
+        case State.Review:
+          item = this.reviewState(grade);
+          break;
+      }
+      return item;
+    }
+    buildLog(rating) {
+      const { last_review, due, elapsed_days } = this.last;
+      return {
+        rating,
+        state: this.current.state,
+        due: last_review || due,
+        stability: this.current.stability,
+        difficulty: this.current.difficulty,
+        elapsed_days: this.elapsed_days,
+        last_elapsed_days: elapsed_days,
+        scheduled_days: this.current.scheduled_days,
+        learning_steps: this.current.learning_steps,
+        review: this.review_time
+      };
+    }
+  }
+
+  var __defProp$4 = Object.defineProperty;
+  var __defNormalProp$4 = (obj, key, value) => key in obj ? __defProp$4(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+  var __publicField$4 = (obj, key, value) => __defNormalProp$4(obj, typeof key !== "symbol" ? key + "" : key, value);
+  class Alea {
+    constructor(seed) {
+      __publicField$4(this, "c");
+      __publicField$4(this, "s0");
+      __publicField$4(this, "s1");
+      __publicField$4(this, "s2");
+      const mash = Mash();
+      this.c = 1;
+      this.s0 = mash(" ");
+      this.s1 = mash(" ");
+      this.s2 = mash(" ");
+      if (seed == null) seed = Date.now();
+      this.s0 -= mash(seed);
+      if (this.s0 < 0) this.s0 += 1;
+      this.s1 -= mash(seed);
+      if (this.s1 < 0) this.s1 += 1;
+      this.s2 -= mash(seed);
+      if (this.s2 < 0) this.s2 += 1;
+    }
+    next() {
+      const t = 2091639 * this.s0 + this.c * 23283064365386963e-26;
+      this.s0 = this.s1;
+      this.s1 = this.s2;
+      this.c = t | 0;
+      this.s2 = t - this.c;
+      return this.s2;
+    }
+    set state(state) {
+      this.c = state.c;
+      this.s0 = state.s0;
+      this.s1 = state.s1;
+      this.s2 = state.s2;
+    }
+    get state() {
+      return {
+        c: this.c,
+        s0: this.s0,
+        s1: this.s1,
+        s2: this.s2
+      };
+    }
+  }
+  function Mash() {
+    let n = 4022871197;
+    return function mash(data) {
+      data = String(data);
+      for (let i = 0; i < data.length; i++) {
+        n += data.charCodeAt(i);
+        let h = 0.02519603282416938 * n;
+        n = h >>> 0;
+        h -= n;
+        h *= n;
+        n = h >>> 0;
+        h -= n;
+        n += h * 4294967296;
+      }
+      return (n >>> 0) * 23283064365386963e-26;
+    };
+  }
+  function alea(seed) {
+    const xg = new Alea(seed);
+    const prng = () => xg.next();
+    prng.int32 = () => xg.next() * 4294967296 | 0;
+    prng.double = () => prng() + (prng() * 2097152 | 0) * 11102230246251565e-32;
+    prng.state = () => xg.state;
+    prng.importState = (state) => {
+      xg.state = state;
+      return prng;
+    };
+    return prng;
+  }
+
+  const version="5.4.2";
+
+  const default_request_retention = 0.9;
+  const default_maximum_interval = 36500;
+  const default_enable_fuzz = false;
+  const default_enable_short_term = true;
+  const default_learning_steps = Object.freeze([
+    "1m",
+    "10m"
+  ]);
+  const default_relearning_steps = Object.freeze([
+    "10m"
+  ]);
+  const FSRSVersion = `v${version} using FSRS-6.0`;
+  const S_MIN = 1e-3;
+  const S_MAX = 36500;
+  const INIT_S_MAX = 100;
+  const FSRS5_DEFAULT_DECAY = 0.5;
+  const FSRS6_DEFAULT_DECAY = 0.1542;
+  const default_w = Object.freeze([
+    0.212,
+    1.2931,
+    2.3065,
+    8.2956,
+    6.4133,
+    0.8334,
+    3.0194,
+    1e-3,
+    1.8722,
+    0.1666,
+    0.796,
+    1.4835,
+    0.0614,
+    0.2629,
+    1.6483,
+    0.6014,
+    1.8729,
+    0.5425,
+    0.0912,
+    0.0658,
+    FSRS6_DEFAULT_DECAY
+  ]);
+  const W17_W18_Ceiling = 2;
+  const CLAMP_PARAMETERS = (w17_w18_ceiling, enable_short_term = default_enable_short_term) => [
+    [S_MIN, INIT_S_MAX],
+    [S_MIN, INIT_S_MAX],
+    [S_MIN, INIT_S_MAX],
+    [S_MIN, INIT_S_MAX],
+    [1, 10],
+    [1e-3, 4],
+    [1e-3, 4],
+    [1e-3, 0.75],
+    [0, 4.5],
+    [0, 0.8],
+    [1e-3, 3.5],
+    [1e-3, 5],
+    [1e-3, 0.25],
+    [1e-3, 0.9],
+    [0, 4],
+    [0, 1],
+    [1, 6],
+    [0, w17_w18_ceiling],
+    [0, w17_w18_ceiling],
+    [
+      enable_short_term ? 0.01 : 0,
+      0.8
+    ],
+    [0.1, 0.8]
+  ];
+
+  const clipParameters = (parameters, numRelearningSteps, enableShortTerm = default_enable_short_term) => {
+    const clip = CLAMP_PARAMETERS(W17_W18_Ceiling, enableShortTerm).slice(
+      0,
+      parameters.length
+    );
+    if (Math.max(0, numRelearningSteps) > 1) {
+      const w11 = clamp(parameters[11] || 0, clip[11][0], clip[11][1]);
+      const w13 = clamp(parameters[13] || 0, clip[13][0], clip[13][1]);
+      const w14 = clamp(parameters[14] || 0, clip[14][0], clip[14][1]);
+      const value = -(Math.log(w11) + Math.log(Math.pow(2, w13) - 1) + w14 * 0.3) / numRelearningSteps;
+      const w17_w18_ceiling = clamp(
+        roundTo(Math.sqrt(Math.max(value, 0)), 8),
+        0.01,
+        W17_W18_Ceiling
+      );
+      if (clip[17]) clip[17] = [clip[17][0], w17_w18_ceiling];
+      if (clip[18]) clip[18] = [clip[18][0], w17_w18_ceiling];
+    }
+    return clip.map(
+      ([min, max], index) => clamp(parameters[index] || 0, min, max)
+    );
+  };
+  const checkParameters = (parameters) => {
+    const invalid = parameters.find((param) => !Number.isFinite(param));
+    if (invalid !== void 0) {
+      throw new FSRSValidationError(
+        `Non-finite or NaN value in parameters ${parameters}`
+      );
+    } else if (![17, 19, 21].includes(parameters.length)) {
+      throw new FSRSValidationError(
+        `Invalid parameter length: ${parameters.length}. Must be 17, 19 or 21 for FSRSv4, 5 and 6 respectively.`
+      );
+    }
+    return parameters;
+  };
+  const migrateParameters = (parameters, numRelearningSteps = 0, enableShortTerm = default_enable_short_term) => {
+    if (parameters === void 0) {
+      return [...default_w];
+    }
+    switch (parameters.length) {
+      case 21:
+        return clipParameters(
+          Array.from(parameters),
+          numRelearningSteps,
+          enableShortTerm
+        );
+      case 19:
+        console.debug("[FSRS-6]auto fill w from 19 to 21 length");
+        return clipParameters(
+          Array.from(parameters),
+          numRelearningSteps,
+          enableShortTerm
+        ).concat([0, FSRS5_DEFAULT_DECAY]);
+      case 17: {
+        const w = clipParameters(
+          Array.from(parameters),
+          numRelearningSteps,
+          enableShortTerm
+        );
+        w[4] = +(w[5] * 2 + w[4]).toFixed(8);
+        w[5] = +(Math.log(w[5] * 3 + 1) / 3).toFixed(8);
+        w[6] = +(w[6] + 0.5).toFixed(8);
+        console.debug("[FSRS-6]auto fill w from 17 to 21 length");
+        return w.concat([0, 0, 0, FSRS5_DEFAULT_DECAY]);
+      }
+      default:
+        console.warn("[FSRS]Invalid parameters length, using default parameters");
+        return [...default_w];
+    }
+  };
+  const generatorParameters = (props) => {
+    var _a, _b;
+    const learning_steps = Array.isArray(props == null ? void 0 : props.learning_steps) ? props.learning_steps : default_learning_steps;
+    const relearning_steps = Array.isArray(props == null ? void 0 : props.relearning_steps) ? props.relearning_steps : default_relearning_steps;
+    const enable_short_term = (_a = props == null ? void 0 : props.enable_short_term) != null ? _a : default_enable_short_term;
+    const w = migrateParameters(
+      props == null ? void 0 : props.w,
+      relearning_steps.length,
+      enable_short_term
+    );
+    return {
+      request_retention: (props == null ? void 0 : props.request_retention) || default_request_retention,
+      maximum_interval: (props == null ? void 0 : props.maximum_interval) || default_maximum_interval,
+      w,
+      enable_fuzz: (_b = props == null ? void 0 : props.enable_fuzz) != null ? _b : default_enable_fuzz,
+      enable_short_term,
+      learning_steps,
+      relearning_steps
+    };
+  };
+  function createEmptyCard(now, afterHandler) {
+    const emptyCard = {
+      due: now ? TypeConvert.time(now) : /* @__PURE__ */ new Date(),
+      stability: 0,
+      difficulty: 0,
+      elapsed_days: 0,
+      scheduled_days: 0,
+      reps: 0,
+      lapses: 0,
+      learning_steps: 0,
+      state: State.New,
+      last_review: void 0
+    };
+    if (afterHandler && typeof afterHandler === "function") {
+      return afterHandler(emptyCard);
+    } else {
+      return emptyCard;
+    }
+  }
+
+  var __defProp$3 = Object.defineProperty;
+  var __defNormalProp$3 = (obj, key, value) => key in obj ? __defProp$3(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+  var __publicField$3 = (obj, key, value) => __defNormalProp$3(obj, typeof key !== "symbol" ? key + "" : key, value);
+  const computeDecayFactor = (decayOrParams) => {
+    const decay = typeof decayOrParams === "number" ? -decayOrParams : -decayOrParams[20];
+    const factor = Math.exp(Math.pow(decay, -1) * Math.log(0.9)) - 1;
+    return { decay, factor: roundTo(factor, 8) };
+  };
+  function forgetting_curve(decayOrParams, elapsed_days, stability) {
+    const { decay, factor } = computeDecayFactor(decayOrParams);
+    return roundTo(Math.pow(1 + factor * elapsed_days / stability, decay), 8);
+  }
+  class FSRSAlgorithm {
+    constructor(params) {
+      __publicField$3(this, "param");
+      __publicField$3(this, "intervalModifier");
+      __publicField$3(this, "_seed");
+      __publicField$3(this, "prepare_parameters", (params) => {
+        const generated = generatorParameters(params);
+        generated.w = clipParameters(
+          Array.from(generated.w),
+          generated.relearning_steps.length,
+          generated.enable_short_term
+        );
+        return generated;
+      });
+      /**
+       * The formula used is :
+       * $$R(t,S) = (1 + \text{FACTOR} \times \frac{t}{9 \cdot S})^{\text{DECAY}}$$
+       * @param {number} elapsed_days t days since the last review
+       * @param {number} stability Stability (interval when R=90%)
+       * @return {number} r Retrievability (probability of recall)
+       */
+      __publicField$3(this, "forgetting_curve");
+      this.param = new Proxy(
+        this.prepare_parameters(params),
+        this.params_handler_proxy()
+      );
+      this.intervalModifier = this.calculate_interval_modifier(
+        this.param.request_retention
+      );
+      this.forgetting_curve = forgetting_curve.bind(this, this.param.w);
+    }
+    get interval_modifier() {
+      return this.intervalModifier;
+    }
+    set seed(seed) {
+      this._seed = seed;
+    }
+    /**
+     * @see https://github.com/open-spaced-repetition/fsrs4anki/wiki/The-Algorithm#fsrs-5
+     *
+     * The formula used is: $$I(r,s) = (r^{\frac{1}{DECAY}} - 1) / FACTOR \times s$$
+     * @param request_retention 0<request_retention<=1,Requested retention rate
+     * @throws {Error} Requested retention rate should be in the range (0,1]
+     */
+    calculate_interval_modifier(request_retention) {
+      if (request_retention <= 0 || request_retention > 1) {
+        throw new FSRSValidationError(
+          "Requested retention rate should be in the range (0,1]"
+        );
+      }
+      const { decay, factor } = computeDecayFactor(this.param.w);
+      return roundTo((Math.pow(request_retention, 1 / decay) - 1) / factor, 8);
+    }
+    /**
+     * Get the parameters of the algorithm.
+     */
+    get parameters() {
+      return this.param;
+    }
+    /**
+     * Set the parameters of the algorithm.
+     * @param params Partial<FSRSParameters>
+     */
+    set parameters(params) {
+      this.update_parameters(params);
+    }
+    params_handler_proxy() {
+      const _this = this;
+      return {
+        set: function(target, prop, value) {
+          if (prop === "request_retention" && Number.isFinite(value)) {
+            _this.intervalModifier = _this.calculate_interval_modifier(
+              Number(value)
+            );
+          } else if (prop === "w") {
+            value = migrateParameters(
+              value,
+              target.relearning_steps.length,
+              target.enable_short_term
+            );
+            value = clipParameters(
+              Array.from(value),
+              target.relearning_steps.length,
+              target.enable_short_term
+            );
+            _this.forgetting_curve = forgetting_curve.bind(this, value);
+            _this.intervalModifier = _this.calculate_interval_modifier(
+              Number(target.request_retention)
+            );
+          }
+          Reflect.set(target, prop, value);
+          return true;
+        }
+      };
+    }
+    update_parameters(params) {
+      const _params = this.prepare_parameters(params);
+      for (const key in _params) {
+        const paramKey = key;
+        this.param[paramKey] = _params[paramKey];
+      }
+    }
+    /**
+       * The formula used is :
+       * $$ S_0(G) = w_{G-1}$$
+       * $$S_0 = \max \lbrace S_0,0.1\rbrace $$
+    
+       * @param g Grade (rating at Anki) [1.again,2.hard,3.good,4.easy]
+       * @return Stability (interval when R=90%)
+       */
+    init_stability(g) {
+      return Math.max(this.param.w[g - 1], 0.1);
+    }
+    /**
+     * The formula used is :
+     * $$D_0(G) = w_4 - e^{(G-1) \cdot w_5} + 1 $$
+     * $$D_0 = \min \lbrace \max \lbrace D_0(G),1 \rbrace,10 \rbrace$$
+     * where the $$D_0(1)=w_4$$ when the first rating is good.
+     *
+     * @param {Grade} g Grade (rating at Anki) [1.again,2.hard,3.good,4.easy]
+     * @return {number} Difficulty $$D \in [1,10]$$
+     */
+    init_difficulty(g) {
+      const w = this.param.w;
+      const d = w[4] - Math.exp((g - 1) * w[5]) + 1;
+      return roundTo(d, 8);
+    }
+    /**
+     * If fuzzing is disabled or ivl is less than 2.5, it returns the original interval.
+     * @param {number} ivl - The interval to be fuzzed.
+     * @param {number} elapsed_days t days since the last review
+     * @return {number} - The fuzzed interval.
+     **/
+    apply_fuzz(ivl, elapsed_days) {
+      if (!this.param.enable_fuzz || ivl < 2.5) return Math.round(ivl);
+      const generator = alea(this._seed);
+      const fuzz_factor = generator();
+      const { min_ivl, max_ivl } = get_fuzz_range(
+        ivl,
+        elapsed_days,
+        this.param.maximum_interval
+      );
+      return Math.floor(fuzz_factor * (max_ivl - min_ivl + 1) + min_ivl);
+    }
+    /**
+     *   @see The formula used is : {@link FSRSAlgorithm.calculate_interval_modifier}
+     *   @param {number} s - Stability (interval when R=90%)
+     *   @param {number} elapsed_days t days since the last review
+     */
+    next_interval(s, elapsed_days) {
+      const newInterval = Math.min(
+        Math.max(1, Math.round(s * this.intervalModifier)),
+        this.param.maximum_interval
+      );
+      return this.apply_fuzz(newInterval, elapsed_days);
+    }
+    /**
+     * @see https://github.com/open-spaced-repetition/fsrs4anki/issues/697
+     */
+    linear_damping(delta_d, old_d) {
+      return roundTo(delta_d * (10 - old_d) / 9, 8);
+    }
+    /**
+     * The formula used is :
+     * $$\text{delta}_d = -w_6 \cdot (g - 3)$$
+     * $$\text{next}_d = D + \text{linear damping}(\text{delta}_d , D)$$
+     * $$D^\prime(D,R) = w_7 \cdot D_0(4) +(1 - w_7) \cdot \text{next}_d$$
+     * @param {number} d Difficulty $$D \in [1,10]$$
+     * @param {Grade} g Grade (rating at Anki) [1.again,2.hard,3.good,4.easy]
+     * @return {number} $$\text{next}_D$$
+     */
+    next_difficulty(d, g) {
+      const delta_d = -this.param.w[6] * (g - 3);
+      const next_d = d + this.linear_damping(delta_d, d);
+      return clamp(
+        this.mean_reversion(this.init_difficulty(Rating.Easy), next_d),
+        1,
+        10
+      );
+    }
+    /**
+     * The formula used is :
+     * $$w_7 \cdot \text{init} +(1 - w_7) \cdot \text{current}$$
+     * @param {number} init $$w_2 : D_0(3) = w_2 + (R-2) \cdot w_3= w_2$$
+     * @param {number} current $$D - w_6 \cdot (R - 2)$$
+     * @return {number} difficulty
+     */
+    mean_reversion(init, current) {
+      const w = this.param.w;
+      return roundTo(w[7] * init + (1 - w[7]) * current, 8);
+    }
+    /**
+     * The formula used is :
+     * $$S^\prime_r(D,S,R,G) = S\cdot(e^{w_8}\cdot (11-D)\cdot S^{-w_9}\cdot(e^{w_{10}\cdot(1-R)}-1)\cdot w_{15}(\text{if} G=2) \cdot w_{16}(\text{if} G=4)+1)$$
+     * @param {number} d Difficulty D \in [1,10]
+     * @param {number} s Stability (interval when R=90%)
+     * @param {number} r Retrievability (probability of recall)
+     * @param {Grade} g Grade (Rating[0.again,1.hard,2.good,3.easy])
+     * @return {number} S^\prime_r new stability after recall
+     */
+    next_recall_stability(d, s, r, g) {
+      const w = this.param.w;
+      const hard_penalty = Rating.Hard === g ? w[15] : 1;
+      const easy_bound = Rating.Easy === g ? w[16] : 1;
+      return roundTo(
+        clamp(
+          s * (1 + Math.exp(w[8]) * (11 - d) * Math.pow(s, -w[9]) * (Math.exp((1 - r) * w[10]) - 1) * hard_penalty * easy_bound),
+          S_MIN,
+          36500
+        ),
+        8
+      );
+    }
+    /**
+     * The formula used is :
+     * $$S^\prime_f(D,S,R) = w_{11}\cdot D^{-w_{12}}\cdot ((S+1)^{w_{13}}-1) \cdot e^{w_{14}\cdot(1-R)}$$
+     * enable_short_term = true : $$S^\prime_f \in \min \lbrace \max \lbrace S^\prime_f,0.01\rbrace, \frac{S}{e^{w_{17} \cdot w_{18}}} \rbrace$$
+     * enable_short_term = false : $$S^\prime_f \in \min \lbrace \max \lbrace S^\prime_f,0.01\rbrace, S \rbrace$$
+     * @param {number} d Difficulty D \in [1,10]
+     * @param {number} s Stability (interval when R=90%)
+     * @param {number} r Retrievability (probability of recall)
+     * @return {number} S^\prime_f new stability after forgetting
+     */
+    next_forget_stability(d, s, r) {
+      const w = this.param.w;
+      return roundTo(
+        clamp(
+          w[11] * Math.pow(d, -w[12]) * (Math.pow(s + 1, w[13]) - 1) * Math.exp((1 - r) * w[14]),
+          S_MIN,
+          36500
+        ),
+        8
+      );
+    }
+    /**
+     * The formula used is :
+     * $$S^\prime_s(S,G) = S \cdot e^{w_{17} \cdot (G-3+w_{18})}$$
+     * @param {number} s Stability (interval when R=90%)
+     * @param {Grade} g Grade (Rating[0.again,1.hard,2.good,3.easy])
+     */
+    next_short_term_stability(s, g) {
+      const w = this.param.w;
+      const sinc = Math.pow(s, -w[19]) * Math.exp(w[17] * (g - 3 + w[18]));
+      const maskedSinc = g >= Rating.Hard ? Math.max(sinc, 1) : sinc;
+      return roundTo(clamp(s * maskedSinc, S_MIN, 36500), 8);
+    }
+    /**
+     * Calculates the next state of memory based on the current state, time elapsed, and grade.
+     *
+     * @param memory_state - The current state of memory, which can be null.
+     * @param t - The time elapsed since the last review.
+     * @param {Rating} g Grade (Rating[0.Manual,1.Again,2.Hard,3.Good,4.Easy])
+     * @param r - Optional retrievability value. If not provided, it will be calculated.
+     * @returns The next state of memory with updated difficulty and stability.
+     */
+    next_state(memory_state, t, g, r) {
+      const { difficulty: d, stability: s } = memory_state != null ? memory_state : {
+        difficulty: 0,
+        stability: 0
+      };
+      if (t < 0) {
+        throw new FSRSValidationError(`Invalid delta_t "${t}"`);
+      }
+      if (g < 0 || g > 4) {
+        throw new FSRSValidationError(`Invalid grade "${g}"`);
+      }
+      if (d === 0 && s === 0) {
+        return {
+          difficulty: clamp(this.init_difficulty(g), 1, 10),
+          stability: this.init_stability(g)
+        };
+      }
+      if (g === 0) {
+        return {
+          difficulty: d,
+          stability: s
+        };
+      }
+      if (d < 1 || s < S_MIN) {
+        throw new FSRSValidationError(
+          `Invalid memory state { difficulty: ${d}, stability: ${s} }`
+        );
+      }
+      const w = this.param.w;
+      r = typeof r === "number" ? r : this.forgetting_curve(t, s);
+      let new_s;
+      if (t === 0 && this.param.enable_short_term) {
+        new_s = this.next_short_term_stability(s, g);
+      } else if (g === 1) {
+        const s_after_fail = this.next_forget_stability(d, s, r);
+        let [w_17, w_18] = [0, 0];
+        if (this.param.enable_short_term) {
+          w_17 = w[17];
+          w_18 = w[18];
+        }
+        const next_s_min = s / Math.exp(w_17 * w_18);
+        new_s = clamp(roundTo(next_s_min, 8), S_MIN, s_after_fail);
+      } else {
+        new_s = this.next_recall_stability(d, s, r, g);
+      }
+      const new_d = this.next_difficulty(d, g);
+      return { difficulty: new_d, stability: new_s };
+    }
+  }
+
+  var __defProp$2 = Object.defineProperty;
+  var __defNormalProp$2 = (obj, key, value) => key in obj ? __defProp$2(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+  var __publicField$2 = (obj, key, value) => __defNormalProp$2(obj, key + "" , value);
+  class BasicScheduler extends AbstractScheduler {
+    constructor(card, now, algorithm, strategies) {
+      super(card, now, algorithm, strategies);
+      __publicField$2(this, "learningStepsStrategy");
+      let learningStepStrategy = BasicLearningStepsStrategy;
+      if (this.strategies) {
+        const custom_strategy = this.strategies.get(StrategyMode.LEARNING_STEPS);
+        if (custom_strategy) {
+          learningStepStrategy = custom_strategy;
+        }
+      }
+      this.learningStepsStrategy = learningStepStrategy;
+    }
+    getLearningInfo(card, grade) {
+      var _a, _b, _c, _d;
+      const parameters = this.algorithm.parameters;
+      card.learning_steps = card.learning_steps || 0;
+      const steps_strategy = this.learningStepsStrategy(
+        parameters,
+        card.state,
+        card.learning_steps
+      );
+      const scheduled_minutes = Math.max(
+        0,
+        (_b = (_a = steps_strategy[grade]) == null ? void 0 : _a.scheduled_minutes) != null ? _b : 0
+      );
+      const next_steps = Math.max(0, (_d = (_c = steps_strategy[grade]) == null ? void 0 : _c.next_step) != null ? _d : 0);
+      return {
+        scheduled_minutes,
+        next_steps
+      };
+    }
+    /**
+     * @description This function applies the learning steps based on the current card's state and grade.
+     */
+    applyLearningSteps(nextCard, grade, to_state) {
+      const { scheduled_minutes, next_steps } = this.getLearningInfo(
+        this.current,
+        grade
+      );
+      if (scheduled_minutes > 0 && scheduled_minutes < 1440) {
+        nextCard.learning_steps = next_steps;
+        nextCard.scheduled_days = 0;
+        nextCard.state = to_state;
+        nextCard.due = date_scheduler(
+          this.review_time,
+          Math.round(scheduled_minutes),
+          false
+          /** true:days false: minute */
+        );
+      } else {
+        nextCard.state = State.Review;
+        if (scheduled_minutes >= 1440) {
+          nextCard.learning_steps = next_steps;
+          nextCard.due = date_scheduler(
+            this.review_time,
+            Math.round(scheduled_minutes),
+            false
+            /** true:days false: minute */
+          );
+          nextCard.scheduled_days = Math.floor(scheduled_minutes / 1440);
+        } else {
+          nextCard.learning_steps = 0;
+          const interval = this.algorithm.next_interval(
+            nextCard.stability,
+            this.elapsed_days
+          );
+          nextCard.scheduled_days = interval;
+          nextCard.due = date_scheduler(this.review_time, interval, true);
+        }
+      }
+    }
+    newState(grade) {
+      const exist = this.next.get(grade);
+      if (exist) {
+        return exist;
+      }
+      const next = this.next_ds(this.elapsed_days, grade);
+      this.applyLearningSteps(next, grade, State.Learning);
+      const item = {
+        card: next,
+        log: this.buildLog(grade)
+      };
+      this.next.set(grade, item);
+      return item;
+    }
+    learningState(grade) {
+      const exist = this.next.get(grade);
+      if (exist) {
+        return exist;
+      }
+      const next = this.next_ds(this.elapsed_days, grade);
+      this.applyLearningSteps(
+        next,
+        grade,
+        this.last.state
+        /** Learning or Relearning */
+      );
+      const item = {
+        card: next,
+        log: this.buildLog(grade)
+      };
+      this.next.set(grade, item);
+      return item;
+    }
+    reviewState(grade) {
+      const exist = this.next.get(grade);
+      if (exist) {
+        return exist;
+      }
+      const interval = this.elapsed_days;
+      const retrievability = this.algorithm.forgetting_curve(
+        interval,
+        this.current.stability
+      );
+      const next_again = this.next_ds(interval, Rating.Again, retrievability);
+      const next_hard = this.next_ds(interval, Rating.Hard, retrievability);
+      const next_good = this.next_ds(interval, Rating.Good, retrievability);
+      const next_easy = this.next_ds(interval, Rating.Easy, retrievability);
+      this.next_interval(next_hard, next_good, next_easy, interval);
+      this.next_state(next_hard, next_good, next_easy);
+      this.applyLearningSteps(next_again, Rating.Again, State.Relearning);
+      next_again.lapses += 1;
+      const item_again = {
+        card: next_again,
+        log: this.buildLog(Rating.Again)
+      };
+      const item_hard = {
+        card: next_hard,
+        log: super.buildLog(Rating.Hard)
+      };
+      const item_good = {
+        card: next_good,
+        log: super.buildLog(Rating.Good)
+      };
+      const item_easy = {
+        card: next_easy,
+        log: super.buildLog(Rating.Easy)
+      };
+      this.next.set(Rating.Again, item_again);
+      this.next.set(Rating.Hard, item_hard);
+      this.next.set(Rating.Good, item_good);
+      this.next.set(Rating.Easy, item_easy);
+      return this.next.get(grade);
+    }
+    /**
+     * Review next_ds
+     */
+    next_ds(t, g, r) {
+      const next_state = this.algorithm.next_state(
+        {
+          difficulty: this.current.difficulty,
+          stability: this.current.stability
+        },
+        t,
+        g,
+        r
+      );
+      const card = TypeConvert.card(this.current);
+      card.difficulty = next_state.difficulty;
+      card.stability = next_state.stability;
+      return card;
+    }
+    /**
+     * Review next_interval
+     */
+    next_interval(next_hard, next_good, next_easy, interval) {
+      let hard_interval, good_interval;
+      hard_interval = this.algorithm.next_interval(next_hard.stability, interval);
+      good_interval = this.algorithm.next_interval(next_good.stability, interval);
+      hard_interval = Math.min(hard_interval, good_interval);
+      good_interval = Math.max(good_interval, hard_interval + 1);
+      const easy_interval = Math.max(
+        this.algorithm.next_interval(next_easy.stability, interval),
+        good_interval + 1
+      );
+      next_hard.scheduled_days = hard_interval;
+      next_hard.due = date_scheduler(this.review_time, hard_interval, true);
+      next_good.scheduled_days = good_interval;
+      next_good.due = date_scheduler(this.review_time, good_interval, true);
+      next_easy.scheduled_days = easy_interval;
+      next_easy.due = date_scheduler(this.review_time, easy_interval, true);
+    }
+    /**
+     * Review next_state
+     */
+    next_state(next_hard, next_good, next_easy) {
+      next_hard.state = State.Review;
+      next_hard.learning_steps = 0;
+      next_good.state = State.Review;
+      next_good.learning_steps = 0;
+      next_easy.state = State.Review;
+      next_easy.learning_steps = 0;
+    }
+  }
+
+  class LongTermScheduler extends AbstractScheduler {
+    newState(grade) {
+      const exist = this.next.get(grade);
+      if (exist) {
+        return exist;
+      }
+      this.current.scheduled_days = 0;
+      this.current.elapsed_days = 0;
+      const first_interval = 0;
+      const next_again = this.next_ds(first_interval, Rating.Again);
+      const next_hard = this.next_ds(first_interval, Rating.Hard);
+      const next_good = this.next_ds(first_interval, Rating.Good);
+      const next_easy = this.next_ds(first_interval, Rating.Easy);
+      this.next_interval(
+        next_again,
+        next_hard,
+        next_good,
+        next_easy,
+        first_interval
+      );
+      this.next_state(next_again, next_hard, next_good, next_easy);
+      this.update_next(next_again, next_hard, next_good, next_easy);
+      return this.next.get(grade);
+    }
+    next_ds(t, g, r) {
+      const next_state = this.algorithm.next_state(
+        {
+          difficulty: this.current.difficulty,
+          stability: this.current.stability
+        },
+        t,
+        g,
+        r
+      );
+      const card = TypeConvert.card(this.current);
+      card.difficulty = next_state.difficulty;
+      card.stability = next_state.stability;
+      return card;
+    }
+    /**
+     * @see https://github.com/open-spaced-repetition/ts-fsrs/issues/98#issuecomment-2241923194
+     */
+    learningState(grade) {
+      return this.reviewState(grade);
+    }
+    reviewState(grade) {
+      const exist = this.next.get(grade);
+      if (exist) {
+        return exist;
+      }
+      const interval = this.elapsed_days;
+      const retrievability = this.algorithm.forgetting_curve(
+        interval,
+        this.current.stability
+      );
+      const next_again = this.next_ds(interval, Rating.Again, retrievability);
+      const next_hard = this.next_ds(interval, Rating.Hard, retrievability);
+      const next_good = this.next_ds(interval, Rating.Good, retrievability);
+      const next_easy = this.next_ds(interval, Rating.Easy, retrievability);
+      this.next_interval(next_again, next_hard, next_good, next_easy, interval);
+      this.next_state(next_again, next_hard, next_good, next_easy);
+      next_again.lapses += 1;
+      this.update_next(next_again, next_hard, next_good, next_easy);
+      return this.next.get(grade);
+    }
+    /**
+     * Review/New next_interval
+     */
+    next_interval(next_again, next_hard, next_good, next_easy, interval) {
+      let again_interval, hard_interval, good_interval, easy_interval;
+      again_interval = this.algorithm.next_interval(
+        next_again.stability,
+        interval
+      );
+      hard_interval = this.algorithm.next_interval(next_hard.stability, interval);
+      good_interval = this.algorithm.next_interval(next_good.stability, interval);
+      easy_interval = this.algorithm.next_interval(next_easy.stability, interval);
+      again_interval = Math.min(again_interval, hard_interval);
+      hard_interval = Math.max(hard_interval, again_interval + 1);
+      good_interval = Math.max(good_interval, hard_interval + 1);
+      easy_interval = Math.max(easy_interval, good_interval + 1);
+      next_again.scheduled_days = again_interval;
+      next_again.due = date_scheduler(this.review_time, again_interval, true);
+      next_hard.scheduled_days = hard_interval;
+      next_hard.due = date_scheduler(this.review_time, hard_interval, true);
+      next_good.scheduled_days = good_interval;
+      next_good.due = date_scheduler(this.review_time, good_interval, true);
+      next_easy.scheduled_days = easy_interval;
+      next_easy.due = date_scheduler(this.review_time, easy_interval, true);
+    }
+    /**
+     * Review/New next_state
+     */
+    next_state(next_again, next_hard, next_good, next_easy) {
+      next_again.state = State.Review;
+      next_again.learning_steps = 0;
+      next_hard.state = State.Review;
+      next_hard.learning_steps = 0;
+      next_good.state = State.Review;
+      next_good.learning_steps = 0;
+      next_easy.state = State.Review;
+      next_easy.learning_steps = 0;
+    }
+    update_next(next_again, next_hard, next_good, next_easy) {
+      const item_again = {
+        card: next_again,
+        log: this.buildLog(Rating.Again)
+      };
+      const item_hard = {
+        card: next_hard,
+        log: super.buildLog(Rating.Hard)
+      };
+      const item_good = {
+        card: next_good,
+        log: super.buildLog(Rating.Good)
+      };
+      const item_easy = {
+        card: next_easy,
+        log: super.buildLog(Rating.Easy)
+      };
+      this.next.set(Rating.Again, item_again);
+      this.next.set(Rating.Hard, item_hard);
+      this.next.set(Rating.Good, item_good);
+      this.next.set(Rating.Easy, item_easy);
+    }
+  }
+
+  var __defProp$1 = Object.defineProperty;
+  var __defProps$1 = Object.defineProperties;
+  var __getOwnPropDescs$1 = Object.getOwnPropertyDescriptors;
+  var __getOwnPropSymbols$1 = Object.getOwnPropertySymbols;
+  var __hasOwnProp$1 = Object.prototype.hasOwnProperty;
+  var __propIsEnum$1 = Object.prototype.propertyIsEnumerable;
+  var __defNormalProp$1 = (obj, key, value) => key in obj ? __defProp$1(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+  var __spreadValues$1 = (a, b) => {
+    for (var prop in b || (b = {}))
+      if (__hasOwnProp$1.call(b, prop))
+        __defNormalProp$1(a, prop, b[prop]);
+    if (__getOwnPropSymbols$1)
+      for (var prop of __getOwnPropSymbols$1(b)) {
+        if (__propIsEnum$1.call(b, prop))
+          __defNormalProp$1(a, prop, b[prop]);
+      }
+    return a;
+  };
+  var __spreadProps$1 = (a, b) => __defProps$1(a, __getOwnPropDescs$1(b));
+  var __publicField$1 = (obj, key, value) => __defNormalProp$1(obj, key + "" , value);
+  class Reschedule {
+    /**
+     * Creates an instance of the `Reschedule` class.
+     * @param fsrs - An instance of the FSRS class used for scheduling.
+     */
+    constructor(fsrs) {
+      __publicField$1(this, "fsrs");
+      this.fsrs = fsrs;
+    }
+    /**
+     * Replays a review for a card and determines the next review date based on the given rating.
+     * @param card - The card being reviewed.
+     * @param reviewed - The date the card was reviewed.
+     * @param rating - The grade given to the card during the review.
+     * @returns A `RecordLogItem` containing the updated card and review log.
+     */
+    replay(card, reviewed, rating) {
+      return this.fsrs.next(card, reviewed, rating);
+    }
+    /**
+     * Processes a manual review for a card, allowing for custom state, stability, difficulty, and due date.
+     * @param card - The card being reviewed.
+     * @param state - The state of the card after the review.
+     * @param reviewed - The date the card was reviewed.
+     * @param elapsed_days - The number of days since the last review.
+     * @param stability - (Optional) The stability of the card.
+     * @param difficulty - (Optional) The difficulty of the card.
+     * @param due - (Optional) The due date for the next review.
+     * @returns A `RecordLogItem` containing the updated card and review log.
+     * @throws Will throw an error if the state or due date is not provided when required.
+     */
+    handleManualRating(card, state, reviewed, elapsed_days, stability, difficulty, due) {
+      if (typeof state === "undefined") {
+        throw new FSRSValidationError(
+          "reschedule: state is required for manual rating"
+        );
+      }
+      let log;
+      let next_card;
+      if (state === State.New) {
+        log = {
+          rating: Rating.Manual,
+          state,
+          due: due != null ? due : reviewed,
+          stability: card.stability,
+          difficulty: card.difficulty,
+          elapsed_days,
+          last_elapsed_days: card.elapsed_days,
+          scheduled_days: card.scheduled_days,
+          learning_steps: card.learning_steps,
+          review: reviewed
+        };
+        next_card = createEmptyCard(reviewed);
+        next_card.last_review = reviewed;
+      } else {
+        if (typeof due === "undefined") {
+          throw new FSRSValidationError(
+            "reschedule: due is required for manual rating"
+          );
+        }
+        const scheduled_days = date_diff(due, reviewed, "days");
+        log = {
+          rating: Rating.Manual,
+          state: card.state,
+          due: card.last_review || card.due,
+          stability: card.stability,
+          difficulty: card.difficulty,
+          elapsed_days,
+          last_elapsed_days: card.elapsed_days,
+          scheduled_days: card.scheduled_days,
+          learning_steps: card.learning_steps,
+          review: reviewed
+        };
+        next_card = __spreadProps$1(__spreadValues$1({}, card), {
+          state,
+          due,
+          last_review: reviewed,
+          stability: stability || card.stability,
+          difficulty: difficulty || card.difficulty,
+          elapsed_days,
+          scheduled_days,
+          reps: card.reps + 1
+        });
+      }
+      return { card: next_card, log };
+    }
+    /**
+     * Reschedules a card based on its review history.
+     *
+     * @param current_card - The card to be rescheduled.
+     * @param reviews - An array of review history objects.
+     * @returns An array of record log items representing the rescheduling process.
+     */
+    reschedule(current_card, reviews) {
+      const collections = [];
+      let cur_card = createEmptyCard(current_card.due);
+      for (const review of reviews) {
+        let item;
+        review.review = TypeConvert.time(review.review);
+        if (review.rating === Rating.Manual) {
+          let interval = 0;
+          if (cur_card.state !== State.New && cur_card.last_review) {
+            interval = date_diff(review.review, cur_card.last_review, "days");
+          }
+          item = this.handleManualRating(
+            cur_card,
+            review.state,
+            review.review,
+            interval,
+            review.stability,
+            review.difficulty,
+            review.due ? TypeConvert.time(review.due) : void 0
+          );
+        } else {
+          item = this.replay(cur_card, review.review, review.rating);
+        }
+        collections.push(item);
+        cur_card = item.card;
+      }
+      return collections;
+    }
+    calculateManualRecord(current_card, now, record_log_item, update_memory) {
+      if (!record_log_item) {
+        return null;
+      }
+      const { card: reschedule_card, log } = record_log_item;
+      const cur_card = TypeConvert.card(current_card);
+      if (cur_card.due.getTime() === reschedule_card.due.getTime()) {
+        return null;
+      }
+      cur_card.scheduled_days = date_diff(
+        reschedule_card.due,
+        cur_card.due,
+        "days"
+      );
+      return this.handleManualRating(
+        cur_card,
+        reschedule_card.state,
+        TypeConvert.time(now),
+        log.elapsed_days,
+        update_memory ? reschedule_card.stability : void 0,
+        update_memory ? reschedule_card.difficulty : void 0,
+        reschedule_card.due
+      );
+    }
+  }
+
+  var __defProp = Object.defineProperty;
+  var __defProps = Object.defineProperties;
+  var __getOwnPropDescs = Object.getOwnPropertyDescriptors;
+  var __getOwnPropSymbols = Object.getOwnPropertySymbols;
+  var __hasOwnProp = Object.prototype.hasOwnProperty;
+  var __propIsEnum = Object.prototype.propertyIsEnumerable;
+  var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+  var __spreadValues = (a, b) => {
+    for (var prop in b || (b = {}))
+      if (__hasOwnProp.call(b, prop))
+        __defNormalProp(a, prop, b[prop]);
+    if (__getOwnPropSymbols)
+      for (var prop of __getOwnPropSymbols(b)) {
+        if (__propIsEnum.call(b, prop))
+          __defNormalProp(a, prop, b[prop]);
+      }
+    return a;
+  };
+  var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
+  var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+  function applyAfterHandler(value, afterHandler) {
+    return typeof afterHandler === "function" ? afterHandler(value) : value;
+  }
+  class FSRS extends FSRSAlgorithm {
+    constructor(param) {
+      super(param);
+      __publicField(this, "strategyHandler", /* @__PURE__ */ new Map());
+      __publicField(this, "Scheduler");
+      const { enable_short_term } = this.parameters;
+      this.Scheduler = enable_short_term ? BasicScheduler : LongTermScheduler;
+    }
+    params_handler_proxy() {
+      const _this = this;
+      return {
+        set: function(target, prop, value) {
+          if (prop === "request_retention" && Number.isFinite(value)) {
+            _this.intervalModifier = _this.calculate_interval_modifier(
+              Number(value)
+            );
+          } else if (prop === "enable_short_term") {
+            _this.Scheduler = value === true ? BasicScheduler : LongTermScheduler;
+          } else if (prop === "w") {
+            value = migrateParameters(
+              value,
+              target.relearning_steps.length,
+              target.enable_short_term
+            );
+            value = clipParameters(
+              Array.from(value),
+              target.relearning_steps.length,
+              target.enable_short_term
+            );
+            _this.forgetting_curve = forgetting_curve.bind(this, value);
+            _this.intervalModifier = _this.calculate_interval_modifier(
+              Number(target.request_retention)
+            );
+          }
+          Reflect.set(target, prop, value);
+          return true;
+        }
+      };
+    }
+    useStrategy(mode, handler) {
+      this.strategyHandler.set(mode, handler);
+      return this;
+    }
+    clearStrategy(mode) {
+      if (mode) {
+        this.strategyHandler.delete(mode);
+      } else {
+        this.strategyHandler.clear();
+      }
+      return this;
+    }
+    getScheduler(card, now) {
+      const schedulerStrategy = this.strategyHandler.get(
+        StrategyMode.SCHEDULER
+      );
+      const Scheduler = schedulerStrategy || this.Scheduler;
+      const instance = new Scheduler(card, now, this, this.strategyHandler);
+      return instance;
+    }
+    /**
+     * Display the collection of cards and logs for the four scenarios after scheduling the card at the current time.
+     * @param card Card to be processed
+     * @param now Current time or scheduled time
+     * @param afterHandler Convert the result to another type. (Optional)
+     * @example
+     * ```typescript
+     * const card: Card = createEmptyCard(new Date());
+     * const f = fsrs();
+     * const recordLog = f.repeat(card, new Date());
+     * ```
+     * @example
+     * ```typescript
+     * interface RevLogUnchecked
+     *   extends Omit<ReviewLog, "due" | "review" | "state" | "rating"> {
+     *   cid: string;
+     *   due: Date | number;
+     *   state: StateType;
+     *   review: Date | number;
+     *   rating: RatingType;
+     * }
+     *
+     * interface RepeatRecordLog {
+     *   card: CardUnChecked; //see method: createEmptyCard
+     *   log: RevLogUnchecked;
+     * }
+     *
+     * function repeatAfterHandler(recordLog: RecordLog) {
+     *     const record: { [key in Grade]: RepeatRecordLog } = {} as {
+     *       [key in Grade]: RepeatRecordLog;
+     *     };
+     *     for (const grade of Grades) {
+     *       record[grade] = {
+     *         card: {
+     *           ...(recordLog[grade].card as Card & { cid: string }),
+     *           due: recordLog[grade].card.due.getTime(),
+     *           state: State[recordLog[grade].card.state] as StateType,
+     *           last_review: recordLog[grade].card.last_review
+     *             ? recordLog[grade].card.last_review!.getTime()
+     *             : null,
+     *         },
+     *         log: {
+     *           ...recordLog[grade].log,
+     *           cid: (recordLog[grade].card as Card & { cid: string }).cid,
+     *           due: recordLog[grade].log.due.getTime(),
+     *           review: recordLog[grade].log.review.getTime(),
+     *           state: State[recordLog[grade].log.state] as StateType,
+     *           rating: Rating[recordLog[grade].log.rating] as RatingType,
+     *         },
+     *       };
+     *     }
+     *     return record;
+     * }
+     * const card: Card = createEmptyCard(new Date(), cardAfterHandler); //see method:  createEmptyCard
+     * const f = fsrs();
+     * const recordLog = f.repeat(card, new Date(), repeatAfterHandler);
+     * ```
+     */
+    repeat(card, now, afterHandler) {
+      const instance = this.getScheduler(card, now);
+      const recordLog = instance.preview();
+      return applyAfterHandler(recordLog, afterHandler);
+    }
+    /**
+     * Display the collection of cards and logs for the card scheduled at the current time, after applying a specific grade rating.
+     * @param card Card to be processed
+     * @param now Current time or scheduled time
+     * @param grade Rating of the review (Again, Hard, Good, Easy)
+     * @param afterHandler Convert the result to another type. (Optional)
+     * @example
+     * ```typescript
+     * const card: Card = createEmptyCard(new Date());
+     * const f = fsrs();
+     * const recordLogItem = f.next(card, new Date(), Rating.Again);
+     * ```
+     * @example
+     * ```typescript
+     * interface RevLogUnchecked
+     *   extends Omit<ReviewLog, "due" | "review" | "state" | "rating"> {
+     *   cid: string;
+     *   due: Date | number;
+     *   state: StateType;
+     *   review: Date | number;
+     *   rating: RatingType;
+     * }
+     *
+     * interface NextRecordLog {
+     *   card: CardUnChecked; //see method: createEmptyCard
+     *   log: RevLogUnchecked;
+     * }
+     *
+    function nextAfterHandler(recordLogItem: RecordLogItem) {
+      const recordItem = {
+        card: {
+          ...(recordLogItem.card as Card & { cid: string }),
+          due: recordLogItem.card.due.getTime(),
+          state: State[recordLogItem.card.state] as StateType,
+          last_review: recordLogItem.card.last_review
+            ? recordLogItem.card.last_review!.getTime()
+            : null,
+        },
+        log: {
+          ...recordLogItem.log,
+          cid: (recordLogItem.card as Card & { cid: string }).cid,
+          due: recordLogItem.log.due.getTime(),
+          review: recordLogItem.log.review.getTime(),
+          state: State[recordLogItem.log.state] as StateType,
+          rating: Rating[recordLogItem.log.rating] as RatingType,
+        },
+      };
+      return recordItem
+    }
+     * const card: Card = createEmptyCard(new Date(), cardAfterHandler); //see method:  createEmptyCard
+     * const f = fsrs();
+     * const recordLogItem = f.repeat(card, new Date(), Rating.Again, nextAfterHandler);
+     * ```
+     */
+    next(card, now, grade, afterHandler) {
+      const instance = this.getScheduler(card, now);
+      const g = TypeConvert.rating(grade);
+      if (g === Rating.Manual) {
+        throw new FSRSValidationError("Cannot review a manual rating");
+      }
+      const recordLogItem = instance.review(g);
+      return applyAfterHandler(recordLogItem, afterHandler);
+    }
+    /**
+     * Get the retrievability of the card
+     * @param card  Card to be processed
+     * @param now  Current time or scheduled time
+     * @param format  default:true , Convert the result to another type. (Optional)
+     * @returns  The retrievability of the card,if format is true, the result is a string, otherwise it is a number
+     */
+    get_retrievability(card, now, format = true) {
+      const processedCard = TypeConvert.card(card);
+      now = now ? TypeConvert.time(now) : /* @__PURE__ */ new Date();
+      const t = processedCard.state !== State.New ? Math.max(date_diff(now, processedCard.last_review, "days"), 0) : 0;
+      const r = processedCard.state !== State.New ? this.forgetting_curve(t, +processedCard.stability.toFixed(8)) : 0;
+      return format ? `${(r * 100).toFixed(2)}%` : r;
+    }
+    /**
+     *
+     * @param card Card to be processed
+     * @param log last review log
+     * @param afterHandler Convert the result to another type. (Optional)
+     * @example
+     * ```typescript
+     * const now = new Date();
+     * const f = fsrs();
+     * const emptyCardFormAfterHandler = createEmptyCard(now);
+     * const repeatFormAfterHandler = f.repeat(emptyCardFormAfterHandler, now);
+     * const { card, log } = repeatFormAfterHandler[Rating.Hard];
+     * const rollbackFromAfterHandler = f.rollback(card, log);
+     * ```
+     *
+     * @example
+     * ```typescript
+     * const now = new Date();
+     * const f = fsrs();
+     * const emptyCardFormAfterHandler = createEmptyCard(now, cardAfterHandler);  //see method: createEmptyCard
+     * const repeatFormAfterHandler = f.repeat(emptyCardFormAfterHandler, now, repeatAfterHandler); //see method: fsrs.repeat()
+     * const { card, log } = repeatFormAfterHandler[Rating.Hard];
+     * const rollbackFromAfterHandler = f.rollback(card, log, cardAfterHandler);
+     * ```
+     */
+    rollback(card, log, afterHandler) {
+      const processedCard = TypeConvert.card(card);
+      const processedLog = TypeConvert.review_log(log);
+      if (processedLog.rating === Rating.Manual) {
+        throw new FSRSValidationError("Cannot rollback a manual rating");
+      }
+      let last_due;
+      let last_review;
+      let last_lapses;
+      switch (processedLog.state) {
+        case State.New:
+          last_due = processedLog.due;
+          last_review = void 0;
+          last_lapses = 0;
+          break;
+        case State.Learning:
+        case State.Relearning:
+        case State.Review:
+          last_due = processedLog.review;
+          last_review = processedLog.due;
+          last_lapses = processedCard.lapses - (processedLog.rating === Rating.Again && processedLog.state === State.Review ? 1 : 0);
+          break;
+      }
+      const prevCard = __spreadProps(__spreadValues({}, processedCard), {
+        due: last_due,
+        stability: processedLog.stability,
+        difficulty: processedLog.difficulty,
+        elapsed_days: processedLog.last_elapsed_days,
+        scheduled_days: processedLog.scheduled_days,
+        reps: Math.max(0, processedCard.reps - 1),
+        lapses: Math.max(0, last_lapses),
+        learning_steps: processedLog.learning_steps,
+        state: processedLog.state,
+        last_review
+      });
+      return applyAfterHandler(prevCard, afterHandler);
+    }
+    /**
+     *
+     * @param card Card to be processed
+     * @param now Current time or scheduled time
+     * @param reset_count Should the review count information(reps,lapses) be reset. (Optional)
+     * @param afterHandler Convert the result to another type. (Optional)
+     * @example
+     * ```typescript
+     * const now = new Date();
+     * const f = fsrs();
+     * const emptyCard = createEmptyCard(now);
+     * const scheduling_cards = f.repeat(emptyCard, now);
+     * const { card, log } = scheduling_cards[Rating.Hard];
+     * const forgetCard = f.forget(card, new Date(), true);
+     * ```
+     *
+     * @example
+     * ```typescript
+     * interface RepeatRecordLog {
+     *   card: CardUnChecked; //see method: createEmptyCard
+     *   log: RevLogUnchecked; //see method: fsrs.repeat()
+     * }
+     *
+     * function forgetAfterHandler(recordLogItem: RecordLogItem): RepeatRecordLog {
+     *     return {
+     *       card: {
+     *         ...(recordLogItem.card as Card & { cid: string }),
+     *         due: recordLogItem.card.due.getTime(),
+     *         state: State[recordLogItem.card.state] as StateType,
+     *         last_review: recordLogItem.card.last_review
+     *           ? recordLogItem.card.last_review!.getTime()
+     *           : null,
+     *       },
+     *       log: {
+     *         ...recordLogItem.log,
+     *         cid: (recordLogItem.card as Card & { cid: string }).cid,
+     *         due: recordLogItem.log.due.getTime(),
+     *         review: recordLogItem.log.review.getTime(),
+     *         state: State[recordLogItem.log.state] as StateType,
+     *         rating: Rating[recordLogItem.log.rating] as RatingType,
+     *       },
+     *     };
+     * }
+     * const now = new Date();
+     * const f = fsrs();
+     * const emptyCardFormAfterHandler = createEmptyCard(now, cardAfterHandler); //see method:  createEmptyCard
+     * const repeatFormAfterHandler = f.repeat(emptyCardFormAfterHandler, now, repeatAfterHandler); //see method: fsrs.repeat()
+     * const { card } = repeatFormAfterHandler[Rating.Hard];
+     * const forgetFromAfterHandler = f.forget(card, date_scheduler(now, 1, true), false, forgetAfterHandler);
+     * ```
+     */
+    forget(card, now, reset_count = false, afterHandler) {
+      const processedCard = TypeConvert.card(card);
+      now = TypeConvert.time(now);
+      const scheduled_days = processedCard.state === State.New ? 0 : date_diff(now, processedCard.due, "days");
+      const forget_log = {
+        rating: Rating.Manual,
+        state: processedCard.state,
+        due: processedCard.due,
+        stability: processedCard.stability,
+        difficulty: processedCard.difficulty,
+        elapsed_days: 0,
+        last_elapsed_days: processedCard.elapsed_days,
+        scheduled_days,
+        learning_steps: processedCard.learning_steps,
+        review: now
+      };
+      const forget_card = __spreadProps(__spreadValues({}, processedCard), {
+        due: now,
+        stability: 0,
+        difficulty: 0,
+        elapsed_days: 0,
+        scheduled_days: 0,
+        reps: reset_count ? 0 : processedCard.reps,
+        lapses: reset_count ? 0 : processedCard.lapses,
+        learning_steps: 0,
+        state: State.New,
+        last_review: processedCard.last_review
+      });
+      const recordLogItem = { card: forget_card, log: forget_log };
+      return applyAfterHandler(recordLogItem, afterHandler);
+    }
+    /**
+     * Reschedules the current card and returns the rescheduled collections and reschedule item.
+     *
+     * @template T - The type of the record log item.
+     * @param {CardInput | Card} current_card - The current card to be rescheduled.
+     * @param {Array<FSRSHistory>} reviews - The array of FSRSHistory objects representing the reviews.
+     * @param {Partial<RescheduleOptions<T>>} options - The optional reschedule options.
+     * @returns {IReschedule<T>} - The rescheduled collections and reschedule item.
+     *
+     * @example
+     * ```typescript
+     * const f = fsrs()
+     * const grades: Grade[] = [Rating.Good, Rating.Good, Rating.Good, Rating.Good]
+     * const reviews_at = [
+     *   new Date(2024, 8, 13),
+     *   new Date(2024, 8, 13),
+     *   new Date(2024, 8, 17),
+     *   new Date(2024, 8, 28),
+     * ]
+     *
+     * const reviews: FSRSHistory[] = []
+     * for (let i = 0; i < grades.length; i++) {
+     *   reviews.push({
+     *     rating: grades[i],
+     *     review: reviews_at[i],
+     *   })
+     * }
+     *
+     * const results_short = scheduler.reschedule(
+     *   createEmptyCard(),
+     *   reviews,
+     *   {
+     *     skipManual: false,
+     *   }
+     * )
+     * console.log(results_short)
+     * ```
+     */
+    reschedule(current_card, reviews = [], options = {}) {
+      const {
+        recordLogHandler,
+        reviewsOrderBy,
+        skipManual = true,
+        now = /* @__PURE__ */ new Date(),
+        update_memory_state: updateMemoryState = false
+      } = options;
+      if (reviewsOrderBy && typeof reviewsOrderBy === "function") {
+        reviews.sort(reviewsOrderBy);
+      }
+      if (skipManual) {
+        reviews = reviews.filter((review) => review.rating !== Rating.Manual);
+      }
+      const rescheduleSvc = new Reschedule(this);
+      const collections = rescheduleSvc.reschedule(
+        options.first_card || createEmptyCard(),
+        reviews
+      );
+      const len = collections.length;
+      const cur_card = TypeConvert.card(current_card);
+      const manual_item = rescheduleSvc.calculateManualRecord(
+        cur_card,
+        now,
+        len ? collections[len - 1] : void 0,
+        updateMemoryState
+      );
+      return {
+        collections: typeof recordLogHandler === "function" ? collections.map(recordLogHandler) : collections,
+        reschedule_item: manual_item ? applyAfterHandler(manual_item, recordLogHandler) : null
+      };
+    }
+  }
+  const fsrs = (params) => {
+    return new FSRS(params || {});
+  };
+
+  exports.AbstractScheduler = AbstractScheduler;
+  exports.BasicLearningStepsStrategy = BasicLearningStepsStrategy;
+  exports.CLAMP_PARAMETERS = CLAMP_PARAMETERS;
+  exports.ConvertStepUnitToMinutes = ConvertStepUnitToMinutes;
+  exports.DefaultInitSeedStrategy = DefaultInitSeedStrategy;
+  exports.FSRS = FSRS;
+  exports.FSRS5_DEFAULT_DECAY = FSRS5_DEFAULT_DECAY;
+  exports.FSRS6_DEFAULT_DECAY = FSRS6_DEFAULT_DECAY;
+  exports.FSRSAlgorithm = FSRSAlgorithm;
+  exports.FSRSVersion = FSRSVersion;
+  exports.GenSeedStrategyWithCardId = GenSeedStrategyWithCardId;
+  exports.Grades = Grades;
+  exports.INIT_S_MAX = INIT_S_MAX;
+  exports.Rating = Rating;
+  exports.S_MAX = S_MAX;
+  exports.S_MIN = S_MIN;
+  exports.State = State;
+  exports.StrategyMode = StrategyMode;
+  exports.TypeConvert = TypeConvert;
+  exports.W17_W18_Ceiling = W17_W18_Ceiling;
+  exports.checkParameters = checkParameters;
+  exports.clamp = clamp;
+  exports.clipParameters = clipParameters;
+  exports.computeDecayFactor = computeDecayFactor;
+  exports.createEmptyCard = createEmptyCard;
+  exports.dateDiffInDays = dateDiffInDays;
+  exports.date_diff = date_diff;
+  exports.date_scheduler = date_scheduler;
+  exports.default_enable_fuzz = default_enable_fuzz;
+  exports.default_enable_short_term = default_enable_short_term;
+  exports.default_learning_steps = default_learning_steps;
+  exports.default_maximum_interval = default_maximum_interval;
+  exports.default_relearning_steps = default_relearning_steps;
+  exports.default_request_retention = default_request_retention;
+  exports.default_w = default_w;
+  exports.fixDate = fixDate;
+  exports.fixRating = fixRating;
+  exports.fixState = fixState;
+  exports.forgetting_curve = forgetting_curve;
+  exports.formatDate = formatDate;
+  exports.fsrs = fsrs;
+  exports.generatorParameters = generatorParameters;
+  exports.get_fuzz_range = get_fuzz_range;
+  exports.migrateParameters = migrateParameters;
+  exports.roundTo = roundTo;
+  exports.show_diff_message = show_diff_message;
+
+}));
+
+</script>
+<script>
+{
+const C={"pron":[{"id":"p1","lv":1,"t":"Âm cuối /t/ /d/ /k/ /p/","s":"Lỗi số một của người Việt: nuốt hoặc đọc câm âm cuối","g":["Tiếng Việt có âm cuối t, p, c nhưng đọc câm (không bật hơi), nên khi nói tiếng Anh ta hay nuốt luôn âm cuối. Người bản xứ dựa vào âm cuối để phân biệt từ: bet và bed, back và bag khác nhau chỉ ở âm cuối.","Cách luyện: kết thúc từ, giữ khẩu hình rồi bật nhẹ một luồng hơi ở /t/ /k/ /p/. Với /d/ /g/ /b/ thì kéo nguyên âm phía trước dài hơn một chút và để dây thanh rung."],"pairs":[["bet","bed"],["back","bag"],["cap","cab"],["right","ride"],["seat","seed"]],"p":[["I need the report by eight.","Tôi cần bản báo cáo trước tám giờ."],["Can you check the last page?","Bạn kiểm tra trang cuối được không?"],["We had a good talk about the budget.","Chúng ta đã có buổi trao đổi tốt về ngân sách."],["Please send it back to the client.","Vui lòng gửi lại cho khách hàng."]]},{"id":"p2","lv":1,"t":"Âm cuối /s/ /z/ và đuôi -s","s":"Số nhiều, động từ ngôi thứ ba, sở hữu cách","g":["Đuôi -s đọc /s/ sau âm vô thanh (works, tasks, meetings đọc /z/ vì ng hữu thanh), đọc /z/ sau âm hữu thanh (teams, calls, plans), đọc /ɪz/ sau s, z, sh, ch, j (offices, changes, pushes).","Người Việt hay bỏ hẳn đuôi này nên người nghe không biết bạn nói số ít hay số nhiều. /z/ khác /s/ ở chỗ cổ họng rung: đặt tay lên cổ để kiểm tra."],"pairs":[["price","prize"],["rice","rise"],["place","plays"],["bus","buzz"],["peace","peas"]],"p":[["She sends two reports every week.","Cô ấy gửi hai báo cáo mỗi tuần."],["Our team needs more resources.","Nhóm chúng ta cần thêm nguồn lực."],["He usually makes changes on Mondays.","Anh ấy thường chỉnh sửa vào thứ Hai."],["The manager's plans are clear.","Kế hoạch của quản lý rất rõ ràng."]]},{"id":"p3","lv":1,"t":"Đuôi -ed","s":"Ba cách đọc /t/ /d/ /ɪd/","g":["Đọc /t/ sau âm vô thanh p, k, f, s, sh, ch: worked, asked, stopped, fixed.","Đọc /d/ sau âm hữu thanh và nguyên âm: planned, called, delayed, solved.","Đọc /ɪd/ sau t và d: started, needed, updated, completed. Chỉ nhóm này mới thêm một âm tiết, đừng đọc worked thành work-ed."],"pairs":[["work","worked"],["plan","planned"],["need","needed"],["ask","asked"],["call","called"]],"p":[["I worked late and finished the slides.","Tôi làm muộn và đã làm xong slide."],["We started the project and planned every step.","Chúng tôi bắt đầu dự án và lên kế hoạch từng bước."],["The client called and asked for an update.","Khách hàng gọi và hỏi cập nhật."],["The issue was solved yesterday.","Vấn đề đã được giải quyết hôm qua."]]},{"id":"p4","lv":1,"t":"/ʃ/ và /s/, /ʧ/ và /ʤ/","s":"She không phải see, ship không phải sip","g":["/ʃ/ (she, share, session): tròn môi, đẩy nhẹ môi ra trước, lưỡi lùi về sau, luồng hơi rộng. /s/ (see, sell): môi dẹt, đầu lưỡi gần lợi trên, hơi mảnh như tiếng xì.","/ʧ/ (check, change) là /t/ nối liền /ʃ/. /ʤ/ (job, project) là /d/ nối liền /ʒ/, có rung cổ. Người Việt hay đọc job thành giốp hoặc chốp."],"pairs":[["sip","ship"],["see","she"],["sell","shell"],["save","shave"],["chin","gin"]],"p":[["Should she share the schedule?","Cô ấy có nên chia sẻ lịch không?"],["Let's check the changes in the project.","Hãy kiểm tra các thay đổi trong dự án."],["This session is about customer service.","Buổi này nói về dịch vụ khách hàng."],["I'll schedule a short chat with John.","Tôi sẽ lên lịch một cuộc trao đổi ngắn với John."]]},{"id":"p5","lv":1,"t":"/θ/ và /ð/","s":"Thank, three, this, the","g":["Đặt đầu lưỡi nhẹ giữa hai hàm răng rồi thổi hơi. /θ/ (thank, three, think) không rung cổ. /ð/ (this, that, the, they) có rung cổ.","Lỗi hay gặp: thank đọc thành tank hoặc sank, three thành tree, this thành dis. Không cần hoàn hảo ngay, nhưng phải để thấy đầu lưỡi."],"pairs":[["thin","tin"],["three","tree"],["thank","tank"],["they","day"],["think","sink"]],"p":[["Thank you for the three updates this Thursday.","Cảm ơn ba bản cập nhật thứ Năm này."],["I think that's the right thing to do.","Tôi nghĩ đó là điều đúng nên làm."],["They both agreed with the method.","Cả hai đều đồng ý với phương pháp."],["Is there anything else on this list?","Còn gì khác trong danh sách này không?"]]},{"id":"p6","lv":2,"t":"Cụm phụ âm","s":"Tasks, months, asked, desks","g":["Tiếng Việt không có hai ba phụ âm đứng liền nhau, nên ta hay bỏ bớt hoặc chèn thêm nguyên âm (desks thành đét hoặc đét-xơ).","Cách luyện: tách chậm từng âm rồi ghép dần. tasks = /t/ /æ/ /s/ /k/ /s/. months = /m/ /ʌ/ /n/ /θ/ /s/. Ưu tiên giữ âm cuối cùng vì nó mang nghĩa ngữ pháp."],"pairs":[["task","tasks"],["desk","desks"],["test","tests"],["month","months"],["ask","asked"]],"p":[["We discussed the tasks last month.","Chúng tôi đã thảo luận các đầu việc tháng trước."],["The tests take about six minutes.","Các bài kiểm tra mất khoảng sáu phút."],["She asked about the next steps.","Cô ấy hỏi về các bước tiếp theo."],["Our clients expect fast results.","Khách hàng của chúng ta mong kết quả nhanh."]]},{"id":"p7","lv":2,"t":"Nguyên âm dài và ngắn","s":"/iː/ và /ɪ/, /æ/ và /e/","g":["/iː/ (sheet, leave, team) kéo dài, môi kéo căng như cười. /ɪ/ (ship, live, fix) ngắn, môi thả lỏng. Nhầm hai âm này có thể gây hiểu nhầm khá ngại.","/æ/ (bad, man, plan) mở miệng rộng, hàm dưới hạ xuống, như giữa a và e. /e/ (bed, men, send) mở vừa."],"pairs":[["ship","sheep"],["live","leave"],["fill","feel"],["bad","bed"],["man","men"]],"p":[["Please leave the sheet on my desk.","Vui lòng để tờ giấy trên bàn tôi."],["Our team will fix it this week.","Nhóm sẽ sửa nó trong tuần này."],["The plan sounds bad for the sales team.","Kế hoạch này nghe không ổn cho đội bán hàng."],["I feel we need a bit more time.","Tôi cảm thấy chúng ta cần thêm chút thời gian."]]},{"id":"p8","lv":2,"t":"Trọng âm từ","s":"Nhấn sai trọng âm thì nói đúng âm vẫn khó hiểu","g":["Âm tiết được nhấn đọc to hơn, dài hơn, cao hơn; các âm tiết còn lại đọc nhẹ, thường thành /ə/. Ví dụ de-VEL-op, a-NAL-y-sis, COL-league, MAN-ag-er.","Người Việt hay nhấn đều mọi âm tiết như tiếng Việt, hoặc lên giọng ở âm cuối. Mẹo: danh từ hai âm tiết thường nhấn âm đầu (REport sai, rePORT đúng là ngoại lệ), động từ hai âm tiết thường nhấn âm sau (preSENT, reCORD)."],"pairs":[["present","presentation"],["develop","development"],["photo","photograph"],["economy","economic"],["manage","manager"]],"p":[["Our colleague will present the analysis.","Đồng nghiệp của chúng ta sẽ trình bày phần phân tích."],["The development team needs a decision.","Đội phát triển cần một quyết định."],["Let me introduce our new manager.","Để tôi giới thiệu quản lý mới."],["We should develop a better process.","Chúng ta nên xây dựng một quy trình tốt hơn."]]},{"id":"p9","lv":2,"t":"Nối âm, ngữ điệu, cặp dễ nghe nhầm","s":"Can và can't, fifteen và fifty","g":["Phụ âm cuối nối sang nguyên âm đầu của từ sau: check it out đọc như che-ki-tout, turn it off như tur-ni-toff, can I như ca-nai.","Ngữ điệu: câu hỏi Yes/No lên giọng ở cuối (Are you free? ↗), câu hỏi Wh- và câu kể xuống giọng (Where is the file? ↘).","Cặp hay nghe nhầm trong công việc: can đọc nhẹ /kən/ còn can't đọc mạnh và dài /kænt/. Fifteen nhấn âm sau (fif-TEEN), fifty nhấn âm đầu (FIF-ty). Nghe nhầm số là sai hẳn thông tin."],"pairs":[["can","can't"],["fifteen","fifty"],["thirteen","thirty"],["fourteen","forty"],["want","won't"]],"p":[["Can I ask a question?","Tôi hỏi một câu được không?"],["Let's check it out after lunch.","Mình xem thử sau bữa trưa nhé."],["I can join at fifteen past, but I can't stay long.","Tôi tham gia lúc mười lăm phút qua được, nhưng không ở lâu được."],["I'll pick it up as soon as I can.","Tôi sẽ nhận việc đó ngay khi có thể."]]}],"office":[{"id":"o1","lv":1,"t":"Giới thiệu bản thân","s":"Ngày đầu đi làm, gặp đồng nghiệp mới","tip":"Nói rõ âm cuối của tên team và chức danh: team /tiːm/, lead /liːd/, analyst /ˈænəlɪst/.","p":[["Hi, I'm Minh. I've just joined the marketing team.","Chào, mình là Minh. Mình vừa vào team marketing."],["I'm in charge of quality assurance for the app project.","Mình phụ trách kiểm soát chất lượng cho dự án app."],["Nice to meet you. Which team are you on?","Rất vui được gặp bạn. Bạn ở team nào?"],["I've been working here for about two years.","Mình làm ở đây khoảng hai năm rồi."],["Let me introduce you to my colleague, Lan.","Để mình giới thiệu bạn với đồng nghiệp của mình, Lan."],["Feel free to ask me if you need anything.","Cần gì cứ hỏi mình nhé."]],"d":[["David","Hi, you must be the new analyst. I'm David from Sales."],["Minh","Yes, I'm Minh. Nice to meet you, David."],["David","Nice to meet you too. How's your first week going?"],["Minh","Pretty good, thanks. Everyone has been really helpful."]],"q":[["I ___ here since last year.",["work","have worked","am work","worked"],1,"Since + mốc thời gian dùng hiện tại hoàn thành: have worked."],["Câu nào tự nhiên nhất khi nói về vai trò?",["I am responsible about QA.","I'm in charge of QA.","I take charge QA.","I'm charging QA."],1,"In charge of = phụ trách. Responsible phải đi với for."],["Which team are you ___?",["in","on","at","of"],1,"Be on a team là cách nói phổ biến (Anh Mỹ)."]]},{"id":"o2","lv":1,"t":"Small talk ở văn phòng","s":"Chuyện phiếm trước giờ họp, giờ ăn trưa","tip":"Câu hỏi Yes/No lên giọng ở cuối, câu hỏi Wh- xuống giọng.","p":[["How was your weekend?","Cuối tuần của bạn thế nào?"],["Did you do anything fun?","Bạn có làm gì vui không?"],["It's been a busy week, hasn't it?","Tuần này bận thật nhỉ?"],["Are you heading out for lunch?","Bạn chuẩn bị đi ăn trưa à?"],["Let's grab a coffee sometime.","Hôm nào đi cà phê nhé."],["Have a good weekend. See you on Monday.","Cuối tuần vui nhé. Hẹn gặp thứ Hai."]],"d":[["Anna","Morning! How was your weekend?"],["Minh","Really relaxing, thanks. I went to the beach with my family. How about you?"],["Anna","Not bad. I mostly caught up on sleep."],["Minh","Sounds like exactly what you needed."]],"q":[["It's been a long day, ___?",["isn't it","hasn't it","doesn't it","wasn't it"],1,"It's been = It has been nên câu hỏi đuôi là hasn't it."],["Đồng nghiệp hỏi How's it going? Bạn đáp:",["It's going to the office.","Pretty good, thanks. You?","Yes, it is.","I go well."],1,"How's it going là lời chào, đáp ngắn và hỏi lại."],["Let's ___ a coffee sometime.",["grab","catch","take on","get up"],0,"Grab a coffee = đi uống cà phê nhanh."]]},{"id":"o3","lv":2,"t":"Trong cuộc họp","s":"Góp ý, đồng ý, phản đối lịch sự","tip":"Nhấn trọng âm đúng: a-GREE, de-CI-sion, A-gen-da, pro-POSE.","p":[["Can I add something here?","Mình bổ sung một ý được không?"],["I see your point, but I have a different view.","Mình hiểu ý bạn, nhưng mình có góc nhìn khác."],["I completely agree with Anna on this.","Mình hoàn toàn đồng ý với Anna về điểm này."],["Could you clarify what you mean by that?","Bạn làm rõ ý đó giúp mình được không?"],["Let's move on to the next item on the agenda.","Mình chuyển sang mục tiếp theo nhé."],["So, to sum up, we've agreed to launch next month.","Tóm lại, chúng ta thống nhất ra mắt vào tháng sau."]],"d":[["Lead","Let's start. The first item is the budget for next quarter."],["Minh","Can I add something here? I think we need more for testing."],["Lead","I see your point, but we're already over budget."],["Minh","Then could we move some money from marketing?"]],"q":[["Cách phản đối lịch sự nhất:",["You're wrong.","That's a bad idea.","I see your point, but I'm not sure that will work.","No way."],2,"Ghi nhận ý người khác trước rồi mới nêu băn khoăn."],["Could you ___ what you mean?",["clarify","clear","clean","explain me"],0,"Explain me sai, phải là explain to me."],["Let's move on ___ the next item.",["to","for","at","in"],0,"Move on to = chuyển sang."]]},{"id":"o4","lv":1,"t":"Gọi điện và họp online","s":"Zoom, Teams, mạng lag, quên bật mic","tip":"Nối âm: Can I, speak up, on mute đọc liền một hơi.","p":[["Sorry, you're breaking up. Could you say that again?","Xin lỗi, tiếng bạn bị ngắt quãng. Bạn nói lại được không?"],["Can everyone see my screen?","Mọi người thấy màn hình của mình chưa?"],["I think you're on mute.","Hình như bạn đang tắt mic."],["Could you speak up a little, please?","Bạn nói to hơn một chút được không?"],["I'll send you a calendar invite for Friday.","Mình sẽ gửi lời mời lịch cho thứ Sáu."],["Let's take this offline and talk later.","Mình trao đổi riêng sau nhé."]],"d":[["Host","Hi everyone, can you hear me okay?"],["Minh","Yes, loud and clear. But I think Tom is on mute."],["Tom","Sorry about that. Can you hear me now?"],["Host","Perfect. Let me share my screen."]],"q":[["Mạng lag, tiếng người kia ngắt quãng, bạn nói:",["You are broken.","You're breaking up.","Your voice is bad.","You break."],1,"Breaking up = tín hiệu chập chờn."],["I'll ___ you a calendar invite.",["send","sent","sending","sends"],0,"Sau will dùng động từ nguyên mẫu."],["Let's take this ___. (bàn riêng, ngoài cuộc họp)",["offline","outside","online","off"],0,"Take it offline = bàn riêng sau."]]},{"id":"o5","lv":2,"t":"Báo cáo tiến độ, nhờ hỗ trợ","s":"Cập nhật với sếp, xin giúp đỡ đồng nghiệp","tip":"Đuôi -ed: delayed /d/, finished /t/, updated /ɪd/.","p":[["I've finished the first draft of the report.","Mình đã xong bản nháp đầu của báo cáo."],["We're a bit behind schedule because of the bug.","Bọn mình hơi trễ tiến độ vì lỗi đó."],["Could you give me a hand with this?","Bạn giúp mình một tay được không?"],["I'll update you by the end of the day.","Mình sẽ cập nhật trước cuối ngày."],["Do you have a minute? I need your advice.","Bạn rảnh một chút không? Mình cần bạn tư vấn."],["We're on track to finish by Friday.","Chúng ta đang đúng tiến độ để xong trước thứ Sáu."]],"d":[["Manager","How's the project going?"],["Minh","We're about eighty percent done, but the testing is delayed."],["Manager","What's causing the delay?"],["Minh","We found a critical bug yesterday. I'll update you by Thursday."]],"q":[["Đuôi -ed trong updated đọc là:",["/t/","/d/","/ɪd/","không đọc"],2,"Sau t và d thì -ed đọc /ɪd/."],["We are a bit behind ___.",["schedule","plan time","the time","deadline"],0,"Behind schedule = trễ tiến độ."],["We're on ___ to finish by Friday.",["track","road","way","line"],0,"On track = đúng tiến độ."]]},{"id":"o6","lv":2,"t":"Thuyết trình ngắn","s":"Trình bày số liệu, dẫn dắt, nhận câu hỏi","tip":"Ngắt sau mỗi cụm ý, nhấn từ khóa và con số.","p":[["Today I'd like to walk you through our results.","Hôm nay mình xin trình bày kết quả."],["Let's take a look at this chart.","Mình cùng xem biểu đồ này."],["As you can see, sales went up by fifteen percent.","Như mọi người thấy, doanh số tăng mười lăm phần trăm."],["That brings me to my next point.","Điều đó dẫn tới ý tiếp theo."],["To be honest, the numbers were lower than we expected.","Thật lòng mà nói, số liệu thấp hơn kỳ vọng."],["Thank you. I'm happy to take any questions.","Cảm ơn. Mình sẵn sàng trả lời câu hỏi."]],"d":[["Minh","Good morning. Today I'd like to walk you through our third quarter results."],["Minh","As you can see, revenue went up by fifteen percent."],["Director","Thanks. What drove that growth?"],["Minh","Mainly new customers in the south."]],"q":[["Sales went up ___ fifteen percent.",["by","with","at","on"],0,"Tăng giảm một lượng: go up by, go down by."],["Câu kết thúc thuyết trình chuyên nghiệp:",["That's all. Bye.","I'm happy to take any questions.","Ask me now.","Finish."],1,"Mời đặt câu hỏi lịch sự."],["Today I'd like to walk you ___ our results.",["through","over","across","into"],0,"Walk someone through = trình bày từng bước."]]},{"id":"o7","lv":2,"t":"Xử lý phàn nàn của khách","s":"Xin lỗi, đồng cảm, đưa giải pháp","tip":"Âm /θ/ trong thank, through: để đầu lưỡi giữa răng.","p":[["I'm really sorry for the inconvenience.","Tôi thật sự xin lỗi vì sự bất tiện này."],["I completely understand your frustration.","Tôi hoàn toàn hiểu sự khó chịu của anh chị."],["Let me look into this for you right away.","Để tôi kiểm tra việc này ngay."],["Could you tell me exactly what happened?","Anh chị kể cụ thể chuyện gì đã xảy ra được không?"],["I'll get back to you within twenty four hours.","Tôi sẽ phản hồi trong vòng hai mươi bốn giờ."],["Is there anything else I can help you with?","Tôi còn giúp gì được cho anh chị không?"]],"d":[["Customer","I've been charged twice for my order!"],["Minh","I'm really sorry about that. Could you give me your order number?"],["Customer","Sure, it's on the email you sent me."],["Minh","Thank you. I can see the double charge. I'll refund it right away."]],"q":[["Câu thể hiện sự đồng cảm:",["Calm down.","It's not my fault.","I completely understand your frustration.","That's your problem."],2,"Ghi nhận cảm xúc của khách trước khi xử lý."],["Let me look ___ this for you.",["into","at","for","up"],0,"Look into = điều tra, kiểm tra kỹ."],["I'll get ___ to you within a day.",["back","again","return","over"],0,"Get back to someone = phản hồi lại."]]},{"id":"o8","lv":3,"t":"Đào tạo và góp ý nhân viên","s":"Coaching, feedback, đặt mục tiêu","tip":"Câu góp ý nên xuống giọng nhẹ ở cuối để nghe chắc chắn nhưng không gay gắt.","p":[["I'd like to share some feedback on your last call.","Tôi muốn góp ý về cuộc gọi vừa rồi của bạn."],["You handled the customer really well.","Bạn xử lý khách hàng rất tốt."],["One thing you could improve is your closing.","Một điểm bạn có thể cải thiện là phần kết thúc cuộc gọi."],["Next time, try to confirm the issue before you offer a solution.","Lần sau hãy thử xác nhận vấn đề trước khi đưa giải pháp."],["What do you think went well?","Bạn nghĩ phần nào làm tốt?"],["Let's set a clear goal for next week.","Mình đặt một mục tiêu rõ ràng cho tuần tới nhé."]],"d":[["Minh","Do you have a few minutes? I'd like to share some feedback."],["Agent","Sure. Was it about the call this morning?"],["Minh","Yes. You stayed calm, which was great. Next time, try to confirm the issue first."],["Agent","That makes sense. I'll work on that."]],"q":[["Cách mở lời góp ý tự nhiên:",["You did it wrong.","I'd like to share some feedback.","Listen to me.","I will judge your call."],1,"Mở lời mềm mỏng, rõ mục đích."],["Next time, try ___ the issue first.",["confirm","to confirm","confirming to","confirmed"],1,"Try to do = cố gắng làm."],["One thing you could ___ is your tone.",["improve","improvement","improving to","better"],0,"Could + động từ nguyên mẫu."]]},{"id":"o9","lv":3,"t":"Xử lý sự cố và escalation","s":"Báo cáo sự cố, chuyển cấp, cam kết thời hạn","tip":"Nói chậm và rõ con số, thời hạn: by three p m, within two hours.","p":[["We have an urgent issue that needs your attention.","Chúng ta có một vấn đề khẩn cần anh chị xem."],["I'm escalating this to the technical team.","Tôi đang chuyển việc này lên đội kỹ thuật."],["The root cause is still under investigation.","Nguyên nhân gốc vẫn đang được điều tra."],["We've put a temporary fix in place.","Chúng tôi đã áp dụng một bản sửa tạm thời."],["I'll keep you posted on any progress.","Tôi sẽ cập nhật cho anh chị mọi tiến triển."],["Our priority is to minimize the impact on users.","Ưu tiên của chúng tôi là giảm thiểu ảnh hưởng tới người dùng."]],"d":[["Minh","Hi Sarah, we have an urgent issue. Some users can't upload videos."],["Sarah","How many users are affected?"],["Minh","About five percent. I've escalated it to the technical team."],["Sarah","Okay. Please keep me posted every hour."]],"q":[["I'm ___ this issue to the technical team.",["escalating","rising","increasing","lifting"],0,"Escalate = chuyển lên cấp cao hơn."],["I'll keep you ___.",["posted","post","posting","posts"],0,"Keep someone posted = cập nhật liên tục."],["The root cause is still ___ investigation.",["under","in","on","at"],0,"Under investigation = đang được điều tra."]]},{"id":"o10","lv":3,"t":"Phỏng vấn và đánh giá năng lực","s":"Nói về bản thân, thành tích, điểm cần cải thiện","tip":"Kể thành tích theo trình tự: tình huống, việc làm, kết quả. Nhấn vào con số kết quả.","p":[["I have five years of experience in customer support.","Tôi có năm năm kinh nghiệm hỗ trợ khách hàng."],["In my current role, I lead a team of twelve people.","Ở vị trí hiện tại, tôi quản lý một nhóm mười hai người."],["One of my biggest achievements was reducing complaints by thirty percent.","Một trong những thành tích lớn nhất của tôi là giảm ba mươi phần trăm phàn nàn."],["I'm good at solving problems under pressure.","Tôi giỏi giải quyết vấn đề dưới áp lực."],["I'm working on improving my public speaking.","Tôi đang cải thiện kỹ năng nói trước đám đông."],["Could you tell me more about the team?","Anh chị kể thêm về đội ngũ được không?"]],"d":[["Interviewer","Could you tell me a little about yourself?"],["Minh","Sure. I'm a team leader with five years of experience in customer support."],["Interviewer","What's your biggest strength?"],["Minh","I stay calm under pressure and I'm good at coaching people."]],"q":[["I have five years ___ experience.",["of","in","for","with"],0,"Years of experience."],["I'm good ___ solving problems.",["at","in","on","for"],0,"Good at + V-ing."],["Reduced complaints ___ thirty percent.",["by","with","for","to"],0,"Giảm một lượng: by."]]}],"placement":[{"lv":1,"q":"She ___ in the marketing team.","o":["work","works","working","is work"],"a":1},{"lv":1,"q":"___ you free this afternoon?","o":["Do","Is","Are","Have"],"a":2},{"lv":1,"q":"I ___ the report yesterday.","o":["send","sent","have sent","sending"],"a":1},{"lv":1,"q":"Can you speak more ___, please?","o":["slow","slowly","slower than","slowing"],"a":1},{"lv":1,"q":"The meeting is ___ Monday.","o":["in","at","on","by"],"a":2},{"lv":2,"q":"I ___ here since 2020.","o":["work","worked","have worked","am working"],"a":2},{"lv":2,"q":"If the client agrees, we ___ next week.","o":["start","will start","would start","started"],"a":1},{"lv":2,"q":"Could you ___ me a hand with this?","o":["give","take","make","do"],"a":0},{"lv":2,"q":"The project was delayed ___ a technical issue.","o":["because","because of","so","although"],"a":1},{"lv":2,"q":"I'm looking forward to ___ from you.","o":["hear","hearing","heard","be heard"],"a":1},{"lv":3,"q":"Had we known earlier, we ___ the deadline.","o":["would meet","will meet","would have met","met"],"a":2},{"lv":3,"q":"The proposal, ___ was approved yesterday, needs more budget.","o":["that","which","what","who"],"a":1},{"lv":3,"q":"We need to ___ the root cause before we fix it.","o":["identify","identity","identical","identification"],"a":0},{"lv":3,"q":"Not only ___ late, but he also missed the key points.","o":["he arrived","did he arrive","he did arrive","arrived he"],"a":1},{"lv":3,"q":"Let's touch ___ next week to review the results.","o":["base","ground","point","line"],"a":0}],"placementListen":[{"lv":1,"en":"Can you send me the file?","o":["Bạn gửi mình tập tin được không?","Bạn mở tập tin được không?","Bạn xóa tập tin được không?"],"a":0},{"lv":2,"en":"We're a bit behind schedule this week.","o":["Tuần này chúng ta hơi trễ tiến độ.","Tuần này chúng ta làm nhanh hơn kế hoạch.","Tuần này chúng ta nghỉ một ngày."],"a":0},{"lv":3,"en":"I'd rather we postponed the launch until the issue is resolved.","o":["Tôi muốn ra mắt ngay dù còn lỗi.","Tôi muốn hoãn ra mắt đến khi vấn đề được giải quyết.","Tôi muốn hủy hẳn việc ra mắt."],"a":1}]};
+const PH={"I need the report by eight.":"AY1|N IY1 D|DH AH0|R IY0 P AO1 R T|B AY1|EY1 T","Can you check the last page?":"K AE1 N|Y UW1|CH EH1 K|DH AH0|L AE1 S T|P EY1 JH","We had a good talk about the budget.":"W IY1|HH AE1 D|AH0|G UH1 D|T AO1 K|AH0 B AW1 T|DH AH0|B AH1 JH IH0 T","Please send it back to the client.":"P L IY1 Z|S EH1 N D|IH1 T|B AE1 K|T UW1|DH AH0|K L AY1 AH0 N T","bet":"B EH1 T","bed":"B EH1 D","back":"B AE1 K","bag":"B AE1 G","cap":"K AE1 P","cab":"K AE1 B","right":"R AY1 T","ride":"R AY1 D","seat":"S IY1 T","seed":"S IY1 D","She sends two reports every week.":"SH IY1|S EH1 N D Z|T UW1|R IH0 P AO1 R T S|EH1 V ER0 IY0|W IY1 K","Our team needs more resources.":"AW1 ER0|T IY1 M|N IY1 D Z|M AO1 R|R IY1 S AO0 R S IH0 Z","He usually makes changes on Mondays.":"HH IY1|Y UW1 ZH AH0 W AH0 L IY0|M EY1 K S|CH EY1 N JH AH0 Z|AA1 N|M AH1 N D IY0 Z","The manager's plans are clear.":"DH AH0|M AE1 N IH0 JH ER0 Z|P L AE1 N Z|AA1 R|K L IH1 R","price":"P R AY1 S","prize":"P R AY1 Z","rice":"R AY1 S","rise":"R AY1 Z","place":"P L EY1 S","plays":"P L EY1 Z","bus":"B AH1 S","buzz":"B AH1 Z","peace":"P IY1 S","peas":"P IY1 Z","I worked late and finished the slides.":"AY1|W ER1 K T|L EY1 T|AH0 N D|F IH1 N IH0 SH T|DH AH0|S L AY1 D Z","We started the project and planned every step.":"W IY1|S T AA1 R T IH0 D|DH AH0|P R AA1 JH EH0 K T|AH0 N D|P L AE1 N D|EH1 V ER0 IY0|S T EH1 P","The client called and asked for an update.":"DH AH0|K L AY1 AH0 N T|K AO1 L D|AH0 N D|AE1 S K T|F AO1 R|AE1 N|AH0 P D EY1 T","The issue was solved yesterday.":"DH AH0|IH1 SH UW0|W AA1 Z|S AA1 L V D|Y EH1 S T ER0 D EY2","work":"W ER1 K","worked":"W ER1 K T","plan":"P L AE1 N","planned":"P L AE1 N D","need":"N IY1 D","needed":"N IY1 D AH0 D","ask":"AE1 S K","asked":"AE1 S K T","call":"K AO1 L","called":"K AO1 L D","Should she share the schedule?":"SH UH1 D|SH IY1|SH EH1 R|DH AH0|S K EH1 JH UH0 L","Let's check the changes in the project.":"L EH1 T S|CH EH1 K|DH AH0|CH EY1 N JH AH0 Z|IH0 N|DH AH0|P R AA1 JH EH0 K T","This session is about customer service.":"DH IH1 S|S EH1 SH AH0 N|IH1 Z|AH0 B AW1 T|K AH1 S T AH0 M ER0|S ER1 V AH0 S","I'll schedule a short chat with John.":"AY1 L|S K EH1 JH UH0 L|AH0|SH AO1 R T|CH AE1 T|W IH1 DH|JH AA1 N","sip":"S IH1 P","ship":"SH IH1 P","see":"S IY1","she":"SH IY1","sell":"S EH1 L","shell":"SH EH1 L","save":"S EY1 V","shave":"SH EY1 V","chin":"CH IH1 N","gin":"JH IH1 N","Thank you for the three updates this Thursday.":"TH AE1 NG K|Y UW1|F AO1 R|DH AH0|TH R IY1|AH0 P D EY1 T S|DH IH1 S|TH ER1 Z D EY2","I think that's the right thing to do.":"AY1|TH IH1 NG K|DH AE1 T S|DH AH0|R AY1 T|TH IH1 NG|T UW1|D UW1","They both agreed with the method.":"DH EY1|B OW1 TH|AH0 G R IY1 D|W IH1 DH|DH AH0|M EH1 TH AH0 D","Is there anything else on this list?":"IH1 Z|DH EH1 R|EH1 N IY0 TH IH2 NG|EH1 L S|AA1 N|DH IH1 S|L IH1 S T","thin":"TH IH1 N","tin":"T IH1 N","three":"TH R IY1","tree":"T R IY1","thank":"TH AE1 NG K","tank":"T AE1 NG K","they":"DH EY1","day":"D EY1","think":"TH IH1 NG K","sink":"S IH1 NG K","We discussed the tasks last month.":"W IY1|D IH0 S K AH1 S T|DH AH0|T AE1 S K S|L AE1 S T|M AH1 N TH","The tests take about six minutes.":"DH AH0|T EH1 S T S|T EY1 K|AH0 B AW1 T|S IH1 K S|M IH1 N AH0 T S","She asked about the next steps.":"SH IY1|AE1 S K T|AH0 B AW1 T|DH AH0|N EH1 K S T|S T EH1 P S","Our clients expect fast results.":"AW1 ER0|K L AY1 AH0 N T S|IH0 K S P EH1 K T|F AE1 S T|R IH0 Z AH1 L T S","task":"T AE1 S K","tasks":"T AE1 S K S","desk":"D EH1 S K","desks":"D EH1 S K S","test":"T EH1 S T","tests":"T EH1 S T S","month":"M AH1 N TH","months":"M AH1 N TH S","Please leave the sheet on my desk.":"P L IY1 Z|L IY1 V|DH AH0|SH IY1 T|AA1 N|M AY1|D EH1 S K","Our team will fix it this week.":"AW1 ER0|T IY1 M|W IH1 L|F IH1 K S|IH1 T|DH IH1 S|W IY1 K","The plan sounds bad for the sales team.":"DH AH0|P L AE1 N|S AW1 N D Z|B AE1 D|F AO1 R|DH AH0|S EY1 L Z|T IY1 M","I feel we need a bit more time.":"AY1|F IY1 L|W IY1|N IY1 D|AH0|B IH1 T|M AO1 R|T AY1 M","sheep":"SH IY1 P","live":"L AY1 V","leave":"L IY1 V","fill":"F IH1 L","feel":"F IY1 L","bad":"B AE1 D","man":"M AE1 N","men":"M EH1 N","Our colleague will present the analysis.":"AW1 ER0|K AA1 L IY0 G|W IH1 L|P R EH1 Z AH0 N T|DH AH0|AH0 N AE1 L AH0 S AH0 S","The development team needs a decision.":"DH AH0|D IH0 V EH1 L AH0 P M AH0 N T|T IY1 M|N IY1 D Z|AH0|D IH0 S IH1 ZH AH0 N","Let me introduce our new manager.":"L EH1 T|M IY1|IH2 N T R AH0 D UW1 S|AW1 ER0|N UW1|M AE1 N AH0 JH ER0","We should develop a better process.":"W IY1|SH UH1 D|D IH0 V EH1 L AH0 P|AH0|B EH1 T ER0|P R AA1 S EH2 S","present":"P R EH1 Z AH0 N T","presentation":"P R EH2 Z AH0 N T EY1 SH AH0 N","develop":"D IH0 V EH1 L AH0 P","development":"D IH0 V EH1 L AH0 P M AH0 N T","photo":"F OW1 T OW2","photograph":"F OW1 T AH0 G R AE2 F","economy":"IH0 K AA1 N AH0 M IY0","economic":"EH2 K AH0 N AA1 M IH0 K","manage":"M AE1 N AH0 JH","manager":"M AE1 N AH0 JH ER0","Can I ask a question?":"K AE1 N|AY1|AE1 S K|AH0|K W EH1 S CH AH0 N","Let's check it out after lunch.":"L EH1 T S|CH EH1 K|IH1 T|AW1 T|AE1 F T ER0|L AH1 N CH","I can join at fifteen past, but I can't stay long.":"AY1|K AE1 N|JH OY1 N|AE1 T|F IH0 F T IY1 N|P AE1 S T|B AH1 T|AY1|K AE1 N T|S T EY1|L AO1 NG","I'll pick it up as soon as I can.":"AY1 L|P IH1 K|IH1 T|AH1 P|AE1 Z|S UW1 N|AE1 Z|AY1|K AE1 N","can":"K AE1 N","can't":"K AE1 N T","fifteen":"F IH0 F T IY1 N","fifty":"F IH1 F T IY0","thirteen":"TH ER1 T IY1 N","thirty":"TH ER1 D IY2","fourteen":"F AO1 R T IY1 N","forty":"F AO1 R T IY0","want":"W AA1 N T","won't":"W OW1 N T","Hi, I'm Minh. I've just joined the marketing team.":"HH AY1|AY1 M|M IH1 N|AY1 V|JH AH1 S T|JH OY1 N D|DH AH0|M AA1 R K AH0 T IH0 NG|T IY1 M","I'm in charge of quality assurance for the app project.":"AY1 M|IH0 N|CH AA1 R JH|AH1 V|K W AA1 L AH0 T IY0|AH0 SH UH1 R AH0 N S|F AO1 R|DH AH0|AE1 P|P R AA1 JH EH0 K T","Nice to meet you. Which team are you on?":"N AY1 S|T UW1|M IY1 T|Y UW1|W IH1 CH|T IY1 M|AA1 R|Y UW1|AA1 N","I've been working here for about two years.":"AY1 V|B IH1 N|W ER1 K IH0 NG|HH IY1 R|F AO1 R|AH0 B AW1 T|T UW1|Y IH1 R Z","Let me introduce you to my colleague, Lan.":"L EH1 T|M IY1|IH2 N T R AH0 D UW1 S|Y UW1|T UW1|M AY1|K AA1 L IY0 G|L AE1 N","Feel free to ask me if you need anything.":"F IY1 L|F R IY1|T UW1|AE1 S K|M IY1|IH1 F|Y UW1|N IY1 D|EH1 N IY0 TH IH2 NG","How was your weekend?":"HH AW1|W AA1 Z|Y AO1 R|W IY1 K EH2 N D","Did you do anything fun?":"D IH1 D|Y UW1|D UW1|EH1 N IY0 TH IH2 NG|F AH1 N","It's been a busy week, hasn't it?":"IH1 T S|B IH1 N|AH0|B IH1 Z IY0|W IY1 K|HH AE1 Z AH0 N T|IH1 T","Are you heading out for lunch?":"AA1 R|Y UW1|HH EH1 D IH0 NG|AW1 T|F AO1 R|L AH1 N CH","Let's grab a coffee sometime.":"L EH1 T S|G R AE1 B|AH0|K AA1 F IY0|S AH1 M T AY2 M","Have a good weekend. See you on Monday.":"HH AE1 V|AH0|G UH1 D|W IY1 K EH2 N D|S IY1|Y UW1|AA1 N|M AH1 N D IY0","Can I add something here?":"K AE1 N|AY1|AE1 D|S AH1 M TH IH0 NG|HH IY1 R","I see your point, but I have a different view.":"AY1|S IY1|Y AO1 R|P OY1 N T|B AH1 T|AY1|HH AE1 V|AH0|D IH1 F ER0 AH0 N T|V Y UW1","I completely agree with Anna on this.":"AY1|K AH0 M P L IY1 T L IY0|AH0 G R IY1|W IH1 DH|AE1 N AH0|AA1 N|DH IH1 S","Could you clarify what you mean by that?":"K UH1 D|Y UW1|K L EH1 R AH0 F AY2|W AH1 T|Y UW1|M IY1 N|B AY1|DH AE1 T","Let's move on to the next item on the agenda.":"L EH1 T S|M UW1 V|AA1 N|T UW1|DH AH0|N EH1 K S T|AY1 T AH0 M|AA1 N|DH AH0|AH0 JH EH1 N D AH0","So, to sum up, we've agreed to launch next month.":"S OW1|T UW1|S AH1 M|AH1 P|W IY1 V|AH0 G R IY1 D|T UW1|L AO1 N CH|N EH1 K S T|M AH1 N TH","Sorry, you're breaking up. Could you say that again?":"S AA1 R IY0|Y UH1 R|B R EY1 K IH0 NG|AH1 P|K UH1 D|Y UW1|S EY1|DH AE1 T|AH0 G EH1 N","Can everyone see my screen?":"K AE1 N|EH1 V R IY0 W AH2 N|S IY1|M AY1|S K R IY1 N","I think you're on mute.":"AY1|TH IH1 NG K|Y UH1 R|AA1 N|M Y UW1 T","Could you speak up a little, please?":"K UH1 D|Y UW1|S P IY1 K|AH1 P|AH0|L IH1 T AH0 L|P L IY1 Z","I'll send you a calendar invite for Friday.":"AY1 L|S EH1 N D|Y UW1|AH0|K AE1 L AH0 N D ER0|IH2 N V AY1 T|F AO1 R|F R AY1 D IY0","Let's take this offline and talk later.":"L EH1 T S|T EY1 K|DH IH1 S|AO1 F L AY2 N|AH0 N D|T AO1 K|L EY1 T ER0","I've finished the first draft of the report.":"AY1 V|F IH1 N IH0 SH T|DH AH0|F ER1 S T|D R AE1 F T|AH1 V|DH AH0|R IY0 P AO1 R T","We're a bit behind schedule because of the bug.":"W IY1 R|AH0|B IH1 T|B IH0 HH AY1 N D|S K EH1 JH UH0 L|B IH0 K AO1 Z|AH1 V|DH AH0|B AH1 G","Could you give me a hand with this?":"K UH1 D|Y UW1|G IH1 V|M IY1|AH0|HH AE1 N D|W IH1 DH|DH IH1 S","I'll update you by the end of the day.":"AY1 L|AH0 P D EY1 T|Y UW1|B AY1|DH AH0|EH1 N D|AH1 V|DH AH0|D EY1","Do you have a minute? I need your advice.":"D UW1|Y UW1|HH AE1 V|AH0|M IH1 N AH0 T|AY1|N IY1 D|Y AO1 R|AE0 D V AY1 S","We're on track to finish by Friday.":"W IY1 R|AA1 N|T R AE1 K|T UW1|F IH1 N IH0 SH|B AY1|F R AY1 D IY0","Today I'd like to walk you through our results.":"T AH0 D EY1|AY1 D|L AY1 K|T UW1|W AO1 K|Y UW1|TH R UW1|AW1 ER0|R IH0 Z AH1 L T S","Let's take a look at this chart.":"L EH1 T S|T EY1 K|AH0|L UH1 K|AE1 T|DH IH1 S|CH AA1 R T","As you can see, sales went up by fifteen percent.":"AE1 Z|Y UW1|K AE1 N|S IY1|S EY1 L Z|W EH1 N T|AH1 P|B AY1|F IH0 F T IY1 N|P ER0 S EH1 N T","That brings me to my next point.":"DH AE1 T|B R IH1 NG Z|M IY1|T UW1|M AY1|N EH1 K S T|P OY1 N T","To be honest, the numbers were lower than we expected.":"T UW1|B IY1|AA1 N AH0 S T|DH AH0|N AH1 M B ER0 Z|W ER1|L OW1 ER0|DH AE1 N|W IY1|IH0 K S P EH1 K T AH0 D","Thank you. I'm happy to take any questions.":"TH AE1 NG K|Y UW1|AY1 M|HH AE1 P IY0|T UW1|T EY1 K|EH1 N IY0|K W EH1 S CH AH0 N Z","I'm really sorry for the inconvenience.":"AY1 M|R IH1 L IY0|S AA1 R IY0|F AO1 R|DH AH0|IH2 N K AH0 N V IY1 N Y AH0 N S","I completely understand your frustration.":"AY1|K AH0 M P L IY1 T L IY0|AH2 N D ER0 S T AE1 N D|Y AO1 R|F R AH0 S T R EY1 SH AH0 N","Let me look into this for you right away.":"L EH1 T|M IY1|L UH1 K|IH1 N T UW0|DH IH1 S|F AO1 R|Y UW1|R AY1 T|AH0 W EY1","Could you tell me exactly what happened?":"K UH1 D|Y UW1|T EH1 L|M IY1|IH0 G Z AE1 K T L IY0|W AH1 T|HH AE1 P AH0 N D","I'll get back to you within twenty four hours.":"AY1 L|G EH1 T|B AE1 K|T UW1|Y UW1|W IH0 DH IH1 N|T W EH1 N T IY0|F AO1 R|AW1 ER0 Z","Is there anything else I can help you with?":"IH1 Z|DH EH1 R|EH1 N IY0 TH IH2 NG|EH1 L S|AY1|K AE1 N|HH EH1 L P|Y UW1|W IH1 DH","I'd like to share some feedback on your last call.":"AY1 D|L AY1 K|T UW1|SH EH1 R|S AH1 M|F IY1 D B AE2 K|AA1 N|Y AO1 R|L AE1 S T|K AO1 L","You handled the customer really well.":"Y UW1|HH AE1 N D AH0 L D|DH AH0|K AH1 S T AH0 M ER0|R IH1 L IY0|W EH1 L","One thing you could improve is your closing.":"W AH1 N|TH IH1 NG|Y UW1|K UH1 D|IH2 M P R UW1 V|IH1 Z|Y AO1 R|K L OW1 Z IH0 NG","Next time, try to confirm the issue before you offer a solution.":"N EH1 K S T|T AY1 M|T R AY1|T UW1|K AH0 N F ER1 M|DH AH0|IH1 SH UW0|B IH0 F AO1 R|Y UW1|AO1 F ER0|AH0|S AH0 L UW1 SH AH0 N","What do you think went well?":"W AH1 T|D UW1|Y UW1|TH IH1 NG K|W EH1 N T|W EH1 L","Let's set a clear goal for next week.":"L EH1 T S|S EH1 T|AH0|K L IH1 R|G OW1 L|F AO1 R|N EH1 K S T|W IY1 K","We have an urgent issue that needs your attention.":"W IY1|HH AE1 V|AE1 N|ER1 JH AH0 N T|IH1 SH UW0|DH AE1 T|N IY1 D Z|Y AO1 R|AH0 T EH1 N SH AH0 N","I'm escalating this to the technical team.":"AY1 M|EH1 S K AH0 L EY2 T IH0 NG|DH IH1 S|T UW1|DH AH0|T EH1 K N IH0 K AH0 L|T IY1 M","The root cause is still under investigation.":"DH AH0|R UW1 T|K AA1 Z|IH1 Z|S T IH1 L|AH1 N D ER0|IH2 N V EH2 S T AH0 G EY1 SH AH0 N","We've put a temporary fix in place.":"W IY1 V|P UH1 T|AH0|T EH1 M P ER0 EH2 R IY0|F IH1 K S|IH0 N|P L EY1 S","I'll keep you posted on any progress.":"AY1 L|K IY1 P|Y UW1|P OW1 S T IH0 D|AA1 N|EH1 N IY0|P R AA1 G R EH2 S","Our priority is to minimize the impact on users.":"AW1 ER0|P R AY0 AO1 R AH0 T IY0|IH1 Z|T UW1|M IH1 N AH0 M AY2 Z|DH AH0|IH2 M P AE1 K T|AA1 N|Y UW1 Z ER0 Z","I have five years of experience in customer support.":"AY1|HH AE1 V|F AY1 V|Y IH1 R Z|AH1 V|IH0 K S P IH1 R IY0 AH0 N S|IH0 N|K AH1 S T AH0 M ER0|S AH0 P AO1 R T","In my current role, I lead a team of twelve people.":"IH0 N|M AY1|K ER1 AH0 N T|R OW1 L|AY1|L EH1 D|AH0|T IY1 M|AH1 V|T W EH1 L V|P IY1 P AH0 L","One of my biggest achievements was reducing complaints by thirty percent.":"W AH1 N|AH1 V|M AY1|B IH1 G AH0 S T|AH0 CH IY1 V M AH0 N T S|W AA1 Z|R AH0 D UW1 S IH0 NG|K AH0 M P L EY1 N T S|B AY1|TH ER1 D IY2|P ER0 S EH1 N T","I'm good at solving problems under pressure.":"AY1 M|G UH1 D|AE1 T|S AA1 L V IH0 NG|P R AA1 B L AH0 M Z|AH1 N D ER0|P R EH1 SH ER0","I'm working on improving my public speaking.":"AY1 M|W ER1 K IH0 NG|AA1 N|IH2 M P R UW1 V IH0 NG|M AY1|P AH1 B L IH0 K|S P IY1 K IH0 NG","Could you tell me more about the team?":"K UH1 D|Y UW1|T EH1 L|M IY1|M AO1 R|AH0 B AW1 T|DH AH0|T IY1 M"};
+const CFG={lib:"https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.2/dist/transformers.min.js",model:"robg/speako-phoneme-recognizer",claudeUrl:"",webUrl:""};
+const $=s=>document.querySelector(s),app=$("#app");
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const svg=p=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+const I={spk:svg('<path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/>'),slow:svg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),mic:svg('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>'),rep:svg('<path d="M4 12a8 8 0 0 1 14-5.3L20 9M20 4v5h-5"/><path d="M20 12a8 8 0 0 1-14 5.3L4 15M4 20v-5h5"/>')};
+const IN_CLAUDE=!!(window.claude&&window.claude.use);
+const today=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
+
+/* ---------- dữ liệu bài học ---------- */
+const UNITS=[...C.pron.map((u,i)=>({...u,kind:"p",n:i+1})),...C.office.map((u,i)=>({...u,kind:"o",n:i+1}))];
+const SENT=[];UNITS.forEach(u=>u.p.forEach((p,i)=>SENT.push({uid:u.id,i,en:p[0],vi:p[1]})));
+const uById=id=>UNITS.find(u=>u.id===id);
+
+/* ---------- lưu tiến độ trong trình duyệt ---------- */
+let S={xp:0,lv:0,best:{},days:{},cards:{},ph:{},done:{},phone:false};
+try{const x=JSON.parse(localStorage.getItem("ot2")||"{}");S=Object.assign(S,x)}catch(e){}
+const ROLES=[["cs","Chăm sóc khách hàng"],["lead","Trưởng nhóm, quản lý"],["it","Kỹ thuật, IT"],["sales","Kinh doanh"],["admin","Hành chính, văn phòng"],["mkt","Marketing"],["other","Khác"]];
+const GOALS=[["meet","Họp và thảo luận"],["present","Thuyết trình"],["customer","Nói chuyện với khách hàng"],["call","Gọi điện, họp online"],["interview","Phỏng vấn xin việc"],["small","Giao tiếp với đồng nghiệp"],["pron","Phát âm chuẩn hơn"]];
+const MINS=[[10,30],[15,50],[20,70],[30,100]];
+const TAGS={o1:["small","interview"],o2:["small"],o3:["meet"],o4:["call","meet","customer"],o5:["meet"],o6:["present"],o7:["customer"],o8:["meet"],o9:["customer"],o10:["interview"]};
+const ROLEU={cs:["o7","o9","o4"],lead:["o8","o9","o3","o6"],it:["o5","o9","o3"],sales:["o6","o7","o4"],admin:["o4","o2","o5"],mkt:["o6","o3","o2"]};
+S.mine=S.mine||[];
+const P=()=>S.prof||{};
+function goalXP(){const m=MINS.find(x=>x[0]===P().mins);return m?m[1]:50}
+function roleText(){const p=P();return p.role==="other"?(p.roleText||""):((ROLES.find(r=>r[0]===p.role)||[])[1]||"")}
+function fitScore(u){const p=P(),g=p.goals||[];let s=0;if(u.kind==="o"){(TAGS[u.id]||[]).forEach(t=>{if(g.includes(t))s+=3});if((ROLEU[p.role]||[]).includes(u.id))s+=2}else{if(g.includes("pron"))s+=3;if(S.lv===1)s+=2}if(S.lv){if(u.lv===S.lv)s+=2;else if(u.lv>S.lv+1)s-=3}return s}
+function recs(n=3){return UNITS.filter(u=>!S.done[u.id]).map(u=>[u,fitScore(u)]).sort((a,b)=>b[1]-a[1]||UNITS.indexOf(a[0])-UNITS.indexOf(b[0])).slice(0,n).map(x=>x[0])}
+const save=()=>{try{localStorage.setItem("ot2",JSON.stringify(S))}catch(e){}stats()};
+function gain(n){S.xp+=n;S.days[today()]=(S.days[today()]||0)+n;save()}
+function streak(){let n=0;const d=new Date();if(!S.days[today()])d.setDate(d.getDate()-1);for(;;){const k=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");if(S.days[k]){n++;d.setDate(d.getDate()-1)}else break}return n}
+const LV=["?","Nền tảng","Giao tiếp","Nâng cao"];
+function stats(){const me=$("#me");if(me)me.textContent=P().name?P().name:"Tạo hồ sơ";$("#xp").textContent=S.xp;$("#streak").textContent=streak();$("#lvl").textContent=LV[S.lv]||"?";const n=dueCards().length,d=$("#due");d.textContent=n;d.classList.toggle("hide",!n)}
+
+/* ---------- ôn tập lặp lại ngắt quãng (FSRS) ---------- */
+const F=window.FSRS,sched=F?F.fsrs(F.generatorParameters({enable_fuzz:true,maximum_interval:120})):null;
+function cardOf(en){const c=S.cards[en];if(!c)return null;return{...c,due:new Date(c.due),last_review:c.last_review?new Date(c.last_review):undefined}}
+function rateCard(en,score){if(!sched)return;const c=cardOf(en)||F.createEmptyCard(new Date());const r=score>=92?F.Rating.Easy:score>=80?F.Rating.Good:score>=60?F.Rating.Hard:F.Rating.Again;const n=sched.next(c,new Date(),r).card;S.cards[en]={...n,due:n.due.toISOString(),last_review:n.last_review?new Date(n.last_review).toISOString():null};}
+function dueCards(){const now=Date.now();return Object.keys(S.cards).filter(k=>new Date(S.cards[k].due).getTime()<=now)}
+
+/* ---------- phiên âm ---------- */
+const VOW=new Set("AA AE AH AO AW AY EH ER EY IH IY OW OY UH UW".split(" "));
+const SC={AA:"ɑ",AE:"æ",AH:"ə",AO:"ɑ",AW:"aʊ",AY:"aɪ",EH:"ɛ",ER:"ɝ",EY:"eɪ",IH:"ɪ",IY:"i",OW:"oʊ",OY:"ɔɪ",UH:"ʊ",UW:"u",B:"b",CH:"ʧ",D:"d",DH:"ð",F:"f",G:"g",HH:"h",JH:"ʤ",K:"k",L:"l",M:"m",N:"n",NG:"ŋ",P:"p",R:"ɹ",S:"s",SH:"ʃ",T:"t",TH:"θ",V:"v",W:"w",Y:"j",Z:"z",ZH:"ʃ"};
+const DI={AA:"ɑː",AE:"æ",AO:"ɔː",AW:"aʊ",AY:"aɪ",EH:"e",EY:"eɪ",IH:"ɪ",IY:"iː",OW:"oʊ",OY:"ɔɪ",UH:"ʊ",UW:"uː",CH:"tʃ",JH:"dʒ",R:"r",ZH:"ʒ",Y:"j",HH:"h",DH:"ð",TH:"θ",SH:"ʃ",NG:"ŋ"};
+function parsePh(a){return a.split(" ").filter(Boolean).map(t=>{const b=t.replace(/\d/,""),st=+(t.match(/\d/)||[-1])[0];return{a:b,st,v:VOW.has(b),s:SC[b]||b.toLowerCase(),d:b==="AH"?(st>0?"ʌ":"ə"):b==="ER"?(st>0?"ɜːr":"ər"):(DI[b]||b.toLowerCase())}})}
+let CMU=null;
+async function loadCMU(){if(CMU)return CMU;try{const r=await fetch("cmu.json");if(r.ok)CMU=await r.json()}catch(e){}return CMU}
+function refOf(text){
+  const words=text.split(/\s+/).filter(Boolean);let arr=PH[text]?PH[text].split("|"):null;
+  if(!arr&&CMU)arr=words.map(w=>{const k=w.toLowerCase().replace(/[’]/g,"'").replace(/^[^a-z']+|[^a-z']+$/g,"");return CMU[k]||(k.endsWith("'s")&&CMU[k.slice(0,-2)]?CMU[k.slice(0,-2)]+" Z":"")});
+  if(!arr)return null;return words.map((w,i)=>({w,ph:parsePh(arr[i]||"")}))}
+function ipaText(text){const r=refOf(text);if(!r)return"";return"/"+r.map(x=>x.ph.map(p=>p.d).join("")).join(" ")+"/"}
+
+/* ---------- đọc mẫu ---------- */
+let tts=null,dict=null,ai=null;
+if(IN_CLAUDE){window.claude.use("tts").then(x=>tts=x).catch(()=>{});window.claude.use("dictation").then(x=>{dict=x;if(x)wireDict()}).catch(()=>{});window.claude.use("sample").then(x=>{ai=x;if(/fix|chat|speak/.test(location.hash))route()}).catch(()=>{})}
+let voice=null;function pickVoice(){try{const v=speechSynthesis.getVoices().filter(v=>/^en[-_]US/i.test(v.lang));voice=v.find(v=>/Google US|Samantha|Jenny|Aria|Natural/i.test(v.name))||v[0]||null}catch(e){}}
+try{pickVoice();speechSynthesis.onvoiceschanged=pickVoice}catch(e){}
+function say(text,rate=1){return new Promise(res=>{
+  if(tts){tts.speak(text,{language:"en",rate}).then(res,()=>webSay(text,rate,res));return}webSay(text,rate,res)})}
+function webSay(text,rate,res){try{const s=window.speechSynthesis;s.cancel();const u=new SpeechSynthesisUtterance(text);u.lang="en-US";u.rate=rate*.95;if(voice)u.voice=voice;u.onend=()=>res();u.onerror=()=>res();s.speak(u)}catch(e){res()}}
+
+/* ---------- ghi âm và nhận dạng ---------- */
+let rec={on:false};
+function wireDict(){
+  dict.onPartial(({text})=>{rec.part=text;rec.upd&&rec.upd((rec.text+" "+text).trim())});
+  dict.onFinal(({text})=>{rec.text+=" "+text;rec.part="";rec.upd&&rec.upd(rec.text.trim())});
+  dict.onState(({state,reason})=>{if(state==="idle"&&rec.on&&rec.kind==="dict"){rec.on=false;rec.done&&rec.done({text:(rec.text+" "+rec.part).trim(),err:reason})}})}
+const WSR=window.SpeechRecognition||window.webkitSpeechRecognition;
+const canMedia=!IN_CLAUDE&&!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.MediaRecorder);
+const canRec=()=>!!dict||!!WSR||canMedia;
+const phoneMode=()=>!IN_CLAUDE&&S.phone&&canMedia;
+function startRec(upd,done){
+  rec={on:true,text:"",part:"",upd,done};
+  if(phoneMode())return startMedia();
+  if(dict){rec.kind="dict";dict.start().catch(e=>{rec.on=false;done({text:"",err:e&&e.code})});return}
+  if(!WSR){rec.on=false;done({text:"",err:"unsupported"});return}
+  rec.kind="wsr";
+  try{const r=new WSR();rec.web=r;r.lang="en-US";r.interimResults=true;r.continuous=false;r.maxAlternatives=1;
+    r.onresult=ev=>{let f="",p="";for(const x of ev.results){if(x.isFinal)f+=x[0].transcript;else p+=x[0].transcript}rec.text=f;rec.part=p;upd((f+" "+p).trim())};
+    r.onerror=ev=>{rec.err=ev.error};
+    r.onend=()=>{if(rec.on){rec.on=false;done({text:(rec.text+" "+rec.part).trim(),err:rec.err})}};r.start()}catch(e){rec.on=false;done({text:"",err:"unsupported"})}}
+async function startMedia(){
+  try{const st=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
+    const mr=new MediaRecorder(st),ch=[];rec.kind="media";rec.mr=mr;rec.st=st;
+    mr.ondataavailable=e=>e.data.size&&ch.push(e.data);
+    mr.onstop=async()=>{st.getTracks().forEach(t=>t.stop());rec.on=false;rec.upd&&rec.upd("Đang chấm từng âm…");
+      try{const pcm=await toPCM(new Blob(ch,{type:mr.mimeType}));const phones=await recognize(pcm);rec.done({phones})}catch(e){rec.done({text:"",err:"decode"})}};
+    mr.start();rec.timer=setTimeout(()=>stopRec(),15000)}
+  catch(e){rec.on=false;rec.done({text:"",err:"not-allowed"})}}
+function stopRec(){if(!rec.on)return;clearTimeout(rec.timer);if(rec.kind==="media"){try{rec.mr.stop()}catch(e){}}else if(rec.kind==="dict"){dict.stop().catch(()=>{})}else if(rec.web){try{rec.web.stop()}catch(e){}}}
+async function toPCM(blob){const buf=await blob.arrayBuffer();const AC=window.AudioContext||window.webkitAudioContext;const ac=new AC({sampleRate:16000});const ab=await ac.decodeAudioData(buf);let d=ab.getChannelData(0);if(ab.sampleRate!==16000){const r=ab.sampleRate/16000,o=new Float32Array(Math.floor(d.length/r));for(let i=0;i<o.length;i++)o[i]=d[Math.floor(i*r)];d=o}ac.close&&ac.close();return d}
+
+/* ---------- mô hình nhận dạng âm vị (chạy trong trình duyệt) ---------- */
+let pipe=null,loading=null;
+function loadModel(onp){
+  if(pipe)return Promise.resolve(pipe);if(loading)return loading;
+  loading=(async()=>{const T=await import(CFG.lib);T.env.allowLocalModels=false;try{T.env.backends.onnx.wasm.numThreads=1}catch(e){}
+    const seen={};pipe=await T.pipeline("automatic-speech-recognition",CFG.model,{dtype:"q8",device:"wasm",progress_callback:p=>{if(p&&p.file&&p.total){seen[p.file]=[p.loaded||0,p.total];let a=0,b=0;for(const k in seen){a+=seen[k][0];b+=seen[k][1]}onp&&onp(a/b)}}});return pipe})();
+  loading.catch(()=>{loading=null});return loading}
+const TOK=["aɪ","aʊ","eɪ","oʊ","ɔɪ","b","d","f","g","h","i","j","k","l","m","n","p","s","t","u","v","w","z","æ","ð","ŋ","ɑ","ə","ɛ","ɝ","ɪ","ɹ","ɾ","ʃ","ʊ","ʤ","ʧ","θ"];
+function splitPh(s){const o=[];s=s.replace(/\s+/g,"");let i=0;while(i<s.length){const two=s.slice(i,i+2);if(TOK.includes(two)){o.push(two);i+=2}else{if(TOK.includes(s[i]))o.push(s[i]);i++}}return o}
+async function recognize(pcm){const p=await loadModel();const r=await p(pcm);return splitPh(r.text||"")}
+
+/* ---------- chấm điểm ---------- */
+const VS=new Set(["ɑ","æ","ə","aʊ","aɪ","ɛ","ɝ","eɪ","ɪ","i","oʊ","ɔɪ","ʊ","u"]);
+const NEAR={"i>ɪ":1,"ɪ>i":1,"u>ʊ":1,"ʊ>u":1,"æ>ɛ":1,"ɛ>æ":1,"ɑ>ə":1,"ə>ɑ":1,"ɛ>eɪ":1,"eɪ>ɛ":1};
+function same(r,h){if(r.s===h)return 1;if((r.s==="t"||r.s==="d")&&h==="ɾ")return 1;if(r.v&&r.st===0&&["ə","ɪ","ʊ","ɝ","i"].includes(h)&&["ə","ɪ","ʊ","i","ɝ","ɛ","ɑ","u","oʊ","eɪ"].includes(r.s))return 1;if(r.s==="ɝ"&&h==="ə")return .5;if(NEAR[r.s+">"+h])return .5;return 0}
+function align(ref,hyp){
+  const R=[];ref.forEach((w,wi)=>w.ph.forEach((p,pi)=>R.push({...p,wi,last:pi===w.ph.length-1})));
+  const n=R.length,m=hyp.length,D=[...Array(n+1)].map(()=>new Float32Array(m+1)),B=[...Array(n+1)].map(()=>new Uint8Array(m+1));
+  for(let i=1;i<=n;i++){D[i][0]=i;B[i][0]=1}for(let j=1;j<=m;j++){D[0][j]=j*.9;B[0][j]=2}
+  for(let i=1;i<=n;i++)for(let j=1;j<=m;j++){const r=R[i-1],h=hyp[j-1],sm=same(r,h),c=sm===1?0:sm?.4:(r.v===VS.has(h)?.9:1.6);
+    let best=D[i-1][j-1]+c,b=0;if(D[i-1][j]+1<best){best=D[i-1][j]+1;b=1}if(D[i][j-1]+.9<best){best=D[i][j-1]+.9;b=2}D[i][j]=best;B[i][j]=b}
+  let i=n,j=m;while(i>0||j>0){const b=B[i][j];if(i>0&&j>0&&b===0){const r=R[i-1];r.h=hyp[j-1];r.sc=same(r,r.h);i--;j--}else if(i>0&&(b===1||j===0)){R[i-1].h=null;R[i-1].sc=0;i--}else j--}
+  return R}
+const TIP={"θ>t":"đặt đầu lưỡi giữa hai răng rồi thổi hơi","θ>s":"đặt đầu lưỡi giữa hai răng, không để lưỡi sau răng","θ>f":"dùng lưỡi chứ không dùng môi","ð>d":"đặt đầu lưỡi giữa răng và rung cổ","ð>z":"đặt đầu lưỡi giữa răng","ʃ>s":"tròn môi, lùi lưỡi về sau, hơi rộng hơn","s>ʃ":"môi dẹt, đầu lưỡi sát lợi trên, hơi mảnh","z>s":"giữ rung cổ họng như tiếng ong","i>ɪ":"kéo dài và căng môi như cười","ɪ>i":"đọc ngắn, thả lỏng môi","æ>ɛ":"mở miệng rộng hơn, hạ hàm dưới","ɛ>æ":"mở miệng vừa thôi","ʤ>z":"bắt đầu bằng /d/ rồi bật sang /ʒ/","ʤ>ʧ":"rung cổ, đây là âm hữu thanh","ʧ>ʃ":"chặn hơi bằng /t/ trước rồi mới bật","v>b":"răng trên chạm nhẹ môi dưới","v>w":"răng trên chạm nhẹ môi dưới","n>l":"để luồng hơi đi qua mũi","l>n":"đầu lưỡi chạm lợi trên, hơi đi hai bên lưỡi","ɹ>z":"cong lưỡi về sau, không chạm vòm miệng","p>b":"bật hơi mạnh, không rung cổ","t>d":"bật hơi, không rung cổ","k>g":"bật hơi, không rung cổ"};
+function finishPhones(text,hyp){
+  const ref=refOf(text);if(!ref)return null;const R=align(ref,hyp);const fb=[],stat={};
+  const words=ref.map((w,wi)=>{const ps=R.filter(x=>x.wi===wi);const sc=ps.length?Math.round(ps.reduce((a,x)=>a+x.sc,0)/ps.length*100):100;return{w:w.w,sc,ps}});
+  R.forEach(r=>{stat[r.s]=stat[r.s]||[0,0];stat[r.s][1]++;stat[r.s][0]+=r.sc;
+    if(r.sc<1){const w=ref[r.wi].w.replace(/[^\w']/g,"");
+      if(!r.h)fb.push((!r.v&&r.last?"Thiếu âm cuối ":"Thiếu âm ")+"/"+r.d+"/ ở “"+w+"”");
+      else{const k=r.s+">"+r.h;fb.push("/"+r.d+"/ ở “"+w+"” nghe thành /"+r.h+"/"+(TIP[k]?": "+TIP[k]:""))}}});
+  const sc=R.length?Math.round(R.reduce((a,x)=>a+x.sc,0)/R.length*100):0;
+  return{sc,words,fb:[...new Set(fb)],stat,heard:"/"+hyp.join("")+"/"}}
+const norm=s=>s.toLowerCase().replace(/[’']/g,"'").replace(/[^a-z0-9' ]+/g," ").split(/\s+/).filter(Boolean);
+const NUMW={"2":"two","3":"three","5":"five","6":"six","8":"eight","12":"twelve","13":"thirteen","14":"fourteen","15":"fifteen","24":"twenty","30":"thirty","40":"forty","50":"fifty","80":"eighty","100":"hundred"};
+function finishWords(text,said){
+  const raw=text.split(/\s+/).filter(Boolean),T=raw.map(w=>norm(w).join("")),H=norm(said).map(w=>NUMW[w.replace("%","")]||w);
+  const n=T.length,m=H.length,L=[...Array(n+1)].map(()=>Array(m+1).fill(0));
+  for(let i=n-1;i>=0;i--)for(let j=m-1;j>=0;j--)L[i][j]=T[i]===H[j]?L[i+1][j+1]+1:Math.max(L[i+1][j],L[i][j+1]);
+  const hit=Array(n).fill(false);let i=0,j=0;while(i<n&&j<m){if(T[i]===H[j]){hit[i]=true;i++;j++}else if(L[i+1][j]>=L[i][j+1])i++;else j++}
+  const words=raw.map((w,k)=>({w,sc:hit[k]?100:0}));const miss=raw.filter((w,k)=>!hit[k]).map(w=>w.replace(/[^\w']/g,""));
+  return{sc:n?Math.round(hit.filter(Boolean).length/n*100):0,words,fb:miss.length?["Máy chưa nhận ra: "+miss.join(", ")+". Thường do thiếu âm cuối hoặc sai trọng âm."]:[],heard:said}}
+const cls=s=>s>=80?"g":s>=50?"y":"r";
+
+/* ---------- thẻ luyện nói dùng chung ---------- */
+function speakCard(el,item,opt={}){
+  const ipa=ipaText(item.en);
+  el.innerHTML=`<div class="card">
+    <div class="target" id="tg">${esc(item.en)}</div>${ipa?`<div class="ipa">${esc(ipa)}</div>`:""}<div class="sm" style="margin-top:4px">${esc(item.vi||"")}</div>
+    <div class="row center" style="margin-top:14px"><button data-a="say">${I.spk} Nghe mẫu</button><button data-a="slow">${I.slow} Nghe chậm</button><button data-a="shadow">${I.rep} Nghe rồi nhại</button></div>
+    <button class="mic" data-a="mic" aria-label="Bấm để nói">${I.mic}</button>
+    <div class="sm" data-k="hint">${canRec()?(phoneMode()?"Chấm từng âm đang bật. Bấm mic, đọc to, bấm lần nữa để chấm.":"Bấm mic rồi đọc to câu trên."):(IN_CLAUDE?"Ghi âm cần mở trang bằng Chrome trên máy tính. Trên điện thoại hãy dùng bản web TCV Talks.":"Trình duyệt này chưa hỗ trợ ghi âm. Hãy dùng Chrome.")}</div>
+    <div class="prog hide" data-k="prog"><i></i></div>
+    <div class="heard" data-k="heard"></div>
+    <div class="hide" data-k="res"><div class="score" data-k="sc"></div><div class="sm" data-k="scm"></div><div class="phs hide" data-k="wd"></div><div class="box hide" data-k="fb"></div>
+      ${IN_CLAUDE?'<div class="row center" style="margin-top:12px"><button class="sec hide" data-a="ai">Nhận xét chi tiết từ AI</button></div><div class="box hide" data-k="aio"></div>':""}</div>
+  </div>`;
+  const q=k=>el.querySelector(`[data-k="${k}"]`),b=a=>el.querySelector(`[data-a="${a}"]`);let last=null;
+  b("say").onclick=()=>say(item.en);b("slow").onclick=()=>say(item.en,.72);
+  const mic=b("mic");
+  const go=()=>{if(rec.on){stopRec();return}if(!canRec())return;
+    if(phoneMode()&&!pipe){q("hint").textContent="Đang tải mô hình chấm âm lần đầu…";const pr=q("prog");pr.classList.remove("hide");loadModel(f=>pr.firstChild.style.width=Math.round(f*100)+"%").then(()=>{pr.classList.add("hide");q("hint").textContent="Mô hình đã sẵn sàng. Bấm mic để nói."},()=>{pr.classList.add("hide");q("hint").textContent="Không tải được mô hình. Tạm chấm theo từ.";S.phone=false;save()});return}
+    mic.classList.add("live");q("hint").textContent="Đang nghe… bấm lần nữa để dừng";q("heard").textContent="";q("res").classList.add("hide");el.querySelector("#tg").innerHTML=esc(item.en);q("wd").classList.add("hide");
+    startRec(t=>q("heard").textContent=t,res=>{mic.classList.remove("live");q("hint").textContent="Bấm mic để thử lại.";
+      let R=null;if(res.phones){R=finishPhones(item.en,res.phones)}if(!R&&res.text)R=finishWords(item.en,res.text);
+      if(!R||(!res.phones&&!res.text)){q("heard").textContent=/not.allowed|not_granted/.test(res.err||"")?"Chưa có quyền dùng micro. Cho phép micro trong trình duyệt rồi thử lại.":"Chưa nghe thấy gì, bạn thử nói to và rõ hơn.";return}
+      last={...R,said:res.text||R.heard};show(R);opt.onScore&&opt.onScore(R.sc,R)})};
+  mic.onclick=go;
+  b("shadow").onclick=async()=>{if(rec.on||!canRec())return;q("hint").textContent="Nghe kỹ, máy sẽ tự bật mic khi đọc xong…";await say(item.en);setTimeout(go,250)};
+  function show(R){const tg=el.querySelector("#tg");tg.innerHTML=R.words.map((w,k)=>`<span class="wd ${cls(w.sc)}" data-w="${k}">${esc(w.w)}</span>`).join(" ");
+    q("heard").textContent=res2heard(R);const s=q("sc");s.textContent=R.sc;s.className="score "+cls(R.sc);s.style.setProperty("--p",R.sc);
+    q("scm").textContent=R.sc>=90?"Xuất sắc, rất rõ ràng!":R.sc>=80?"Tốt, đạt chuẩn.":R.sc>=60?"Khá. Bấm vào từ màu vàng hoặc đỏ để xem lỗi.":"Cần luyện thêm. Nghe chậm rồi đọc lại từng cụm.";
+    const fb=q("fb");if(R.fb.length){fb.innerHTML="<b>Cần sửa</b>"+R.fb.slice(0,5).map(x=>`<div class="err">${esc(x)}</div>`).join("");fb.classList.remove("hide")}else fb.classList.add("hide");
+    q("res").classList.remove("hide");const aib=b("ai");if(aib&&ai)aib.classList.remove("hide");
+    tg.querySelectorAll(".wd").forEach(sp=>sp.onclick=()=>{tg.querySelectorAll(".wd").forEach(x=>x.classList.remove("sel"));sp.classList.add("sel");const w=R.words[+sp.dataset.w],box=q("wd");say(w.w.replace(/[^\w' ]/g,""),.85);
+      if(w.ps){box.innerHTML=w.ps.map(p=>`<span class="ipa ${p.sc===1?"g":p.sc?"y":"r"}" title="${p.h?"nghe thành /"+esc(p.h)+"/":"thiếu"}">${esc(p.d)}</span>`).join("");box.classList.remove("hide")}else box.classList.add("hide")})}
+  function res2heard(R){return "Máy nghe được: "+R.heard}
+  const aib=b("ai");if(aib)aib.onclick=async()=>{const o=q("aio");o.classList.remove("hide");o.textContent="Đang phân tích…";aib.disabled=true;
+    try{const r=await ai(`Bạn là giáo viên phát âm tiếng Anh cho người Việt. Câu mẫu: "${item.en}". Công cụ nhận giọng nói nghe được người học nói: "${last.said}". Các lỗi máy phát hiện: ${last.fb.join("; ")||"không có"}. Hãy chỉ ra những từ người học có thể phát âm sai, giải thích vì sao người Việt hay mắc (âm cuối, trọng âm, nối âm, nguyên âm), cách sửa cụ thể kèm IPA. Tiếng Việt, tối đa 6 câu, không markdown.`,{modelTier:"quick",onText:({text})=>o.textContent=text});o.textContent=r.text}
+    catch(e){o.textContent=e&&e.code==="rate_limited"?"AI đang bận, thử lại sau ít phút.":"Không lấy được nhận xét lúc này."}aib.disabled=false};
+}
+function recordScore(en,sc,stat){const k=en;const prev=S.best[k]||0;if(sc>prev){if(prev<80&&sc>=80)gain(10);S.best[k]=sc}gain(2);rateCard(en,sc);if(stat)for(const p in stat){S.ph[p]=S.ph[p]||[0,0];S.ph[p][0]+=stat[p][0];S.ph[p][1]+=stat[p][1]}save()}
+
+/* ---------- màn hình: Hôm nay ---------- */
+const HERO=`<svg viewBox="0 0 320 220" aria-hidden="true"><ellipse cx="160" cy="205" rx="130" ry="10" fill="#0b1a33" opacity=".35"/><rect x="40" y="150" width="240" height="14" rx="7" fill="#2d64b8"/><rect x="70" y="164" width="10" height="38" fill="#2d64b8"/><rect x="240" y="164" width="10" height="38" fill="#2d64b8"/><rect x="110" y="104" width="100" height="58" rx="8" fill="#e9eef8"/><rect x="118" y="112" width="84" height="42" rx="4" fill="#4f8cff"/><path d="M126 140l14-12 12 8 16-16 22 20" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><rect x="150" y="162" width="20" height="8" fill="#e9eef8"/><g class="bub"><rect x="14" y="24" width="124" height="62" rx="20" fill="#ff6b5a"/><path d="M50 86l-8 18 24-18z" fill="#ff6b5a"/><text x="76" y="62" text-anchor="middle" font-family="Be Vietnam Pro,sans-serif" font-weight="800" font-size="22" fill="#fff">Hello!</text></g><g class="bub b2"><rect x="186" y="8" width="120" height="76" rx="22" fill="#ffc845"/><path d="M262 84l12 18-30-18z" fill="#ffc845"/><g stroke="#13294b" stroke-width="6" stroke-linecap="round"><path d="M214 46v0"/><path d="M230 34v24"/><path d="M246 26v40"/><path d="M262 36v20"/><path d="M278 42v8"/></g></g><circle cx="300" cy="120" r="10" fill="#19b39b"/><circle cx="22" cy="130" r="7" fill="#4f8cff"/><circle cx="290" cy="160" r="5" fill="#ff6b5a"/></svg>`;
+function vToday(){
+  const goal=goalXP(),t=S.days[today()]||0,due=dueCards().length,mast=Object.values(S.best).filter(v=>v>=80).length;
+  const rc=recs(3),next=rc[0],nm=P().name?esc(P().name):"bạn";
+  const weak=Object.entries(S.ph).filter(([p,v])=>v[1]>=4).map(([p,v])=>[p,Math.round(v[0]/v[1]*100)]).sort((a,b)=>a[1]-b[1]).slice(0,6);
+  app.innerHTML=`<section class="hero"><div><h2>${!S.prof?"Chào bạn! Tạo hồ sơ để có lộ trình riêng":S.lv?`Chào ${nm}, hôm nay mình luyện gì?`:`Chào ${nm}! Làm bài kiểm tra đầu vào nhé`}</h2><p>${!S.prof?"Cho TCV Talks biết bạn làm gì, muốn giỏi phần nào và rảnh bao lâu mỗi ngày. Mất chưa tới một phút.":S.lv?"Cấp "+LV[S.lv]+(roleText()?" · "+esc(roleText()):"")+" · mục tiêu "+goal+" XP mỗi ngày.":"Mười lăm câu ngữ pháp và ba câu nghe, khoảng 5 phút, để xếp bạn vào đúng cấp độ."}</p><div class="row">${!S.prof?`<a class="btn pri" href="#profile">Tạo hồ sơ</a>`:S.lv?(due?`<a class="btn pri" href="#review">Ôn ${due} câu đến hạn</a>`:next?`<a class="btn pri" href="#${next.id}">Học tiếp</a>`:""):`<a class="btn pri" href="#test">Làm bài kiểm tra</a>`}</div></div>${HERO}</section>`
+  +`
+  <div class="kpi"><div class="k1"><span class="sm">Mục tiêu hôm nay</span><b>${t}/${goal} XP</b><div class="goal"><i style="width:${Math.min(100,t/goal*100)}%"></i></div></div><div class="k2"><span class="sm">Câu cần ôn</span><b>${due}</b></div><div class="k3"><span class="sm">Câu đã đạt</span><b>${mast}/${SENT.length}</b></div><div class="k4"><span class="sm">Chuỗi ngày</span><b>${streak()}</b></div></div>
+  <div class="row">${due?`<a class="btn pri" href="#review">Ôn ${due} câu đến hạn</a>`:""}${next?`<a class="btn ${due?"":"pri"}" href="#${next.id}">Học tiếp: ${esc(next.t)}</a>`:""}${S.lv?'<a class="btn" href="#test">Làm lại bài kiểm tra</a>':""}</div>
+  ${S.prof&&rc.length?`<h3 class="sec-h">Gợi ý riêng cho ${nm}</h3><div class="grid">${rc.map(unitCard).join("")}</div>`:""}
+  <h3 class="sec-h">Cách học hiệu quả với web này</h3>
+  <div class="tip"><p>Mỗi ngày 15 đến 20 phút đều đặn tốt hơn học dồn. Thứ tự gợi ý: ôn câu đến hạn, học một bài mới, rồi luyện nghe.</p><p>Với mỗi câu: nghe mẫu, bấm Nghe rồi nhại để bắt chước ngay ngữ điệu (kỹ thuật shadowing), xem từ nào đỏ, bấm vào từ đó để nghe lại và sửa. Câu nào đã luyện sẽ tự quay lại đúng lúc sắp quên.</p></div>
+  ${!IN_CLAUDE?`<label class="switch"><input type="checkbox" id="pm" ${S.phone?"checked":""} ${canMedia?"":"disabled"}><span><b>Chấm chi tiết từng âm như Elsa</b><br><span class="sm">Dùng mô hình nhận dạng âm vị chạy ngay trên máy bạn, không gửi giọng nói đi đâu. Lần đầu tải khoảng 355 MB, các lần sau dùng lại bản đã lưu. Nên bật trên máy tính hoặc điện thoại mạnh, dùng wifi.</span></span></label>`:`<p class="note">Bản này chạy trong Claude nên có AI sửa lỗi và hội thoại, chấm phát âm theo từ.${CFG.webUrl.startsWith("http")?` Muốn chấm chi tiết từng âm, mở <a href="${esc(CFG.webUrl)}">bản web TCV Talks</a> bằng Chrome.`:""}</p>`}
+  ${weak.length?`<h3 class="sec-h">Âm bạn hay sai nhất</h3><table>${weak.map(([p,v])=>`<tr><td class="ipa" style="font-size:18px">/${esc(p)}/</td><td><div class="bar"><i style="width:${v}%;background:${v>=80?"var(--ok)":v>=50?"var(--mid)":"var(--red)"}"></i></div></td><td class="n">${v}%</td></tr>`).join("")}</table>`:""}`;
+  app.querySelectorAll(".unit").forEach(b=>b.onclick=()=>location.hash=b.dataset.u);
+  const pm=$("#pm");if(pm)pm.onchange=()=>{S.phone=pm.checked;save();if(S.phone)loadModel().catch(()=>{})}}
+
+/* ---------- màn hình: hồ sơ cá nhân ---------- */
+function vProfile(){
+  const p=P();
+  app.innerHTML=`<h2>Hồ sơ của bạn</h2><p class="lead">TCV Talks dùng hồ sơ để gợi ý bài, đặt mục tiêu mỗi ngày và cho AI đóng vai sát với công việc của bạn. Hồ sơ chỉ lưu trên trình duyệt này.</p>
+  <div class="field"><b>Tên gọi</b><input type="text" id="pn" maxlength="30" placeholder="Ví dụ: Huy" value="${esc(p.name||"")}"></div>
+  <div class="field"><b>Công việc của bạn</b><div class="chips">${ROLES.map(r=>`<label><input type="radio" name="pr" value="${r[0]}" ${p.role===r[0]?"checked":""}>${esc(r[1])}</label>`).join("")}</div>
+    <input type="text" id="prt" maxlength="60" placeholder="Ghi rõ công việc của bạn" value="${esc(p.roleText||"")}" style="margin-top:10px" class="${p.role==="other"?"":"hide"}"></div>
+  <div class="field"><b>Bạn muốn giỏi phần nào? Chọn nhiều cũng được</b><div class="chips">${GOALS.map(g=>`<label><input type="checkbox" name="pg" value="${g[0]}" ${(p.goals||[]).includes(g[0])?"checked":""}>${esc(g[1])}</label>`).join("")}</div></div>
+  <div class="field"><b>Mỗi ngày bạn học được bao lâu?</b><div class="chips">${MINS.map(m=>`<label><input type="radio" name="pm2" value="${m[0]}" ${(p.mins||15)===m[0]?"checked":""}>${m[0]} phút</label>`).join("")}</div></div>
+  <div class="field"><b>Cấp độ</b><span class="sm">${S.lv?LV[S.lv]+" theo bài kiểm tra đầu vào.":"Chưa kiểm tra."}</span> <a href="#test">${S.lv?"Làm lại":"Làm bài kiểm tra"}</a></div>
+  <div class="row"><button class="pri" id="psave">Lưu hồ sơ</button><span class="note" id="pmsg"></span></div>`;
+  app.querySelectorAll('input[name=pr]').forEach(r=>r.onchange=()=>$("#prt").classList.toggle("hide",r.value!=="other"||!r.checked));
+  $("#psave").onclick=()=>{const name=$("#pn").value.trim(),role=(app.querySelector('input[name=pr]:checked')||{}).value||"",goals=[...app.querySelectorAll('input[name=pg]:checked')].map(x=>x.value),mins=+((app.querySelector('input[name=pm2]:checked')||{}).value||15);
+    if(!name){$("#pmsg").textContent="Bạn nhập tên gọi nhé.";$("#pn").focus();return}if(!role){$("#pmsg").textContent="Bạn chọn công việc nhé.";return}
+    const first=!S.prof;S.prof={name,role,roleText:$("#prt").value.trim(),goals,mins};chat.s=-1;save();location.hash=first&&!S.lv?"test":"today"}}
+
+/* ---------- màn hình: kiểm tra đầu vào ---------- */
+function vTest(){
+  const items=[...C.placement.map(x=>({...x,type:"g"})),...C.placementListen.map(x=>({...x,type:"l"}))];let i=0;const sc={1:[0,0],2:[0,0],3:[0,0]};
+  const draw=()=>{if(i>=items.length){const p=l=>sc[l][1]?sc[l][0]/sc[l][1]:0;const lv=p(1)<.6?1:p(2)<.6?1:p(3)<.5?2:3;S.lv=lv;save();
+      app.innerHTML=`<h2>Kết quả: cấp ${LV[lv]}</h2><p class="lead">${lv===1?"Bạn nên bắt đầu từ phần Phát âm nền tảng, song song với các bài văn phòng cơ bản.":lv===2?"Bạn đã có nền, hãy tập trung các bài giao tiếp văn phòng cấp Giao tiếp và luyện các âm hay sai.":"Bạn ở mức khá, tập trung bài Nâng cao, hội thoại AI và luyện độ tự nhiên."}</p>
+      <table>${[1,2,3].map(l=>`<tr><td>${LV[l]}</td><td class="n">${sc[l][0]}/${sc[l][1]} đúng</td></tr>`).join("")}</table><div class="row" style="margin-top:16px"><a class="btn pri" href="#path">Xem lộ trình</a><a class="btn" href="#today">Về trang Hôm nay</a></div>`;return}
+    const it=items[i];
+    app.innerHTML=`<h2>Kiểm tra đầu vào</h2><p class="sm">Câu ${i+1}/${items.length}${it.type==="l"?" · nghe":""}</p><div class="prog"><i style="width:${i/items.length*100}%"></i></div>
+    <div class="box"><p style="font-weight:600;font-size:18px;margin:4px 0 10px">${it.type==="l"?'Nghe và chọn nghĩa đúng <button class="ico" id="pl" aria-label="Nghe">'+I.spk+"</button>":esc(it.q)}</p>${it.o.map((o,k)=>`<button class="opt" data-k="${k}">${esc(o)}</button>`).join("")}<button class="opt" data-k="-1" style="color:var(--mut)">Tôi không biết</button></div>`;
+    if(it.type==="l"){const pl=$("#pl");pl.onclick=()=>say(it.en)}
+    app.querySelectorAll(".opt").forEach(b=>b.onclick=()=>{sc[it.lv][1]++;if(+b.dataset.k===it.a)sc[it.lv][0]++;i++;draw()})};
+  draw()}
+
+/* ---------- màn hình: lộ trình ---------- */
+const OIC=[svg('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>'),svg('<path d="M21 12a8 8 0 0 1-12 7l-5 2 2-5a8 8 0 1 1 15-4z"/>'),svg('<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>'),svg('<path d="M5 4h4l2 5-3 2a11 11 0 0 0 5 5l2-3 5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/>'),svg('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'),svg('<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M7 21l5-4 5 4M7 11l3-2 3 2 4-3"/>'),svg('<path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17v.5"/>'),svg('<path d="M12 21s-8-5-8-11a5 5 0 0 1 8-3 5 5 0 0 1 8 3c0 6-8 11-8 11z"/>'),svg('<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>'),svg('<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>')];
+let REC=new Set();
+function unitCard(u){{const d=u.p.filter(p=>(S.best[p[0]]||0)>=80).length;const rec=REC.has(u.id);const k=UNITS.indexOf(u)%6,sym=u.kind==="p"?((u.t.match(/\/[^/]+\//)||[""])[0]):"";return`<button class="unit ${rec?"rec":""}" data-u="${u.id}"><span class="ic c${k}">${sym?esc(sym):OIC[(u.n-1)%OIC.length]}</span><span class="num">${u.kind==="p"?"Phát âm":"Văn phòng"} ${u.n} · ${LV[u.lv]}${S.done[u.id]?" · đã học":""}</span><h3>${esc(u.t)}</h3><span class="sm">${esc(u.s)}</span><span class="bar"><i style="width:${d/u.p.length*100}%"></i></span><span class="sm">${d}/${u.p.length} câu đạt</span></button>`}}
+function vPath(){
+  REC=new Set(recs(4).map(u=>u.id));const card=unitCard;
+  app.innerHTML=`<h2>Lộ trình</h2><p class="lead">${S.prof?"Bài viền vàng là bài hợp nhất với hồ sơ và cấp độ của bạn.":"Tạo hồ sơ và làm bài kiểm tra để được gợi ý bài phù hợp."} Mỗi câu tính là đạt khi luyện nói được từ 80 điểm.</p>
+  <h3 class="sec-h">Phần 1. Phát âm nền tảng cho người Việt</h3><div class="grid">${UNITS.filter(u=>u.kind==="p").map(card).join("")}</div>
+  <h3 class="sec-h">Phần 2. Giao tiếp văn phòng</h3><div class="grid">${UNITS.filter(u=>u.kind==="o").map(card).join("")}</div>`;
+  app.querySelectorAll(".unit").forEach(b=>b.onclick=()=>location.hash=b.dataset.u)}
+
+/* ---------- màn hình: một bài học ---------- */
+let curList=SENT.map(s=>s),cur=0;
+function vUnit(u){
+  const idx=UNITS.indexOf(u),prev=UNITS[idx-1],nxt=UNITS[idx+1];
+  const sents=u.p.map(p=>({en:p[0],vi:p[1]}));
+  app.innerHTML=`<div class="row"><a class="btn" href="#path">← Lộ trình</a><span class="num">${u.kind==="p"?"Phát âm":"Văn phòng"} ${u.n} · ${LV[u.lv]}</span></div>
+  <h2 style="margin-top:14px">${esc(u.t)}</h2><p class="lead">${esc(u.s)}</p>
+  ${u.g?`<div class="tip">${u.g.map(x=>`<p>${esc(x)}</p>`).join("")}</div>`:`<div class="tip"><b>Mẹo phát âm:</b> ${esc(u.tip)}</div>`}
+  ${u.pairs?`<h3 class="sec-h">Cặp âm dễ nhầm</h3><p class="sm">Bấm từng từ để nghe. Sau đó làm bài nghe và chọn bên dưới.</p><div class="pairs">${u.pairs.map(p=>`<div class="pair">${p.map(w=>`<button data-say="${esc(w)}">${I.spk} ${esc(w)}</button><span class="ipa">${esc(ipaText(w))}</span>`).join("")}</div>`).join("")}</div>
+   <div id="mp" style="margin-top:12px"></div>`:""}
+  <h3 class="sec-h">Câu luyện nói</h3>
+  ${sents.map((p,pi)=>{const b=S.best[p.en];return`<div class="ph"><button class="ico" data-say="${esc(p.en)}" aria-label="Nghe">${I.spk}</button><div class="t"><div class="en">${esc(p.en)}</div><div class="ipa">${esc(ipaText(p.en))}</div><div class="vi">${esc(p.vi)}</div></div>${b!=null?`<span class="badge ${cls(b)}">${b}</span>`:""}<button class="sec" data-pr="${pi}">${I.mic} Luyện</button></div>`}).join("")}
+  ${u.d?`<h3 class="sec-h">Hội thoại mẫu</h3><div class="row" style="margin-bottom:12px"><button class="pri" id="playD">${I.spk} Nghe cả đoạn</button></div><div class="dl">${u.d.map(l=>`<span class="sp">${esc(l[0])}</span><span>${esc(l[1])} <button class="ico" style="min-height:32px;width:32px;vertical-align:middle;border:0" data-say="${esc(l[1])}" aria-label="Nghe">${I.spk}</button></span>`).join("")}</div>`:""}
+  ${u.q?`<h3 class="sec-h">Bài tập nhanh</h3><div id="uq"></div>`:""}
+  <div class="row" style="margin-top:24px"><button class="pri" id="doneU">${S.done[u.id]?"Đã học xong":"Đánh dấu đã học"}</button>${prev?`<a class="btn" href="#${prev.id}">← Bài trước</a>`:""}${nxt?`<a class="btn" href="#${nxt.id}">Bài sau →</a>`:""}</div>`;
+  app.querySelectorAll("[data-say]").forEach(b=>b.onclick=()=>say(b.dataset.say));
+  app.querySelectorAll("[data-pr]").forEach(b=>b.onclick=()=>{curList=sents.map(s=>({...s,uid:u.id}));cur=+b.dataset.pr;location.hash="speak"});
+  $("#doneU").onclick=()=>{if(!S.done[u.id]){S.done[u.id]=1;gain(15);sents.forEach(s=>{if(!S.cards[s.en])rateCard(s.en,70)});save()}$("#doneU").textContent="Đã học xong"};
+  const pd=$("#playD");if(pd)pd.onclick=async()=>{const vs=["buttery","airy","glassy","rounded"],sp=[...new Set(u.d.map(l=>l[0]))];if(tts){tts.speak(u.d.map(l=>({text:l[1],voice:vs[sp.indexOf(l[0])%4],language:"en"}))).catch(()=>{});return}for(const l of u.d)await say(l[1])};
+  if(u.q)quizBlock($("#uq"),u.q.map(q=>({q,u})),false);
+  if(u.pairs)pairQuiz($("#mp"),u.pairs)}
+function pairQuiz(el,pairs){let n=0,ok=0,cur=null;
+  const draw=()=>{if(n>=6){el.innerHTML=`<div class="box"><b>Nghe phân biệt: ${ok}/6 đúng.</b> <button id="again">Làm lại</button></div>`;el.querySelector("#again").onclick=()=>{n=0;ok=0;draw()};if(ok>=5)gain(5);return}
+    const p=pairs[Math.floor(Math.random()*pairs.length)];cur={p,a:Math.round(Math.random())};
+    el.innerHTML=`<div class="box"><div class="row between"><b>Nghe và chọn từ đúng (${n+1}/6)</b><button class="pri" id="pp">${I.spk} Phát</button></div><div class="row" style="margin-top:10px">${p.map((w,k)=>`<button class="opt" style="width:auto;flex:1" data-k="${k}">${esc(w)}</button>`).join("")}</div><div class="note" id="pr"></div></div>`;
+    el.querySelector("#pp").onclick=()=>say(p[cur.a]);
+    el.querySelectorAll(".opt").forEach(b=>b.onclick=()=>{const k=+b.dataset.k;el.querySelectorAll(".opt").forEach((x,j)=>{x.disabled=true;if(j===cur.a)x.classList.add("right")});if(k!==cur.a)b.classList.add("wrong");else ok++;n++;el.querySelector("#pr").textContent=k===cur.a?"Đúng.":"Từ được đọc là "+p[cur.a]+".";setTimeout(draw,1100)})};
+  draw()}
+
+/* ---------- màn hình: luyện nói ---------- */
+function vSpeak(){
+  const it=curList[cur]||SENT[0];const u=it.uid&&uById(it.uid);const b=S.best[it.en];
+  app.innerHTML=`<div class="row between"><span class="sm">${u?esc(u.t)+" · ":""}câu ${cur+1}/${curList.length}</span><span class="sm">Cao nhất: <b>${b??"chưa có"}</b></span></div>
+  <div id="sc" style="margin-top:10px"></div>
+  <div class="row between" style="margin-top:14px"><button id="prev">← Câu trước</button><button id="next" class="pri">Câu tiếp →</button></div>
+  <h3 class="sec-h">Tự luyện câu của bạn</h3><p class="sm">Gõ bất kỳ câu tiếng Anh nào bạn cần nói trong công việc, web sẽ đọc mẫu và chấm.</p>
+  <div class="row"><input type="text" id="cu" placeholder="Ví dụ: I'll follow up with the client tomorrow" style="flex:1 1 240px"><button class="sec" id="cug">Luyện câu này</button></div>
+  <h3 class="sec-h">Bộ câu của tôi (${S.mine.length})</h3><p class="sm">Câu bạn tự gõ được lưu ở đây và đưa vào lịch ôn tập.${IN_CLAUDE?" AI có thể soạn thêm câu sát với công việc của bạn.":""}</p>
+  ${IN_CLAUDE?`<div class="row" style="margin-bottom:10px"><button class="pri" id="gen" ${ai?"":"disabled"}>AI soạn 8 câu cho công việc của tôi</button></div><div id="geno" class="note"></div>`:""}
+  <div id="mine">${S.mine.map((m,i)=>`<div class="ph"><button class="ico" data-say="${esc(m.en)}" aria-label="Nghe">${I.spk}</button><div class="t"><div class="en">${esc(m.en)}</div>${m.vi?`<div class="vi">${esc(m.vi)}</div>`:""}</div>${S.best[m.en]!=null?`<span class="badge ${cls(S.best[m.en])}">${S.best[m.en]}</span>`:""}<button class="sec" data-mi="${i}">${I.mic} Luyện</button><button class="ico" data-del="${i}" aria-label="Xóa">${svg('<path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/>')}</button></div>`).join("")}</div>`;
+  speakCard($("#sc"),it,{onScore:(sc,R)=>recordScore(it.en,sc,R.stat)});
+  $("#prev").onclick=()=>{cur=(cur-1+curList.length)%curList.length;vSpeak()};$("#next").onclick=()=>{cur=(cur+1)%curList.length;vSpeak()};
+  $("#cug").onclick=async()=>{const t=$("#cu").value.trim().replace(/\s+/g," ");if(!t)return;if(phoneMode())await loadCMU();if(!S.mine.some(m=>m.en===t)){S.mine.unshift({en:t,vi:""});S.mine=S.mine.slice(0,200);save()}curList=S.mine.slice();cur=0;vSpeak()};
+  app.querySelectorAll("#mine [data-say]").forEach(b=>b.onclick=()=>say(b.dataset.say));
+  app.querySelectorAll("[data-mi]").forEach(b=>b.onclick=async()=>{if(phoneMode())await loadCMU();curList=S.mine.slice();cur=+b.dataset.mi;vSpeak()});
+  app.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{const m=S.mine[+b.dataset.del];S.mine.splice(+b.dataset.del,1);if(m)delete S.cards[m.en];save();vSpeak()});
+  const gen=$("#gen");if(gen)gen.onclick=async()=>{gen.disabled=true;$("#geno").textContent="AI đang soạn câu…";
+    try{const p=P();const r=await askJSON(`Write 8 short, natural English sentences a Vietnamese office worker would actually say out loud at work. Their job: ${roleText()||"office worker"}. What they want to get better at: ${(p.goals||[]).map(g=>(GOALS.find(x=>x[0]===g)||[])[1]).filter(Boolean).join(", ")||"general office communication"}. Level: ${["B1","A2","B1","B2"][S.lv||0]}. Each sentence 6 to 16 words, spoken style, no numbers written as digits. Return ONLY JSON: {"items":[{"en":"sentence","vi":"bản dịch tiếng Việt tự nhiên"}]}`);
+      const items=(r.items||[]).filter(x=>x&&typeof x.en==="string").map(x=>({en:String(x.en).trim(),vi:String(x.vi||"").trim()}));items.forEach(x=>{if(!S.mine.some(m=>m.en===x.en))S.mine.unshift(x)});S.mine=S.mine.slice(0,200);save();vSpeak()}
+    catch(e){$("#geno").textContent=e&&e.code==="rate_limited"?"AI đang bận, thử lại sau ít phút.":"Không soạn được lúc này, thử lại.";gen.disabled=false}};
+  $("#cu").onkeydown=e=>{if(e.key==="Enter")$("#cug").click()}}
+
+/* ---------- màn hình: ôn tập ---------- */
+function vReview(){
+  const due=dueCards();
+  if(!due.length){const nx=Object.values(S.cards).map(c=>new Date(c.due)).sort((a,b)=>a-b)[0];
+    app.innerHTML=`<h2>Ôn tập</h2><p class="lead">${Object.keys(S.cards).length?"Hết câu đến hạn rồi."+(nx?" Câu tiếp theo đến hạn lúc "+nx.toLocaleString("vi-VN",{hour:"2-digit",minute:"2-digit",day:"2-digit",month:"2-digit"})+".":""):"Chưa có câu nào để ôn. Luyện nói vài câu trong lộ trình, chúng sẽ tự xuất hiện ở đây đúng lúc bạn sắp quên."}</p><a class="btn pri" href="#path">Học bài mới</a>`;return}
+  const en=due[0],s=SENT.find(x=>x.en===en)||S.mine.find(x=>x.en===en)||{en,vi:""};
+  app.innerHTML=`<h2>Ôn tập</h2><p class="lead">Còn ${due.length} câu. Nói lại từng câu, điểm càng cao câu càng lâu quay lại.</p><div id="sc"></div><div class="row between" style="margin-top:14px"><button id="skip">Để sau</button><button class="pri hide" id="nx">Câu tiếp →</button></div>`;
+  speakCard($("#sc"),s,{onScore:(sc,R)=>{recordScore(en,sc,R.stat);$("#nx").classList.remove("hide")}});
+  $("#nx").onclick=vReview;$("#skip").onclick=()=>{const c=S.cards[en];c.due=new Date(Date.now()+36e5).toISOString();save();vReview()}}
+
+/* ---------- màn hình: luyện nghe ---------- */
+function vListen(mode){
+  mode=mode||"type";const pool=SENT.filter(s=>!S.lv||uById(s.uid).lv<=S.lv+1);const it=pool[Math.floor(Math.random()*pool.length)];
+  app.innerHTML=`<h2>Luyện nghe</h2><p class="lead">Nghe câu văn phòng thật rồi chép lại, hoặc chọn nghĩa đúng.</p>
+  <div class="row"><button id="m1" class="${mode==="type"?"sec":""}">Nghe và chép</button><button id="m2" class="${mode==="mc"?"sec":""}">Nghe và chọn nghĩa</button></div>
+  <div class="card" style="margin-top:14px"><div class="row center"><button class="pri" id="pl">${I.spk} Nghe</button><button id="pls">${I.slow} Nghe chậm</button></div><div id="lz" style="text-align:left;margin-top:16px"></div></div>
+  <div class="row" style="justify-content:flex-end;margin-top:14px"><button id="nx" class="pri">Câu khác →</button></div>`;
+  $("#pl").onclick=()=>say(it.en);$("#pls").onclick=()=>say(it.en,.72);$("#m1").onclick=()=>vListen("type");$("#m2").onclick=()=>vListen("mc");$("#nx").onclick=()=>vListen(mode);
+  const z=$("#lz");
+  if(mode==="type"){z.innerHTML=`<input type="text" id="ty" placeholder="Gõ lại câu bạn nghe được" autocomplete="off" autocapitalize="off"><div class="row" style="margin-top:10px"><button class="sec" id="ck">Kiểm tra</button><button id="sh">Xem đáp án</button></div><div id="out"></div>`;
+    const ck=()=>{const R=finishWords(it.en,$("#ty").value);$("#out").innerHTML=`<div class="box"><div class="score small ${cls(R.sc)}" style="--p:${R.sc}">${R.sc}</div><div class="target" style="font-size:22px">${R.words.map(w=>`<span class="${cls(w.sc)}">${esc(w.w)}</span>`).join(" ")}</div><div class="sm">${esc(it.vi)}</div></div>`;if(R.sc>=80)gain(3)};
+    $("#ck").onclick=ck;$("#ty").onkeydown=e=>{if(e.key==="Enter")ck()};$("#sh").onclick=()=>{$("#out").innerHTML=`<div class="box"><b>${esc(it.en)}</b><div class="ipa">${esc(ipaText(it.en))}</div><div class="sm">${esc(it.vi)}</div></div>`}}
+  else{const opts=[it];while(opts.length<4){const r=pool[Math.floor(Math.random()*pool.length)];if(!opts.includes(r))opts.push(r)}opts.sort(()=>Math.random()-.5);
+    z.innerHTML=opts.map((o,i)=>`<button class="opt" data-i="${i}">${esc(o.vi)}</button>`).join("")+`<div id="out" class="note"></div>`;
+    z.querySelectorAll(".opt").forEach(b=>b.onclick=()=>{const ok=opts[+b.dataset.i]===it;z.querySelectorAll(".opt").forEach((x,i)=>{x.disabled=true;if(opts[i]===it)x.classList.add("right")});if(!ok)b.classList.add("wrong");else gain(3);$("#out").innerHTML=`Câu gốc: <b>${esc(it.en)}</b>`})}}
+
+/* ---------- bài tập ---------- */
+function quizBlock(el,items,big){let i=0,right=0;
+  const draw=()=>{if(i>=items.length){el.innerHTML=`<div class="box"><b>Hoàn thành: ${right}/${items.length} câu đúng.</b><div class="row" style="margin-top:10px"><button id="rq">Làm lại</button></div></div>`;el.querySelector("#rq").onclick=()=>{i=0;right=0;if(big)items.sort(()=>Math.random()-.5);draw()};return}
+    const{q,u}=items[i];
+    el.innerHTML=`<div class="box"><div class="sm">${big?esc(u.t)+" · ":""}Câu ${i+1}/${items.length}</div><p style="font-weight:600;font-size:18px;margin:8px 0">${esc(q[0])}</p>${q[1].map((o,k)=>`<button class="opt" data-k="${k}">${esc(o)}</button>`).join("")}<div class="note" id="ex"></div><div class="row hide" id="nxr" style="margin-top:10px"><button class="pri" id="nq">Tiếp →</button></div></div>`;
+    el.querySelectorAll(".opt").forEach(b=>b.onclick=()=>{const k=+b.dataset.k,ok=k===q[2];el.querySelectorAll(".opt").forEach((x,j)=>{x.disabled=true;if(j===q[2])x.classList.add("right")});if(!ok)b.classList.add("wrong");else{right++;gain(5)}
+      el.querySelector("#ex").textContent=(ok?"Đúng. ":"Chưa đúng. ")+q[3];el.querySelector("#nxr").classList.remove("hide");el.querySelector("#nq").onclick=()=>{i++;draw()}})};
+  draw()}
+function vQuiz(){
+  const os=UNITS.filter(u=>u.q);
+  app.innerHTML=`<h2>Bài tập tổng hợp</h2><p class="lead">Ngữ pháp và cách diễn đạt văn phòng, xáo trộn ngẫu nhiên.</p><select id="qs"><option value="">Tất cả các bài</option>${[1,2,3].map(l=>`<option value="lv${l}">Cấp ${LV[l]}</option>`).join("")}${os.map(u=>`<option value="${u.id}">${esc(u.t)}</option>`).join("")}</select><div id="qz" style="margin-top:12px"></div>`;
+  const run=()=>{const v=$("#qs").value;const it=[];os.forEach(u=>{if(!v||v===u.id||v==="lv"+u.lv)u.q.forEach(q=>it.push({q,u}))});it.sort(()=>Math.random()-.5);quizBlock($("#qz"),it,true)};
+  $("#qs").onchange=run;run()}
+
+/* ---------- AI: sửa lỗi và hội thoại ---------- */
+async function askJSON(prompt){if(!ai)throw{message:"no_ai"};
+  try{if(ai.json)return await ai.json(prompt,{modelTier:"quick"})}catch(e){if(e&&(e.code==="not_granted"||e.code==="rate_limited"))throw e}
+  const r=await ai(prompt,{modelTier:"quick"});const m=r.text.match(/\{[\s\S]*\}/);return JSON.parse(m?m[0]:r.text)}
+const noAI=()=>IN_CLAUDE?'<p class="note">Đang kết nối AI của Claude… nếu không thấy phản hồi, tải lại trang.</p>':`<div class="box"><b>Tính năng AI chỉ có ở bản chạy trong Claude.</b><p class="sm">Bản web này tập trung chấm phát âm chi tiết. Để dùng AI sửa lỗi và hội thoại, mở TCV Talks trong Claude${CFG.claudeUrl.startsWith("http")?`: <a href="${esc(CFG.claudeUrl)}">mở bản Claude</a>`:"."}</p></div>`;
+function vFix(){
+  app.innerHTML=`<h2>Sửa lỗi câu</h2><p class="lead">Gõ hoặc nói một câu, email, tin nhắn công việc. AI chỉ lỗi sai, giải thích bằng tiếng Việt và gợi ý cách nói tự nhiên kiểu văn phòng.</p>
+  ${ai?"":noAI()}<textarea id="tx" placeholder="Ví dụ: I want to discuss with you about the project timeline tomorrow"></textarea>
+  <div class="row" style="margin-top:10px"><button class="pri" id="go" ${ai?"":"disabled"}>Sửa lỗi</button>${canRec()&&!phoneMode()?`<button id="vm">${I.mic} Nói thay vì gõ</button>`:""}</div><div id="out"></div>`;
+  const vm=$("#vm");if(vm)vm.onclick=()=>{if(rec.on){stopRec();return}vm.classList.add("sec");const base=$("#tx").value;startRec(t=>$("#tx").value=(base+" "+t).trim(),r=>{vm.classList.remove("sec");if(r.text)$("#tx").value=(base+" "+r.text).trim()})};
+  $("#go").onclick=async()=>{const t=$("#tx").value.trim();if(!t)return;const o=$("#out"),b=$("#go");b.disabled=true;o.innerHTML='<div class="box">Đang kiểm tra…</div>';
+    try{const r=await askJSON(`Bạn là giáo viên tiếng Anh giao tiếp văn phòng cho người Việt. Người học làm công việc: ${roleText()||"nhân viên văn phòng"}. Kiểm tra đoạn sau của người học:\n"""${t}"""\nTrả về DUY NHẤT một JSON: {"score":số 0-100 cho độ chính xác,"corrected":"bản sửa đúng ngữ pháp, giữ nguyên ý","natural":"bản diễn đạt tự nhiên, chuyên nghiệp như người bản xứ ở văn phòng","errors":[{"wrong":"cụm sai","right":"cụm đúng","why":"giải thích ngắn bằng tiếng Việt"}]}. Không có lỗi thì errors là mảng rỗng.`);
+      o.innerHTML=`<div class="box"><div class="row between"><b>Độ chính xác</b><span class="score small ${cls(+r.score||0)}" style="--p:${+r.score||0};margin:0">${esc(r.score)}</span></div>
+      <h3 class="sec-h" style="margin-top:12px">Lỗi cần sửa</h3>${(r.errors||[]).length?r.errors.map(e=>`<div class="err"><span class="strike">${esc(e.wrong)}</span> → <span class="good">${esc(e.right)}</span><div class="sm">${esc(e.why)}</div></div>`).join(""):'<p class="good">Không có lỗi ngữ pháp.</p>'}
+      <h3 class="sec-h">Bản sửa đúng</h3><p>${esc(r.corrected)} <button class="ico" style="vertical-align:middle" data-say="${esc(r.corrected)}" aria-label="Nghe">${I.spk}</button></p>
+      <h3 class="sec-h">Cách nói tự nhiên hơn</h3><p><b>${esc(r.natural)}</b> <button class="ico" style="vertical-align:middle" data-say="${esc(r.natural)}" aria-label="Nghe">${I.spk}</button></p>
+      <div class="row"><button class="sec" id="prn">${I.mic} Luyện nói câu này</button></div></div>`;
+      o.querySelectorAll("[data-say]").forEach(x=>x.onclick=()=>say(x.dataset.say));$("#prn").onclick=()=>{curList=[{en:r.natural,vi:""}];cur=0;location.hash="speak"};gain(3)}
+    catch(e){o.innerHTML=`<div class="box">${e&&e.code==="rate_limited"?"AI đang bận, thử lại sau ít phút.":"Không sửa được lúc này, thử lại."}</div>`}b.disabled=false}}
+const SCN=[["Họp 1-1 với sếp","your manager in a weekly one-on-one meeting, asking about project progress and blockers"],["Phỏng vấn xin việc","an interviewer at a tech company interviewing the learner for a team leader role"],["Khách hàng phàn nàn","an upset customer whose order was charged twice; the learner is the support agent"],["Góp ý cho nhân viên","a junior agent receiving coaching feedback from the learner, who is their team leader"],["Đồng nghiệp mới","a friendly new colleague making small talk in the office kitchen"],["Báo cáo sự cố","a senior manager asking the learner about an urgent production incident"]];
+let chat={s:-1,log:[]};
+function defScn(){const p=P(),g=p.goals||[];if(p.role==="lead")return 3;if(g.includes("customer")||p.role==="cs")return 2;if(g.includes("interview"))return 1;if(g.includes("meet"))return 0;if(g.includes("small"))return 4;return 0}
+function vChat(){
+  if(chat.s<0)chat.s=defScn();
+  app.innerHTML=`<h2>Hội thoại với AI</h2><p class="lead">Chọn tình huống, AI đóng vai người đối diện. Bạn nói hoặc gõ trả lời, AI vừa đáp vừa sửa câu cho bạn.</p>${ai?"":noAI()}
+  <select id="cs">${SCN.map((s,i)=>`<option value="${i}" ${i===chat.s?"selected":""}>${esc(s[0])}</option>`).join("")}</select>
+  <div class="chat" id="cl"></div>
+  <div class="row"><input type="text" id="ci" placeholder="Trả lời bằng tiếng Anh" autocomplete="off" style="flex:1 1 220px">${canRec()&&!phoneMode()?`<button class="ico" id="cm" aria-label="Nói">${I.mic}</button>`:""}<button class="pri" id="cg" ${ai?"":"disabled"}>Gửi</button></div>
+  <div class="row" style="margin-top:10px"><button id="cr" class="sec" ${ai?"":"disabled"}>${chat.log.length?"Bắt đầu lại":"Bắt đầu"}</button></div>`;
+  const cl=$("#cl");
+  const draw=()=>{cl.innerHTML=chat.log.length?chat.log.map(m=>m.r==="ai"?`<div class="msg ai">${esc(m.t)}</div>`:`<div class="msg me">${esc(m.t)}</div>${m.fix?`<div class="fixn">Nên nói: <b class="good">${esc(m.fix)}</b>${m.note?" · "+esc(m.note):""}</div>`:""}`).join(""):'<p class="sm">Bấm Bắt đầu để AI mở lời.</p>';cl.scrollTop=cl.scrollHeight};
+  const turn=async u=>{if(!ai)return;const sc=SCN[chat.s];if(u)chat.log.push({r:"me",t:u});draw();const tr=chat.log.map(m=>(m.r==="ai"?"AI: ":"Learner: ")+m.t).join("\n");$("#cg").disabled=true;
+    try{const r=await askJSON(`Role-play for English speaking practice. You are ${sc[1]}. The learner is a Vietnamese office worker${P().name?" named "+P().name:""}${roleText()?" working as: "+roleText():""}${S.lv?" at "+["","A2","B1","B2"][S.lv]+" level":""}. Conversation so far:\n${tr||"(none yet, open the conversation)"}\nReply in character with 1-3 short natural spoken sentences and end with a question. Also check the learner's LAST message only. Return ONLY JSON: {"reply":"your line","fix":"corrected natural version of the learner's last message, or empty string if it was already good or there is none","note":"giải thích lỗi rất ngắn bằng tiếng Việt, hoặc chuỗi rỗng"}`);
+      const last=chat.log[chat.log.length-1];if(u&&last&&last.r==="me"&&r.fix){last.fix=r.fix;last.note=r.note}chat.log.push({r:"ai",t:r.reply||"…"});draw();say(r.reply||"");if(u)gain(2)}
+    catch(e){chat.log.push({r:"ai",t:e&&e.code==="rate_limited"?"(AI đang bận, thử lại sau)":"(Không kết nối được AI)"});draw()}$("#cg").disabled=false};
+  const send=()=>{const v=$("#ci").value.trim();if(!v)return;$("#ci").value="";turn(v)};
+  $("#cg").onclick=send;$("#ci").onkeydown=e=>{if(e.key==="Enter")send()};
+  $("#cs").onchange=()=>{chat={s:+$("#cs").value,log:[]};draw()};$("#cr").onclick=()=>{chat={s:chat.s,log:[]};$("#cr").textContent="Bắt đầu lại";draw();turn()};
+  const cm=$("#cm");if(cm)cm.onclick=()=>{if(rec.on){stopRec();return}cm.classList.add("sec");startRec(t=>$("#ci").value=t,r=>{cm.classList.remove("sec");if(r.text){$("#ci").value="";turn(r.text)}})};
+  draw()}
+
+/* ---------- điều hướng ---------- */
+function route(){
+  const h=(location.hash||"#today").slice(1);
+  document.querySelectorAll("#nav a").forEach(a=>{const t=a.getAttribute("href").slice(1);a.classList.toggle("on",t===h||(t==="path"&&/^[po]\d+$/.test(h))||(t==="today"&&(h==="test"||h==="profile")))});
+  if(rec.on)stopRec();try{speechSynthesis.cancel()}catch(e){}
+  const u=uById(h);
+  if(u)vUnit(u);else if(h==="path")vPath();else if(h==="test")vTest();else if(h==="profile")vProfile();else if(h==="speak")vSpeak();else if(h==="review")vReview();else if(h==="listen")vListen();else if(h==="quiz")vQuiz();else if(h==="fix")vFix();else if(h==="chat")vChat();else vToday();
+  window.scrollTo(0,0)}
+window.addEventListener("hashchange",route);
+window.__ot={finishPhones,splitPh,refOf,loadModel,recognize,toPCM,S};
+stats();route();
+}
+</script>
+</body>
+</html>
