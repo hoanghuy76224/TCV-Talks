@@ -2276,6 +2276,7 @@ function accessError(e,creating){
 }
 
 function vAccess(){
+  if(profileScreenMode==="reset"){vReset();return}
   const creating=profileScreenMode==="create";
   const legacy=creating&&readLegacyProgress();
   document.body.classList.add("profile-locked");
@@ -2288,7 +2289,8 @@ function vAccess(){
     (legacy?'<label class="sm legacy-progress"><input type="checkbox" id="claim-progress"> Chuyển tiến độ cũ của tôi trên trình duyệt này vào hồ sơ</label>':'')+
     '<div class="row"><button class="pri" id="profile-enter" type="submit">'+(creating?"Tạo hồ sơ":"Mở hồ sơ")+
     '</button><button type="button" id="profile-mode">'+(creating?"Tôi đã có hồ sơ":"Tạo hồ sơ mới")+
-    '</button></div><p class="sm" id="profile-message" role="status"></p></form></section>';
+    '</button><button type="button" id="forgot-pin">Quên mã PIN?</button></div><p class="sm" id="profile-message" role="status"></p></form></section>';
+  $('#forgot-pin').onclick=()=>{profileScreenMode='reset';vAccess()};
   course.welcome();
   $("#profile-mode").onclick=()=>{if(!profileAccessBusy){profileScreenMode=creating?"open":"create";vAccess()}};
   $("#profile-access-form").onsubmit=async event=>{
@@ -2328,6 +2330,18 @@ function vAccess(){
   };
 }
 
+function vReset(){
+  app.innerHTML='<section class="box profile-access"><h2>Đặt lại mã PIN</h2><p>Nhập tên hồ sơ và mã khôi phục đã lưu trước đó.</p><form id="reset-form"><div class="field"><label for="reset-id">Tên hồ sơ</label><input id="reset-id" required minlength="3" maxlength="30" pattern="[A-Za-z0-9_]+"></div><div class="field"><label for="reset-code">Mã khôi phục</label><input id="reset-code" required autocomplete="off" autocapitalize="none"></div><div class="field"><label for="reset-pin">Mã PIN mới gồm 4 số</label><input id="reset-pin" type="password" inputmode="numeric" pattern="[0-9]{4}" required></div><div class="field"><label for="reset-confirm">Nhập lại mã PIN mới</label><input id="reset-confirm" type="password" inputmode="numeric" pattern="[0-9]{4}" required></div><div class="row"><button class="pri">Đặt lại PIN</button><button type="button" id="reset-back">Quay lại</button></div><p id="reset-message" role="status"></p></form></section>';
+  $("#reset-back").onclick=()=>{profileScreenMode="open";vAccess()};
+  $("#reset-form").onsubmit=async e=>{
+    e.preventDefault();const msg=$("#reset-message"),pin=$("#reset-pin").value;
+    if(pin!==$("#reset-confirm").value){msg.textContent="Hai mã PIN chưa giống nhau.";return}
+    const button=e.target.querySelector('button[type="submit"],button:not([type])');button.disabled=true;msg.textContent="Đang xử lý…";
+    try{await profileCall("reset",{id:$("#reset-id").value.trim().toLowerCase(),pin,code:$("#reset-code").value.trim()});profileScreenMode="open";vAccess();$("#profile-message").textContent="Đã đổi PIN. Hãy đăng nhập và tạo mã khôi phục mới."}
+    catch(e){msg.textContent=e.message==="bad_recovery"?"Tên hồ sơ hoặc mã khôi phục chưa đúng.":"Chưa thể đổi PIN. Vui lòng thử lại."}
+    finally{button.disabled=false}
+  };
+}
 async function lockProfile(){
   const button=$("#lock-profile");
   button.disabled=true;
@@ -2801,7 +2815,8 @@ function vProfile(){
   <div class="field"><b>Bạn muốn giỏi phần nào? Chọn nhiều cũng được</b><div class="chips">${GOALS.map(g=>`<label><input type="checkbox" name="pg" value="${g[0]}" ${(p.goals||[]).includes(g[0])?"checked":""}>${esc(g[1])}</label>`).join("")}</div></div>
   <div class="field"><b>Mỗi ngày bạn học được bao lâu?</b><div class="chips">${MINS.map(m=>`<label><input type="radio" name="pm2" value="${m[0]}" ${(p.mins||15)===m[0]?"checked":""}>${m[0]} phút</label>`).join("")}</div></div>
   <div class="field"><b>Lộ trình Pre-A1 đến C2</b> <a href="#start">Chọn mục tiêu và cấp học</a></div><div class="field"><b>Đánh giá công sở</b><span class="sm">${S.lv?LV[S.lv]+" theo bài kiểm tra đầu vào.":"Chưa kiểm tra."}</span> <a href="#test">${S.lv?"Làm lại":"Làm bài kiểm tra"}</a></div>
-  <div class="row"><button class="pri" id="psave">Lưu hồ sơ</button><a class="btn" href="#assessment">Nhận xét học tập</a><span class="note" id="pmsg"></span></div>`;
+  <div class="box"><h3>Khôi phục mã PIN</h3><p>Tạo và lưu mã khôi phục ở nơi an toàn để đặt lại PIN khi quên. Mã mới thay thế mã cũ và chỉ dùng một lần.</p><button type="button" id="recovery-create">Tạo mã khôi phục</button><p id="recovery-output" role="status"></p></div><div class="row"><button class="pri" id="psave">Lưu hồ sơ</button><a class="btn" href="#assessment">Nhận xét học tập</a><span class="note" id="pmsg"></span></div>`;
+  $("#recovery-create").onclick=async e=>{const button=e.currentTarget,out=$("#recovery-output");button.disabled=true;out.textContent="Đang tạo mã…";try{const result=await profileCall("recovery",{id:activeLearner.id,pin:activeLearner.pin});if(out.isConnected)out.textContent="Mã khôi phục của bạn: "+result.code+". Hãy lưu lại, mã chỉ hiển thị lần này."}catch(err){if(out.isConnected)out.textContent="Chưa tạo được mã. Kiểm tra kết nối rồi thử lại."}finally{button.disabled=false}};
   app.querySelectorAll('input[name=pr]').forEach(r=>r.onchange=()=>$("#prt").classList.toggle("hide",r.value!=="other"||!r.checked));
   $("#psave").onclick=()=>{const name=$("#pn").value.trim(),role=(app.querySelector('input[name=pr]:checked')||{}).value||"",goals=[...app.querySelectorAll('input[name=pg]:checked')].map(x=>x.value),mins=+((app.querySelector('input[name=pm2]:checked')||{}).value||15);
     if(!name){$("#pmsg").textContent="Bạn nhập tên gọi nhé.";$("#pn").focus();return}if(!role){$("#pmsg").textContent="Bạn chọn công việc nhé.";return}

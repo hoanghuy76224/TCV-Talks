@@ -171,6 +171,19 @@ async function profileApi(req, env, headers, path) {
     await initTable(env);
     const now = Date.now();
 
+    await env.DB.exec("CREATE TABLE IF NOT EXISTS recovery_codes (id TEXT PRIMARY KEY, hash TEXT NOT NULL, FOREIGN KEY(id) REFERENCES profiles(id))");
+    if (path === "/profile/reset") {
+      const code = typeof b.code === "string" ? b.code.replace(/[-\\s]/g, "").toLowerCase() : "";
+      if (!/^[a-f0-9]{32}$/.test(code)) return out({ error: "bad_recovery" }, 401, no);
+      const digest = await pinHash("recovery", id, code);
+      const salt = hex(crypto.getRandomValues(new Uint8Array(16)));
+      const hash = await pinHash(salt, id, pin);
+      const result = await env.DB.prepare("UPDATE profiles SET salt = ?, hash = ?, ver = ver + 1, fails = 0, locked_until = 0, updated = ? WHERE id = ? AND EXISTS (SELECT 1 FROM recovery_codes WHERE id = ? AND hash = ?)")
+        .bind(salt, hash, now, id, id, digest).run();
+      if (!result.meta.changes) return out({ error: "bad_recovery" }, 401, no);
+      await env.DB.prepare("DELETE FROM recovery_codes WHERE id = ? AND hash = ?").bind(id, digest).run();
+      return out({ok:true},200,no);
+    }
     if (path === "/profile/create") {
       const data = JSON.stringify(b.data ?? {});
       if (data.length > MAX_PROFILE) return out({ error: "too_big" }, 413, no);
@@ -198,6 +211,12 @@ async function profileApi(req, env, headers, path) {
     }
     if (row.fails) await env.DB.prepare("UPDATE profiles SET fails = 0 WHERE id = ?").bind(id).run();
 
+    if (path === "/profile/recovery") {
+      const code = hex(crypto.getRandomValues(new Uint8Array(16)));
+      const hash = await pinHash("recovery", id, code);
+      await env.DB.prepare("INSERT INTO recovery_codes (id, hash) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET hash = excluded.hash").bind(id, hash).run();
+      return out({ok:true,code},200,no);
+    }
     if (path === "/profile/open") {
       let data = {};
       try { data = JSON.parse(row.data) } catch (e) {}
