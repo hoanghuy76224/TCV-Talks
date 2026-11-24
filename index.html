@@ -2212,7 +2212,7 @@ function ipaText(text){const r=refOf(text);if(!r)return"";return"/"+r.map(x=>x.p
 /* ---------- đọc mẫu ---------- */
 let tts=null,dict=null,ai=null;
 const AIWEB=!IN_CLAUDE&&/^https:/.test(CFG.aiUrl);
-async function gem(body){let r;try{r=await fetch(CFG.aiUrl,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})}catch(e){throw{code:"network"}}
+async function gem(body,signal){let r;try{r=await fetch(CFG.aiUrl,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body),signal})}catch(e){throw{code:"network"}}
   const j=await r.json().catch(()=>({}));if(!r.ok)throw{code:j.error==="rate_limited"?"rate_limited":(j.error||"upstream")};return j}
 function jparse(t){const m=String(t).match(/\{[\s\S]*\}/);return JSON.parse(m?m[0]:t)}
 if(AIWEB){ai=async(prompt,o)=>{const j=await gem({prompt});o&&o.onText&&o.onText({text:j.text});return{text:j.text}};
@@ -2231,11 +2231,37 @@ Mảng words phải có đúng ${en.split(/\s+/).length} phần tử, khớp l�
   if(j.fluency!=null||j.intonation!=null)fb.push(`Độ trôi chảy ${Math.round(+j.fluency||0)}/100, ngữ điệu ${Math.round(+j.intonation||0)}/100.`);
   (j.tips||[]).slice(0,3).forEach(t=>fb.push(t));
   return{sc,words,fb,heard:j.heard||"",gem:true}}
+async function recordAudio(onFinish,signal){
+  const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
+  const release=()=>stream.getTracks().forEach(track=>track.stop());
+  if(signal?.aborted){release();throw new DOMException("Recording cancelled","AbortError")}
+  try{
+    const recorder=new MediaRecorder(stream);
+    const chunks=[];
+    const stop=()=>{if(recorder.state!=="inactive")recorder.stop()};
+    let timer;
+    const finish=error=>{
+      clearTimeout(timer);
+      signal?.removeEventListener("abort",stop);
+      release();
+      if(!signal?.aborted)onFinish(error?null:new Blob(chunks,{type:recorder.mimeType}));
+    };
+    recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};
+    recorder.onstop=()=>finish(false);
+    recorder.onerror=()=>{recorder.onstop=null;finish(true)};
+    recorder.start();
+    signal?.addEventListener("abort",stop,{once:true});
+    timer=setTimeout(stop,15000);
+    return recorder;
+  }catch(e){release();throw e}
+}
 let grec=null;
-async function gemRecord(onStop){try{const st=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
-  const mr=new MediaRecorder(st),ch=[];grec={mr,st};mr.ondataavailable=e=>e.data.size&&ch.push(e.data);
-  mr.onstop=()=>{st.getTracks().forEach(t=>t.stop());clearTimeout(grec.t);grec=null;onStop(new Blob(ch,{type:mr.mimeType||"audio/webm"}))};
-  mr.start();grec.t=setTimeout(()=>{try{mr.stop()}catch(e){}},15000);return true}catch(e){grec=null;return false}}
+async function gemRecord(onStop){
+  try{
+    grec={mr:await recordAudio(blob=>{grec=null;onStop(blob||new Blob())})};
+    return true;
+  }catch(e){grec=null;return false}
+}
 if(IN_CLAUDE){window.claude.use("tts").then(x=>tts=x).catch(()=>{});window.claude.use("dictation").then(x=>{dict=x;if(x)wireDict()}).catch(()=>{});window.claude.use("sample").then(x=>{ai=x;if(/fix|chat|speak/.test(location.hash))route()}).catch(()=>{})}
 let voice=null;function pickVoice(){try{const v=speechSynthesis.getVoices().filter(v=>/^en[-_]US/i.test(v.lang));voice=v.find(v=>v.localService&&/Aria|Jenny|Natural|Samantha|Zira/i.test(v.name))||v.find(v=>v.localService)||v[0]||null}catch(e){}}
 try{pickVoice();speechSynthesis.onvoiceschanged=pickVoice}catch(e){}
@@ -2407,9 +2433,9 @@ const WSR=window.SpeechRecognition||window.webkitSpeechRecognition;
 const canMedia=!IN_CLAUDE&&!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.MediaRecorder);
 const canRec=()=>!!dict||!!WSR||canMedia;
 const phoneMode=()=>!IN_CLAUDE&&S.phone&&canMedia;
-function startRec(upd,done){
+function startRec(upd,done,pronunciation=true){
   rec={on:true,text:"",part:"",upd,done};
-  if(phoneMode())return startMedia();
+  if(pronunciation&&phoneMode())return startMedia();
   if(dict){rec.kind="dict";dict.start().catch(e=>{rec.on=false;done({text:"",err:e&&e.code})});return}
   if(!WSR){rec.on=false;done({text:"",err:"unsupported"});return}
   rec.kind="wsr";
@@ -2736,31 +2762,178 @@ function vFix(){
     catch(e){o.innerHTML=`<div class="box">${e&&e.code==="rate_limited"?"AI đang bận, thử lại sau ít phút.":"Không sửa được lúc này, thử lại."}</div>`}b.disabled=false}}
 const SCN=[["Họp 1-1 với sếp","your manager in a weekly one-on-one meeting, asking about project progress and blockers"],["Phỏng vấn xin việc","an interviewer at a tech company interviewing the learner for a team leader role"],["Khách hàng phàn nàn","an upset customer whose order was charged twice; the learner is the support agent"],["Góp ý cho nhân viên","a junior agent receiving coaching feedback from the learner, who is their team leader"],["Đồng nghiệp mới","a friendly new colleague making small talk in the office kitchen"],["Báo cáo sự cố","a senior manager asking the learner about an urgent production incident"]];
 let chat={s:-1,log:[]};
+let chatMicSession;
+function cancelChatMic(){
+  chatMicSession?.abort();
+  chatMicSession=null;
+}
+window.addEventListener("pagehide",cancelChatMic);
+
+async function transcriptFromAudio(blob,signal){
+  const pcm=await toPCM(blob);
+  signal.throwIfAborted();
+  if(!pcm.length)return "";
+  const length=Math.min(pcm.length,16000*15);
+  const bytes=new ArrayBuffer(44+length*2);
+  const view=new DataView(bytes);
+  const header=new Uint8Array(bytes);
+  const ascii=(offset,value)=>header.set(new TextEncoder().encode(value),offset);
+  ascii(0,"RIFF");view.setUint32(4,bytes.byteLength-8,true);
+  ascii(8,"WAVEfmt ");view.setUint32(16,16,true);
+  view.setUint16(20,1,true);view.setUint16(22,1,true);
+  view.setUint32(24,16000,true);view.setUint32(28,32000,true);
+  view.setUint16(32,2,true);view.setUint16(34,16,true);
+  ascii(36,"data");view.setUint32(40,length*2,true);
+  for(let i=0;i<length;i++)view.setInt16(44+i*2,Math.round(Math.max(-1,Math.min(1,pcm[i]))*32767),true);
+  const audio=await b64(new Blob([bytes],{type:"audio/wav"}));
+  const request=new AbortController();
+  const abort=()=>request.abort();
+  signal.addEventListener("abort",abort,{once:true});
+  const timer=setTimeout(abort,20000);
+  try{
+    signal.throwIfAborted();
+    const response=await fetch(new URL("/transcribe",CFG.aiUrl),{
+      method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({audio}),signal:request.signal
+    });
+    if(!response.ok)throw new Error("Transcription failed");
+    return (await response.json()).text.trim();
+  }finally{
+    clearTimeout(timer);
+    signal.removeEventListener("abort",abort);
+  }
+}
+
 function defScn(){const p=P(),g=p.goals||[];if(p.role==="lead")return 3;if(g.includes("customer")||p.role==="cs")return 2;if(g.includes("interview"))return 1;if(g.includes("meet"))return 0;if(g.includes("small"))return 4;return 0}
 function vChat(){
   if(chat.s<0)chat.s=defScn();
+  const localMic=Boolean(dict||WSR);
+  const cloudMic=AIWEB&&canMedia;
+  const canUseMic=cloudMic||localMic;
   app.innerHTML=`<h2>Hội thoại với AI</h2><p class="lead">Chọn tình huống, AI đóng vai người đối diện. Bạn nói hoặc gõ trả lời, AI vừa đáp vừa sửa câu cho bạn.</p>${ai?"":noAI()}
+  <label class="sm" for="cs">Tình huống</label>
   <select id="cs">${SCN.map((s,i)=>`<option value="${i}" ${i===chat.s?"selected":""}>${esc(s[0])}</option>`).join("")}</select>
   <div class="chat" id="cl"></div>
-  <div class="row"><input type="text" id="ci" placeholder="Trả lời bằng tiếng Anh" autocomplete="off" style="flex:1 1 220px">${canRec()&&!phoneMode()?`<button class="ico" id="cm" aria-label="Nói">${I.mic}</button>`:""}<button class="pri" id="cg" ${ai?"":"disabled"}>Gửi</button></div>
-  <div class="row" style="margin-top:10px"><button id="cr" class="sec" ${ai?"":"disabled"}>${chat.log.length?"Bắt đầu lại":"Bắt đầu"}</button></div>`;
-  const cl=$("#cl");
-  const draw=()=>{cl.innerHTML=chat.log.length?chat.log.map(m=>m.r==="ai"?`<div class="msg ai">${esc(m.t)}</div>`:`<div class="msg me">${esc(m.t)}</div>${m.fix?`<div class="fixn">Nên nói: <b class="good">${esc(m.fix)}</b>${m.note?" · "+esc(m.note):""}</div>`:""}`).join(""):'<p class="sm">Bấm Bắt đầu để AI mở lời.</p>';cl.scrollTop=cl.scrollHeight};
-  const turn=async u=>{if(!ai)return;prepareVoiceContext();const sc=SCN[chat.s];if(u)chat.log.push({r:"me",t:u});draw();const tr=chat.log.map(m=>(m.r==="ai"?"AI: ":"Learner: ")+m.t).join("\n");$("#cg").disabled=true;
-    try{const r=await askJSON(`Role-play for English speaking practice. You are ${sc[1]}. The learner is a Vietnamese office worker${P().name?" named "+P().name:""}${roleText()?" working as: "+roleText():""}${S.lv?" at "+["","A2","B1","B2"][S.lv]+" level":""}. Conversation so far:\n${tr||"(none yet, open the conversation)"}\nReply in character with 1-3 short natural spoken sentences and end with a question. Also check the learner's LAST message only. Return ONLY JSON: {"reply":"your line","fix":"corrected natural version of the learner's last message, or empty string if it was already good or there is none","note":"giải thích lỗi rất ngắn bằng tiếng Việt, hoặc chuỗi rỗng"}`);
-      const last=chat.log[chat.log.length-1];if(u&&last&&last.r==="me"&&r.fix){last.fix=r.fix;last.note=r.note}chat.log.push({r:"ai",t:r.reply||"…"});draw();say(r.reply||"");if(u)gain(2)}
-    catch(e){chat.log.push({r:"ai",t:e&&e.code==="rate_limited"?"(AI đang bận, thử lại sau)":"(Không kết nối được AI)"});draw()}$("#cg").disabled=false};
-  const send=()=>{const v=$("#ci").value.trim();if(!v)return;$("#ci").value="";turn(v)};
-  $("#cg").onclick=send;$("#ci").onkeydown=e=>{if(e.key==="Enter")send()};
-  $("#cs").onchange=()=>{chat={s:+$("#cs").value,log:[]};draw()};$("#cr").onclick=()=>{chat={s:chat.s,log:[]};$("#cr").textContent="Bắt đầu lại";draw();turn()};
-  const cm=$("#cm");if(cm)cm.onclick=()=>{if(rec.on){stopRec();return}prepareVoiceContext();cm.classList.add("sec");startRec(t=>$("#ci").value=t,r=>{cm.classList.remove("sec");if(r.text){$("#ci").value="";turn(r.text)}})};
-  draw()}
+  <div class="row"><input type="text" id="ci" placeholder="Trả lời bằng tiếng Anh" autocomplete="off" style="flex:1 1 220px">
+    ${canUseMic?`<button id="cm" type="button" aria-pressed="false">${I.mic}<span id="cm-label">Bật mic</span></button>`:""}<button class="pri" id="cg">Gửi</button></div>
+  <p class="sm" id="chat-status" role="status"></p>
+  ${cloudMic?'<p class="sm">Sau khi dừng ghi, bản thu được gửi đến Cloudflare để chuyển thành chữ. Bạn có thể sửa câu trước khi bấm Gửi.</p>':!canUseMic?'<p class="sm">Mic chưa dùng được trong trình duyệt này. Bạn có thể gõ câu trả lời.</p>':""}
+  <div class="row"><button id="cr" class="sec">${chat.log.length?"Bắt đầu lại":"Bắt đầu"}</button></div>`;
+  const input=$("#ci"),cm=$("#cm"),status=$("#chat-status"),start=$("#cr"),sendButton=$("#cg"),scenario=$("#cs"),cl=$("#cl");
+  let recorder,working=false;
+  function draw(){
+    cl.innerHTML=chat.log.length?chat.log.map(m=>m.r==="ai"?`<div class="msg ai">${esc(m.t)}</div>`:`<div class="msg me">${esc(m.t)}</div>${m.fix?`<div class="fixn">Nên nói: <b class="good">${esc(m.fix)}</b>${m.note?" · "+esc(m.note):""}</div>`:""}`).join(""):'<p class="sm">Bấm Bắt đầu để AI mở lời.</p>';
+    cl.scrollTop=cl.scrollHeight;
+  }
+  function controls(){
+    const recording=recorder?.state==="recording"||(!cloudMic&&rec.on);
+    sendButton.disabled=!ai||working||!!chatMicSession;
+    start.disabled=!ai||working||!!chatMicSession;
+    scenario.disabled=working||!!chatMicSession;
+    if(cm){
+      cm.disabled=working||(!!chatMicSession&&!recording);
+      cm.classList.toggle("sec",!!recording);
+      cm.setAttribute("aria-pressed",String(!!recording));
+      $("#cm-label").textContent=recording?"Dừng ghi":"Bật mic";
+    }
+  }
+  async function turn(u){
+    if(!ai||working||chatMicSession)return;
+    working=true;
+    controls();
+    prepareVoiceContext();
+    if(u)chat.log.push({r:"me",t:u});
+    draw();
+    status.textContent="AI đang chuẩn bị trả lời…";
+    const history=chat.log.slice(-16).map(m=>(m.r==="ai"?"AI: ":"Learner: ")+m.t).join("\n");
+    const prompt=`Role-play for English speaking practice. You are ${SCN[chat.s][1]}. The learner is a Vietnamese office worker${roleText()?" working as: "+roleText():""}${S.lv?" at "+["","A2","B1","B2"][S.lv]+" level":""}. Conversation so far:\n${history||"(none yet, open the conversation)"}\nReply in character with 1-3 short natural spoken sentences and end with a question. Also check the learner’s last message only, if there is one. Return only JSON: {"reply":"your line","fix":"corrected natural version of the learner’s last message, or empty string","note":"giải thích lỗi rất ngắn bằng tiếng Việt, hoặc chuỗi rỗng"}`;
+    const request=new AbortController();
+    let timer;
+    try{
+      const reply=AIWEB?gem({prompt,json:true},request.signal).then(v=>jparse(v.text)):askJSON(prompt);
+      const deadline=new Promise((_,reject)=>{
+        timer=setTimeout(()=>{reject({code:"timeout"});request.abort()},25000);
+      });
+      const r=await Promise.race([reply,deadline]);
+      if(!app.contains(cl))return;
+      const last=chat.log[chat.log.length-1];
+      if(u&&last?.r==="me"&&r.fix){last.fix=r.fix;last.note=r.note}
+      if(typeof r.reply!=="string"||!r.reply.trim())throw new Error("Empty chat reply");
+      chat.log.push({r:"ai",t:r.reply});
+      draw();
+      status.textContent="";
+      say(r.reply);
+      if(u)gain(2);
+    }catch(e){
+      if(app.contains(cl))status.textContent=e?.code==="rate_limited"||e?.code==="timeout"?"AI phản hồi chậm. Bạn có thể thử lại.":"Chưa kết nối được với AI. Thử lại nhé.";
+    }finally{
+      clearTimeout(timer);
+      working=false;
+      if(app.contains(cl))controls();
+    }
+  }
+  function send(){
+    const value=input.value.trim();
+    if(!value||sendButton.disabled)return;
+    input.value="";
+    turn(value);
+  }
+  function finishMic(session,message,text){
+    if(session.signal.aborted||chatMicSession!==session||!app.contains(cl))return;
+    chatMicSession=null;
+    recorder=null;
+    if(text)input.value=text;
+    status.textContent=message;
+    controls();
+    if(text)input.focus();
+  }
+  async function useMic(){
+    if(recorder?.state==="recording"){recorder.stop();controls();return}
+    if(!cloudMic&&rec.on){stopRec();return}
+    if(working||chatMicSession)return;
+    stopAudio();
+    prepareVoiceContext();
+    const session=new AbortController();
+    chatMicSession=session;
+    status.textContent="Đang mở mic…";
+    controls();
+    if(!cloudMic){
+      startRec(()=>{},r=>finishMic(session,r.text?"Sửa lại câu nếu cần, rồi bấm Gửi.":"Chưa nghe rõ. Kiểm tra quyền mic rồi thử lại.",r.text),false);
+      if(chatMicSession===session)status.textContent="Đang nghe tiếng Anh…";
+      controls();
+      return;
+    }
+    try{
+      recorder=await recordAudio(async blob=>{
+        if(!blob?.size){finishMic(session,"Chưa thu được tiếng. Bật mic và thử lại.");return}
+        status.textContent="Đang chuyển lời nói thành chữ…";
+        controls();
+        try{
+          const text=await transcriptFromAudio(blob,session.signal);
+          finishMic(session,text?"Sửa lại câu nếu cần, rồi bấm Gửi.":"Chưa nghe rõ. Nói lại gần mic hơn nhé.",text);
+        }catch(e){finishMic(session,"Chưa nhận dạng được lời nói. Bạn có thể thử lại hoặc gõ câu trả lời.")}
+      },session.signal);
+      if(session.signal.aborted)return;
+      status.textContent="Đang ghi âm. Bấm Dừng ghi khi nói xong.";
+      controls();
+    }catch(e){
+      const denied=e?.name==="NotAllowedError"||e?.name==="SecurityError";
+      finishMic(session,denied?"Mic đang bị chặn. Cho phép dùng mic trong trình duyệt rồi thử lại.":"Không mở được mic. Kiểm tra thiết bị hoặc gõ câu trả lời.");
+    }
+  }
+  sendButton.onclick=send;
+  input.onkeydown=e=>{if(e.key==="Enter"&&!e.isComposing)send()};
+  scenario.onchange=()=>{chat={s:+scenario.value,log:[]};status.textContent="";draw()};
+  start.onclick=()=>{chat={s:chat.s,log:[]};start.textContent="Bắt đầu lại";turn()};
+  if(cm)cm.onclick=useMic;
+  draw();
+  controls();
+}
 
 /* ---------- điều hướng ---------- */
 function route(){
   const h=(location.hash||"#today").slice(1);
   document.querySelectorAll("#nav a").forEach(a=>{const t=a.getAttribute("href").slice(1);a.classList.toggle("on",t===h||(t==="path"&&/^[po]\d+$/.test(h))||(t==="today"&&(h==="test"||h==="profile")))});
-  if(rec.on)stopRec();stopAudio();
+  cancelChatMic();if(rec.on)stopRec();stopAudio();
   const u=uById(h);
   if(u)vUnit(u);else if(h==="path")vPath();else if(h==="test")vTest();else if(h==="profile")vProfile();else if(h==="speak")vSpeak();else if(h==="review")vReview();else if(h==="listen")vListen();else if(h==="trans")vTrans();else if(h==="quiz")vQuiz();else if(h==="fix")vFix();else if(h==="chat")vChat();else vToday();
   window.scrollTo(0,0)}
