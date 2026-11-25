@@ -2282,7 +2282,7 @@ function rememberView(){
 }
 document.addEventListener("input",event=>{
   const input=event.target;
-  if(!activeLearner||!app.contains(input)||!input.id||!["INPUT","TEXTAREA"].includes(input.tagName)||["password","file","hidden","checkbox","radio"].includes(input.type))return;
+  if(!activeLearner||!app.contains(input)||input.closest("[data-private]")||!input.id||!["INPUT","TEXTAREA"].includes(input.tagName)||["password","file","hidden","checkbox","radio"].includes(input.type))return;
   S.ui??={};S.ui.drafts??={};
   (S.ui.drafts[location.hash||"#today"]??={})[input.id]=input.value;
   queueProfileSave();
@@ -2325,7 +2325,7 @@ function readLegacyProgress(){
 }
 
 async function profileCall(action,body,keepalive=false){
-  if(activeLearner?.token&&body.id===activeLearner.id&&!["open","create","reset"].includes(action)){body={...body,token:activeLearner.token};delete body.pin}
+  if(activeLearner?.token&&body.id===activeLearner.id&&!["open","create","reset","reset-email-request","reset-email"].includes(action)){body={...body,token:activeLearner.token};delete body.pin}
   let res;
   try{res=await fetch(CFG.aiUrl+"profile/"+action,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body),keepalive,...(keepalive?{}:{signal:AbortSignal.timeout(8000)})})}
   catch(e){const err=new Error("network");throw err}
@@ -2494,18 +2494,108 @@ function vRecoverySetup(){
   };
 }
 
-function vReset(){
-  app.innerHTML='<section class="box profile-access"><h2>Đặt lại mã PIN</h2><p>Nhập tên hồ sơ và mã khôi phục đã lưu khi tạo hồ sơ.</p><details><summary>Tôi chưa có mã khôi phục</summary><p>Nếu còn đăng nhập ở một thiết bị khác, mở Hồ sơ → Khôi phục mã PIN để tạo và lưu mã. Nếu không còn phiên đăng nhập và chưa lưu mã, web chưa có cách xác minh bạn là chủ hồ sơ; không thể tự đặt lại PIN chỉ bằng tên hồ sơ.</p></details><form id="reset-form"><div class="field"><label for="reset-id">Tên hồ sơ</label><input id="reset-id" required minlength="3" maxlength="30" pattern="[A-Za-z0-9_]+"></div><div class="field"><label for="reset-code">Mã khôi phục</label><input id="reset-code" required autocomplete="off" autocapitalize="none"></div><div class="field"><label for="reset-pin">Mã PIN mới gồm 4 số</label><input id="reset-pin" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" minlength="4" required></div><div class="field"><label for="reset-confirm">Nhập lại mã PIN mới</label><input id="reset-confirm" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" minlength="4" required></div><div class="row"><button class="pri">Đặt lại PIN</button><button type="button" id="reset-back">Quay lại</button></div><p id="reset-message" role="status"></p></form></section>';
-  $("#reset-back").onclick=()=>{profileScreenMode="open";vAccess()};
-  $("#reset-form").onsubmit=async e=>{
-    e.preventDefault();const msg=$("#reset-message"),pin=$("#reset-pin").value;
-    if(pin!==$("#reset-confirm").value){msg.textContent="Hai mã PIN chưa giống nhau.";return}
-    const button=e.target.querySelector('button[type="submit"],button:not([type])');button.disabled=true;msg.textContent="Đang xử lý…";
-    try{const id=$("#reset-id").value.trim().toLowerCase();await profileCall("reset",{id,pin,code:$("#reset-code").value.trim()});clearSession();profileScreenMode="open";vAccess();$("#learner-id").value=id;$("#profile-message").textContent="Đã đổi PIN. Đăng nhập bằng PIN mới; sau đó lưu mã khôi phục mới trong hồ sơ."}
-    catch(e){msg.textContent=e.message==="bad_recovery"?"Tên hồ sơ hoặc mã khôi phục chưa đúng.":"Chưa thể đổi PIN. Vui lòng thử lại."}
-    finally{button.disabled=false}
+
+const recoveryEmailError=e=>({
+  email_unavailable:"Khôi phục qua email hiện chưa khả dụng. Bạn vẫn có thể dùng mã khôi phục.",
+  bad_email:"Bạn nhập email hợp lệ nhé.",
+  bad_email_code:"Mã chưa đúng, đã hết hạn hoặc đã được dùng. Kiểm tra lại hoặc gửi mã mới.",
+  bad_credentials:"PIN hiện tại chưa đúng.",
+  locked:"Đã thử PIN quá nhiều lần. Bạn hãy chờ 15 phút.",
+  rate_limited:"Bạn gửi hoặc thử mã hơi nhanh. Chờ ít nhất một phút rồi thử lại.",
+  network:"Chưa kết nối được. Bạn kiểm tra mạng rồi thử lại."
+})[e?.message]||"Chưa xử lý được lúc này. Bạn thử lại sau nhé.";
+async function setupRecoveryEmail(){
+  const form=$("#profile-email-form");if(!form||!activeLearner)return;
+  const learner=activeLearner,input=$("#profile-recovery-email"),pin=$("#profile-email-pin"),send=$("#profile-email-send"),status=$("#profile-email-status"),verifyForm=$("#profile-email-code-form");
+  let challengeId="",sentEmail="";
+  const show=text=>{if(status.isConnected)status.textContent=text};
+  input.oninput=()=>{challengeId="";verifyForm.hidden=true};
+  try{
+    const info=await profileCall("email/status",{id:learner.id});
+    if(!form.isConnected||activeLearner!==learner)return;
+    input.value=info.email||"";
+    show(info.verified?"Email đã được xác minh: "+info.email:"Chưa có email khôi phục đã xác minh.");
+    if(!info.available){send.disabled=true;show((info.verified?"Email đã được xác minh. ":"")+"Khôi phục qua email hiện chưa khả dụng. Bạn vẫn dùng được mã khôi phục.");return}
+    input.disabled=pin.disabled=send.disabled=false;
+  }catch(e){show(recoveryEmailError(e));return}
+  form.onsubmit=async event=>{
+    event.preventDefault();send.disabled=true;show("Đang gửi mã xác minh…");
+    const email=input.value.trim().toLowerCase();
+    try{
+      const response=await profileCall("email/send",{id:learner.id,email,currentPin:pin.value});
+      pin.value="";
+      if(!form.isConnected||activeLearner!==learner)return;
+      if(input.value.trim().toLowerCase()!==email){show("Email đã thay đổi. Gửi mã cho email mới để tiếp tục.");send.disabled=false;return}
+      challengeId=response.challengeId;sentEmail=email;
+      verifyForm.hidden=false;$("#profile-email-code").value="";
+      show("Đã gửi mã đến "+email+". Mã có hiệu lực 10 phút. Kiểm tra cả mục thư rác.");
+      setTimeout(()=>{if(send.isConnected)send.disabled=false},60000);
+    }catch(e){show(recoveryEmailError(e));if(send.isConnected)send.disabled=false}
+  };
+  verifyForm.onsubmit=async event=>{
+    event.preventDefault();const button=$("#profile-email-confirm");button.disabled=true;
+    try{
+      if(!challengeId||input.value.trim().toLowerCase()!==sentEmail)throw new Error("bad_email_code");
+      await profileCall("email/verify",{id:learner.id,challengeId,code:$("#profile-email-code").value.trim()});
+      if(!form.isConnected||activeLearner!==learner)return;
+      challengeId="";verifyForm.hidden=true;$("#profile-email-code").value="";
+      show("Đã xác minh email khôi phục: "+sentEmail+". Khi quên PIN, bạn có thể nhận mã đặt lại tại email này.");
+    }catch(e){show(recoveryEmailError(e))}
+    finally{if(button.isConnected)button.disabled=false}
   };
 }
+function vReset(){
+  let method="email",challengeId="",sentEmail="",sentId="";
+  app.innerHTML='<section class="box profile-access" data-private><h2>Đặt lại mã PIN</h2><p>Nhận mã qua email đã xác minh để tự đặt PIN mới, hoặc dùng mã khôi phục đã lưu.</p><div class="row"><button type="button" id="reset-mode-email" disabled>Qua email</button><button type="button" id="reset-mode-backup">Dùng mã khôi phục</button></div><p id="reset-availability" class="sm" role="status">Đang kiểm tra khôi phục qua email…</p><form id="reset-form"><div class="field"><label for="reset-id">Tên hồ sơ</label><input id="reset-id" required minlength="3" maxlength="30" pattern="[A-Za-z0-9_]+" autocapitalize="none"></div><div id="reset-email-fields"><div class="field"><label for="reset-email">Email khôi phục đã xác minh</label><input id="reset-email" type="email" maxlength="254" autocomplete="email"></div><button type="button" id="reset-email-send" disabled>Gửi mã qua email</button><div class="field"><label for="reset-email-code">Mã xác nhận 6 số trong email</label><input id="reset-email-code" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="one-time-code"></div></div><div id="reset-backup-fields" hidden><div class="field"><label for="reset-code">Mã khôi phục đã lưu</label><input id="reset-code" autocomplete="off" autocapitalize="none"></div><details><summary>Tôi chưa có mã khôi phục hoặc email đã xác minh</summary><p>Nếu còn đăng nhập ở một thiết bị khác, mở Hồ sơ để xác minh email hoặc tạo mã khôi phục. Nếu đã mất cả hai và không còn phiên đăng nhập, web chưa thể xác minh chủ hồ sơ chỉ bằng tên.</p></details></div><div class="field"><label for="reset-pin">PIN mới gồm 4 số</label><input id="reset-pin" type="password" inputmode="numeric" pattern="[0-9]{4}" required maxlength="4" minlength="4" autocomplete="new-password"></div><div class="field"><label for="reset-confirm">Nhập lại PIN mới</label><input id="reset-confirm" type="password" inputmode="numeric" pattern="[0-9]{4}" required maxlength="4" minlength="4" autocomplete="new-password"></div><div class="row"><button class="pri" id="reset-submit" type="submit">Đặt lại PIN</button><button type="button" id="reset-back">Quay lại</button></div><p id="reset-message" role="status"></p></form></section>';
+  const setMethod=value=>{
+    method=value;const email=method==="email";
+    $("#reset-email-fields").hidden=!email;$("#reset-backup-fields").hidden=email;
+    $("#reset-email").required=$("#reset-email-code").required=email;$("#reset-code").required=!email;
+    $("#reset-mode-email").className=email?"pri":"";$("#reset-mode-backup").className=email?"":"pri";
+    $("#reset-message").textContent="";
+  };
+  setMethod("email");
+  $("#reset-mode-email").onclick=()=>setMethod("email");
+  $("#reset-mode-backup").onclick=()=>setMethod("backup");
+  $("#reset-back").onclick=()=>{profileScreenMode="open";vAccess()};
+  const resetInputChanged=()=>{challengeId="";$("#reset-email-code").value=""};
+  $("#reset-id").oninput=$("#reset-email").oninput=resetInputChanged;
+  (async()=>{try{
+    const response=await fetch(new URL("/email/status",CFG.aiUrl),{cache:"no-store",signal:AbortSignal.timeout(8000)});
+    const info=await response.json();if(!$("#reset-availability"))return;
+    $("#reset-mode-email").disabled=$("#reset-email-send").disabled=!response.ok||!info.available;
+    $("#reset-availability").textContent=info.available?"Email phải được xác minh trong hồ sơ từ trước.":"Khôi phục qua email hiện chưa khả dụng. Bạn có thể dùng mã khôi phục đã lưu.";
+    if(!info.available)setMethod("backup");
+  }catch{if($("#reset-availability")){$("#reset-availability").textContent="Chưa kiểm tra được email. Bạn có thể dùng mã khôi phục.";setMethod("backup")}}})();
+  $("#reset-email-send").onclick=async event=>{
+    const button=event.currentTarget,id=$("#reset-id"),email=$("#reset-email"),msg=$("#reset-message");
+    if(!id.reportValidity()||!email.reportValidity())return;
+    if(!email.value.trim()){email.focus();msg.textContent="Bạn nhập email đã xác minh nhé.";return}
+    button.disabled=true;msg.textContent="Đang xử lý yêu cầu…";
+    sentId=id.value.trim().toLowerCase();sentEmail=email.value.trim().toLowerCase();
+    try{
+      const result=await profileCall("reset-email-request",{id:sentId,email:sentEmail});
+      if(!msg.isConnected)return;
+      challengeId=result.challengeId;
+      msg.textContent="Nếu tên hồ sơ và email đã xác minh khớp, bạn sẽ nhận mã trong email. Mã có hiệu lực 10 phút; kiểm tra cả thư rác.";
+      setTimeout(()=>{if(button.isConnected)button.disabled=false},60000);
+    }catch(e){if(msg.isConnected)msg.textContent=recoveryEmailError(e);if(button.isConnected)button.disabled=false}
+  };
+  $("#reset-form").onsubmit=async event=>{
+    event.preventDefault();const msg=$("#reset-message"),pin=$("#reset-pin").value,id=$("#reset-id").value.trim().toLowerCase();
+    if(pin!==$("#reset-confirm").value){msg.textContent="Hai PIN mới chưa giống nhau.";return}
+    const button=$("#reset-submit");button.disabled=true;msg.textContent="Đang đặt lại PIN…";
+    try{
+      if(method==="email"){
+        if(!challengeId||sentId!==id||sentEmail!==$("#reset-email").value.trim().toLowerCase())throw new Error("bad_email_code");
+        await profileCall("reset-email",{id,email:sentEmail,challengeId,code:$("#reset-email-code").value.trim(),pin});
+      }else await profileCall("reset",{id,pin,code:$("#reset-code").value.trim()});
+      clearSession();profileScreenMode="open";vAccess();$("#learner-id").value=id;$("#profile-message").textContent="Đã đặt PIN mới. Bạn có thể đăng nhập lại; tiến độ học vẫn được giữ.";
+    }catch(e){if(msg.isConnected)msg.textContent=e.message==="bad_recovery"?"Tên hồ sơ hoặc mã khôi phục chưa đúng.":recoveryEmailError(e)}
+    finally{if(button.isConnected)button.disabled=false}
+  };
+}
+
 async function lockProfile(){
   const button=$("#lock-profile");
   button.disabled=true;
@@ -3126,7 +3216,9 @@ function vProfile(){
   <div class="field"><b>Bạn muốn giỏi phần nào? Chọn nhiều cũng được</b><div class="chips">${GOALS.map(g=>`<label><input type="checkbox" name="pg" value="${g[0]}" ${(p.goals||[]).includes(g[0])?"checked":""}>${esc(g[1])}</label>`).join("")}</div></div>
   <div class="field"><b>Mỗi ngày bạn học được bao lâu?</b><div class="chips">${MINS.map(m=>`<label><input type="radio" name="pm2" value="${m[0]}" ${(S.courseV1?.minutes||p.mins||15)===m[0]?"checked":""}>${m[0]} phút</label>`).join("")}</div></div>
   <div class="field"><b>Lộ trình Pre-A1 đến C2</b> <a href="#start">Chọn mục tiêu và cấp học</a></div><div class="field"><b>Đánh giá công sở</b><span class="sm">${S.lv?LV[S.lv]+" theo bài kiểm tra đầu vào.":"Chưa kiểm tra."}</span> <a href="#test">${S.lv?"Làm lại":"Làm bài kiểm tra"}</a></div>
+  <section class="box" data-private><h3>Email khôi phục</h3><p>Xác minh email để nhận mã đặt lại PIN nếu quên. Web không gửi lại PIN cũ.</p><form id="profile-email-form"><div class="field"><label for="profile-recovery-email">Email cá nhân của bạn</label><input id="profile-recovery-email" type="email" autocomplete="email" required maxlength="254" disabled></div><div class="field"><label for="profile-email-pin">PIN hiện tại để xác nhận</label><input id="profile-email-pin" type="password" inputmode="numeric" autocomplete="current-password" required pattern="[0-9]{4}" minlength="4" maxlength="4" disabled></div><button type="submit" id="profile-email-send" disabled>Gửi mã xác minh email</button></form><form id="profile-email-code-form" hidden><div class="field"><label for="profile-email-code">Mã xác minh 6 số trong email</label><input id="profile-email-code" inputmode="numeric" pattern="[0-9]{6}" required minlength="6" maxlength="6" autocomplete="one-time-code"></div><button type="submit" id="profile-email-confirm">Xác minh email</button></form><p id="profile-email-status" role="status">Đang kiểm tra email khôi phục…</p></section>
   <div class="box"><h3>Khôi phục mã PIN</h3><p>Tạo và lưu mã khôi phục ở nơi an toàn để đặt lại PIN khi quên. Mã mới thay thế mã cũ và chỉ dùng một lần.</p><button type="button" id="recovery-create">Tạo mã khôi phục</button><p id="recovery-output" role="status"></p></div><div class="row"><button class="pri" id="psave">Lưu hồ sơ</button><a class="btn" href="#assessment">Nhận xét học tập</a><span class="note" id="pmsg"></span></div>`;
+  setupRecoveryEmail();
   $("#recovery-create").onclick=async e=>{const button=e.currentTarget,out=$("#recovery-output");button.disabled=true;out.textContent="Đang tạo mã…";try{const result=await profileCall("recovery",{id:activeLearner.id,pin:activeLearner.pin});if(out.isConnected){pendingRecoveryCode=result.code;pendingRecoveryNext="#profile";activeLearner.recoveryAvailable=true;history.replaceState(null,"","#recovery-setup");route()}}catch(err){if(out.isConnected)out.textContent="Chưa tạo được mã. Kiểm tra kết nối rồi thử lại."}finally{if(button.isConnected)button.disabled=false}};
   app.querySelectorAll('input[name=pr]').forEach(r=>r.onchange=()=>$("#prt").classList.toggle("hide",r.value!=="other"||!r.checked));
   $("#psave").onclick=()=>{const name=$("#pn").value.trim(),role=(app.querySelector('input[name=pr]:checked')||{}).value||"",goals=[...app.querySelectorAll('input[name=pg]:checked')].map(x=>x.value),mins=+((app.querySelector('input[name=pm2]:checked')||{}).value||15);

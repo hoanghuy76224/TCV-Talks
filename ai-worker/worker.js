@@ -392,6 +392,149 @@ async function issueSession(env, id, now) {
   return { token, expires };
 }
 
+
+/* Verified recovery email; OTPs are hashed, short-lived and consumed once. */
+let emailTablesReady=null;
+const initEmailTables=env=>emailTablesReady ||= env.DB.exec(
+  "CREATE TABLE IF NOT EXISTS profile_emails (id TEXT PRIMARY KEY, email TEXT NOT NULL, verified INTEGER NOT NULL DEFAULT 1, revision INTEGER NOT NULL DEFAULT 1, updated INTEGER NOT NULL);"+
+  "CREATE TABLE IF NOT EXISTS email_challenges (challenge TEXT PRIMARY KEY, id TEXT NOT NULL, purpose TEXT NOT NULL, email TEXT NOT NULL, hash TEXT NOT NULL, email_revision INTEGER NOT NULL DEFAULT 0, attempts INTEGER NOT NULL DEFAULT 0, consumed INTEGER NOT NULL DEFAULT 0, expires INTEGER NOT NULL, created INTEGER NOT NULL);"+
+  "CREATE INDEX IF NOT EXISTS email_challenges_profile ON email_challenges(id,purpose,created)"
+).catch(e=>{emailTablesReady=null;throw e});
+const recoveryMailReady=env=>Boolean(env.RECOVERY_FROM&&(
+  env.RESEND_API_KEY||(env.RECOVERY_EMAIL&&env.RECOVERY_EMAIL_ENABLED==="true")
+));
+const normalizeRecoveryEmail=value=>typeof value==="string"?value.trim().toLowerCase():"";
+const validRecoveryEmail=email=>email.length<=254&&/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(email);
+const maskRecoveryEmail=email=>{const [name,domain]=email.split("@");return name.slice(0,2)+"***@"+domain};
+function emailFlowError(code){const e=new Error(code);e.code=code;return e}
+function newEmailCode(){
+  const value=new Uint32Array(1);
+  do{crypto.getRandomValues(value)}while(value[0]>=4294000000);
+  return String(value[0]%1000000).padStart(6,"0");
+}
+async function emailIpLimit(req,env){
+  if(!env.GROQ_RATE_LIMIT)return;
+  const ip=req.headers.get("CF-Connecting-IP")||"unknown";
+  const r=await env.GROQ_RATE_LIMIT.limit({key:"recovery-email:"+ip});
+  if(!r.success)throw emailFlowError("rate_limited");
+}
+async function sendRecoveryMail(env,email,id,code,purpose,challenge){
+  const verification=purpose==="verify";
+  const subject=verification?"Xác minh email khôi phục TCV Talks":"Mã đặt lại PIN TCV Talks";
+  const text=[
+    verification?"Bạn đang thêm email khôi phục cho hồ sơ TCV Talks: "+id:"Có yêu cầu đặt lại PIN cho hồ sơ TCV Talks: "+id,
+    "Mã xác nhận của bạn: "+code,
+    "Mã có hiệu lực 10 phút và chỉ dùng một lần.",
+    verification?"Chỉ nhập mã nếu chính bạn đang thêm email vào hồ sơ.":"Nhập mã trên trang TCV Talks để tự đặt PIN mới. Email này không chứa PIN cũ.",
+    "Không chia sẻ mã này. Nếu bạn không yêu cầu, hãy bỏ qua email."
+  ].join("\n\n");
+  if(env.RESEND_API_KEY){
+    const response=await fetch("https://api.resend.com/emails",{
+      method:"POST",headers:{"Authorization":"Bearer "+env.RESEND_API_KEY,"Content-Type":"application/json","Idempotency-Key":"tcv-recovery-"+challenge},
+      body:JSON.stringify({from:"TCV Talks <"+env.RECOVERY_FROM+">",to:[email],subject,text}),
+      signal:AbortSignal.timeout(10000)
+    });
+    if(!response.ok)throw emailFlowError("email_unavailable");
+    const result=await response.json();
+    if(!result.id)throw emailFlowError("email_unavailable");
+    return;
+  }
+  if(!env.RECOVERY_EMAIL||env.RECOVERY_EMAIL_ENABLED!=="true")throw emailFlowError("email_unavailable");
+  await env.RECOVERY_EMAIL.send({to:email,from:{email:env.RECOVERY_FROM,name:"TCV Talks"},subject,text});
+}
+async function issueEmailChallenge(env,id,email,purpose,revision=0){
+  await initEmailTables(env);
+  const now=Date.now();
+  const recent=await env.DB.prepare("SELECT COUNT(*) AS total, MAX(created) AS latest FROM email_challenges WHERE id=? AND purpose=? AND created>?").bind(id,purpose,now-3600000).first();
+  if((recent?.total||0)>=5||(recent?.latest&&now-recent.latest<60000))throw emailFlowError("rate_limited");
+  const challenge=hex(crypto.getRandomValues(new Uint8Array(16))),code=newEmailCode();
+  const hash=await pinHash("email:"+challenge,id,code);
+  await env.DB.batch([
+    env.DB.prepare("UPDATE email_challenges SET consumed=1 WHERE id=? AND purpose=? AND consumed=0").bind(id,purpose),
+    env.DB.prepare("INSERT INTO email_challenges(challenge,id,purpose,email,hash,email_revision,expires,created) VALUES(?,?,?,?,?,?,?,?)").bind(challenge,id,purpose,email,hash,revision,now+600000,now),
+    env.DB.prepare("DELETE FROM email_challenges WHERE created<?").bind(now-86400000)
+  ]);
+  try{await sendRecoveryMail(env,email,id,code,purpose,challenge)}
+  catch{
+    await env.DB.prepare("UPDATE email_challenges SET consumed=1 WHERE challenge=?").bind(challenge).run();
+    throw emailFlowError("email_unavailable");
+  }
+  return {challengeId:challenge,expiresIn:600,retryAfter:60};
+}
+async function consumeEmailChallenge(env,id,purpose,challenge,code,email=""){
+  if(!/^[a-f0-9]{32}$/.test(String(challenge||""))||!/^\d{6}$/.test(String(code||"")))throw emailFlowError("bad_email_code");
+  const row=await env.DB.prepare("SELECT challenge,id,purpose,email,hash,email_revision,attempts,consumed,expires,created FROM email_challenges WHERE challenge=? AND id=? AND purpose=?").bind(challenge,id,purpose).first();
+  if(!row||row.consumed||row.attempts>=5||row.expires<=Date.now()||(email&&row.email!==email))throw emailFlowError("bad_email_code");
+  const digest=await pinHash("email:"+challenge,id,code);
+  if(!sameText(row.hash,digest)){
+    await env.DB.prepare("UPDATE email_challenges SET attempts=attempts+1 WHERE challenge=? AND consumed=0 AND attempts<5").bind(challenge).run();
+    throw emailFlowError("bad_email_code");
+  }
+  const claim=await env.DB.prepare("UPDATE email_challenges SET consumed=1,attempts=attempts+1 WHERE challenge=? AND consumed=0 AND attempts<5 AND expires>?").bind(challenge,Date.now()).run();
+  if(!claim.meta.changes)throw emailFlowError("bad_email_code");
+  return row;
+}
+async function recoveryEmailProfileApi(req,env,headers,path,b,id,profile){
+  try{
+    await initEmailTables(env);
+    const current=await env.DB.prepare("SELECT id,email,verified,revision FROM profile_emails WHERE id=?").bind(id).first();
+    if(path==="/profile/email/status")return out({available:recoveryMailReady(env),email:current?.email||"",verified:!!current?.verified},200,headers);
+    if(!recoveryMailReady(env))return out({error:"email_unavailable"},503,headers);
+    await emailIpLimit(req,env);
+    if(path==="/profile/email/send"){
+      const email=normalizeRecoveryEmail(b.email);
+      if(!validRecoveryEmail(email))return out({error:"bad_email"},400,headers);
+      if(profile.locked_until>Date.now())return out({error:"locked"},429,headers);
+      if(!/^\d{4}$/.test(String(b.currentPin||""))||!sameText(profile.hash,await pinHash(profile.salt,id,String(b.currentPin)))){
+        const fails=(profile.fails||0)+1;
+        if(fails>=PIN_TRIES)await env.DB.prepare("UPDATE profiles SET fails=0,locked_until=? WHERE id=?").bind(Date.now()+LOCK_MS,id).run();
+        else await env.DB.prepare("UPDATE profiles SET fails=? WHERE id=?").bind(fails,id).run();
+        return out({error:"bad_credentials"},401,headers);
+      }
+      if(profile.fails)await env.DB.prepare("UPDATE profiles SET fails=0 WHERE id=?").bind(id).run();
+      const challenge=await issueEmailChallenge(env,id,email,"verify",current?.revision||0);
+      return out({ok:true,...challenge},200,headers);
+    }
+    if(path==="/profile/email/verify"){
+      const row=await consumeEmailChallenge(env,id,"verify",b.challengeId,String(b.code||"").trim());
+      await env.DB.batch([
+        env.DB.prepare("INSERT INTO profile_emails(id,email,verified,revision,updated) VALUES(?,?,1,1,?) ON CONFLICT(id) DO UPDATE SET email=excluded.email,verified=1,revision=profile_emails.revision+1,updated=excluded.updated").bind(id,row.email,Date.now()),
+        env.DB.prepare("UPDATE email_challenges SET consumed=1 WHERE id=? AND purpose='reset'").bind(id)
+      ]);
+      return out({ok:true,email:row.email,verified:true},200,headers);
+    }
+    return out({error:"not_found"},404,headers);
+  }catch(e){const code=e.code||"";return out({error:["bad_email_code","rate_limited"].includes(code)?code:"email_unavailable"},code==="bad_email_code"?400:code==="rate_limited"?429:503,headers)}
+}
+async function recoveryEmailResetApi(req,env,headers,path,b,id){
+  const generic=()=>out({ok:true,challengeId:hex(crypto.getRandomValues(new Uint8Array(16))),expiresIn:600,retryAfter:60},200,headers);
+  try{
+    if(!recoveryMailReady(env))return out({error:"email_unavailable"},503,headers);
+    await initEmailTables(env);await emailIpLimit(req,env);
+    const email=normalizeRecoveryEmail(b.email);
+    if(!validRecoveryEmail(email))return path==="/profile/reset-email-request"?generic():out({error:"bad_email_code"},400,headers);
+    const current=await env.DB.prepare("SELECT id,email,verified,revision FROM profile_emails WHERE id=?").bind(id).first();
+    if(path==="/profile/reset-email-request"){
+      if(!current?.verified||current.email!==email)return generic();
+      try{return out({ok:true,...await issueEmailChallenge(env,id,email,"reset",current.revision)},200,headers)}
+      catch{return generic()}
+    }
+    if(path!=="/profile/reset-email")return out({error:"not_found"},404,headers);
+    if(!/^\d{4}$/.test(String(b.pin||"")))return out({error:"bad_pin"},400,headers);
+    const row=await consumeEmailChallenge(env,id,"reset",b.challengeId,String(b.code||"").trim(),email);
+    if(!current?.verified||current.email!==email||current.revision!==row.email_revision)throw emailFlowError("bad_email_code");
+    const salt=hex(crypto.getRandomValues(new Uint8Array(16))),hash=await pinHash(salt,id,b.pin),now=Date.now();
+    const result=await env.DB.batch([
+      env.DB.prepare("UPDATE profiles SET salt=?,hash=?,ver=ver+1,fails=0,locked_until=0,updated=? WHERE id=? AND EXISTS (SELECT 1 FROM profile_emails WHERE id=? AND email=? AND revision=? AND verified=1)").bind(salt,hash,now,id,id,email,row.email_revision),
+      env.DB.prepare("DELETE FROM learner_sessions WHERE id=? AND EXISTS (SELECT 1 FROM profiles WHERE id=? AND hash=?)").bind(id,id,hash),
+      env.DB.prepare("DELETE FROM recovery_codes WHERE id=? AND EXISTS (SELECT 1 FROM profiles WHERE id=? AND hash=?)").bind(id,id,hash),
+      env.DB.prepare("UPDATE email_challenges SET consumed=1 WHERE id=? AND EXISTS (SELECT 1 FROM profiles WHERE id=? AND hash=?)").bind(id,id,hash)
+    ]);
+    if(!result[0].meta.changes)throw emailFlowError("bad_email_code");
+    return out({ok:true},200,headers);
+  }catch(e){const code=e.code||"";return out({error:code==="rate_limited"?"rate_limited":code==="bad_email_code"?"bad_email_code":"email_unavailable"},code==="rate_limited"?429:code==="bad_email_code"?400:503,headers)}
+}
+
 async function profileApi(req, env, headers, path) {
   if (req.method !== "POST") return out({ error: "method" }, 405, headers);
   if (!env.DB) return out({ error: "profile_unavailable" }, 503, headers);
@@ -401,6 +544,10 @@ async function profileApi(req, env, headers, path) {
   const id = typeof b?.id === "string" ? b.id.trim().toLowerCase() : "";
   const pin = typeof b?.pin === "string" ? b.pin : "";
   if (!/^[a-z0-9_]{3,30}$/.test(id)) return out({ error: "bad_name" }, 400, headers);
+  if(path==="/profile/reset-email-request"||path==="/profile/reset-email"){
+    await initTable(env);await env.DB.exec("CREATE TABLE IF NOT EXISTS learner_sessions (hash TEXT PRIMARY KEY, id TEXT NOT NULL, expires INTEGER NOT NULL)");await env.DB.exec("CREATE TABLE IF NOT EXISTS recovery_codes (id TEXT PRIMARY KEY, hash TEXT NOT NULL)");
+    return recoveryEmailResetApi(req,env,{...headers,"Cache-Control":"no-store"},path,b,id);
+  }
   const token = typeof b?.token === "string" ? b.token : "";
   if ((!token || path === "/profile/reset" || path === "/profile/create") && !/^\d{4}$/.test(pin)) return out({ error: "bad_pin" }, 400, headers);
   const no = { ...headers, "Cache-Control": "no-store" };
@@ -463,6 +610,7 @@ async function profileApi(req, env, headers, path) {
     if (row.fails) await env.DB.prepare("UPDATE profiles SET fails = 0 WHERE id = ?").bind(id).run();
 
     }
+    if(path.startsWith("/profile/email/"))return recoveryEmailProfileApi(req,env,no,path,b,id,row);
     if (path === "/profile/close") {
       if(sessionHash)await env.DB.prepare("DELETE FROM learner_sessions WHERE hash = ? AND id = ?").bind(sessionHash,id).run();
       return out({ok:true},200,no);
@@ -598,6 +746,7 @@ export default {
     if (path === "/feedback") {
       return ok ? feedbackApi(req, env, h) : out({ error: "origin" }, 403, h);
     }
+    if(path==="/email/status")return ok?out({available:recoveryMailReady(env)},200,{...h,"Cache-Control":"no-store"}):out({error:"origin"},403,h);
     if (path === "/usage") {
       if (!ok) return out({error:"origin"},403,h);
       return req.method==="GET" ? usageApi(env,h) : out({error:"method"},405,h);
