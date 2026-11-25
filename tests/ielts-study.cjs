@@ -25,7 +25,7 @@ for(const pack of vocabulary){
 async function workerTest(){
   const essay="The table shows a rise in bicycle travel, from ten percent to twenty percent.";
   const notes={task:"Nêu đúng xu hướng.",coherence:"Các ý nối rõ.",lexical:"Dùng từ đúng.",grammar:"Câu rõ nghĩa."};
-  let sawImage=false, requests=0, geminiUnavailable=false, accountChecks=0;
+  let sawImage=false, requests=0, geminiUnavailable=false, groqVisionUnavailable=false, accountChecks=0;
   const report={scores:{task:6,coherence:6,lexical:7,grammar:7},comments:notes,
     corrections:[{quote:"bicycle travel",revision:"travel by bicycle",reason:"Tự nhiên hơn."},
       {quote:"not present",revision:"bad",reason:"bad"}],
@@ -34,7 +34,14 @@ async function workerTest(){
     Request,Response,URL,AbortSignal,TransformStream,crypto,TextEncoder,Uint8Array,atob,
     async fetch(url,options){
       if(url.startsWith("https://api.groq.com/")){
-        assert.match(JSON.parse(options.body).messages[0].content,/Bicycles: 10% in 2010 and 20% in 2020/);
+        const request=JSON.parse(options.body);
+        if (request.model==="qwen/qwen3.8-27b"){
+          assert.equal(request.messages[0].content[1].image_url.url,"data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==");
+          assert.equal(request.response_format.type,"json_object");
+          if(groqVisionUnavailable)return Response.json({error:{message:"Provider unavailable"}},{status:503});
+        }else{
+          assert.match(request.messages[0].content,/Bicycles: 10% in 2010 and 20% in 2020/);
+        }
         return Response.json({choices:[{message:{content:JSON.stringify(report)}}]});
       }
       assert.match(url,/generativelanguage\.googleapis\.com/);
@@ -66,6 +73,10 @@ async function workerTest(){
   assert.equal(requests,2);
   geminiUnavailable=true;
   env.GROQ_API_KEY="test";
+  const groqVision=await request({...input,task:1,image});
+  assert.equal(groqVision.status,200);
+  assert.equal((await groqVision.json()).band,6.5);
+  groqVisionUnavailable=true;
   env.AI={run:async(model,body)=>{
     assert.equal(model,"@cf/moondream/moondream3.1-9B-A2B");
     assert.equal(body.image,"data:image/png;base64,"+image.data);
@@ -75,7 +86,7 @@ async function workerTest(){
   const fallback=await request({...input,task:1,image});
   assert.equal(fallback.status,200);
   assert.equal((await fallback.json()).band,6.5);
-  assert.equal(accountChecks,3);
+  assert.equal(accountChecks,4);
 }
 workerTest().then(()=>console.log("PASS: 101 complete grammar lessons, 250 vocabulary packs, IELTS validation, image input, criterion scores and evidence-based corrections."))
   .catch(error=>{console.error(error);process.exitCode=1});

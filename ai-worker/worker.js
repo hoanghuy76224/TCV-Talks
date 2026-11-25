@@ -100,7 +100,7 @@ async function generateWithCloudflare(req, env, headers, prompt, json) {
 }
 
 
-async function generateWithGroq(req, env, headers, prompt, json, accountLimitApplied = false) {
+async function generateWithGroq(req, env, headers, prompt, json, {accountLimitApplied=false,image=null} = {}) {
   if (!env.GROQ_API_KEY || !env.GROQ_RATE_LIMIT) {
     return out({ error: "groq_unavailable" }, 503, headers);
   }
@@ -112,12 +112,17 @@ async function generateWithGroq(req, env, headers, prompt, json, accountLimitApp
       if (!success) return out({ error: "rate_limited" }, 429, headers);
     }
 
+    const model=image?"qwen/qwen3.8-27b":GROQ_MODEL;
+    const content=image?[
+      {type:"text",text:prompt},
+      {type:"image_url",image_url:{url:"data:"+image.mimeType+";base64,"+image.data}}
+    ]:prompt;
     const body = {
-      model: GROQ_MODEL,
-      messages: [{ role: "user", content: prompt }],
+      model,
+      messages: [{ role: "user", content }],
       temperature: json ? 0.2 : 0.7,
-      reasoning_effort: "low",
-      max_completion_tokens: 1800
+      reasoning_effort: image?"none":"low",
+      max_completion_tokens: image?2500:1800
     };
     if (json) body.response_format = { type: "json_object" };
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -136,7 +141,7 @@ async function generateWithGroq(req, env, headers, prompt, json, accountLimitApp
     await rememberUsage(env,"groq",{success:true,tokens:result.usage?.total_tokens,snapshot});
     const text = result.choices?.[0]?.message?.content;
     if (typeof text !== "string" || !text.trim()) return out({ error: "empty_reply" }, 502, headers);
-    return out({ text, model: GROQ_MODEL }, 200, headers);
+    return out({ text, model }, 200, headers);
   } catch (e) {
     return out({ error: "groq_upstream" }, 502, headers);
   }
@@ -1195,6 +1200,18 @@ async function gradeIelts(req,env,headers) {
     'Return exactly JSON {"scores":{"task":0,"coherence":0,"lexical":0,"grammar":0},"comments":{"task":"","coherence":"","lexical":"","grammar":""},"corrections":[{"quote":"","revision":"","reason":""}],"chartNotes":"","rewrite":""}.\n';
   const prompt=rubric+JSON.stringify({task,question,essay,chart});
   let rateLimited=false;
+  async function scoreWithGroq(text,inlineImage=null) {
+    const reply=await generateWithGroq(req,env,h,text,true,{accountLimitApplied:true,image:inlineImage});
+    if(reply.status===429)rateLimited=true;
+    if(reply.ok){
+      try{return ieltsResult(JSON.parse((await reply.json()).text),essay,task)}catch{}
+    }
+    return null;
+  }
+  if(image&&env.GROQ_API_KEY){
+    const result=await scoreWithGroq(prompt,image.inlineData);
+    if(result)return out(result,200,h);
+  }
   if(env.GEMINI_KEY){
     const signal=AbortSignal.timeout(image&&env.AI?10000:24000);
     for(const model of ["gemini-flash-lite-latest","gemini-flash-latest"]){
@@ -1224,14 +1241,8 @@ async function gradeIelts(req,env,headers) {
   }
   if(!image||chartEvidence.length>=12){
     const groqPrompt=rubric+JSON.stringify({task,question,essay,chart:chartEvidence});
-    const groq=await generateWithGroq(req,env,h,groqPrompt,true,true);
-    if(groq.ok){
-      try{
-        const result=ieltsResult(JSON.parse((await groq.json()).text),essay,task);
-        if(result)return out(result,200,h);
-      }catch{}
-    }
-    if(groq.status===429)rateLimited=true;
+    const result=await scoreWithGroq(groqPrompt);
+    if(result)return out(result,200,h);
   }
   return out({error:rateLimited?"rate_limited":"ielts_unavailable"},rateLimited?429:503,h);
 }
