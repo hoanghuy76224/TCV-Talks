@@ -497,10 +497,11 @@ async function recoveryEmailProfileApi(req,env,headers,path,b,id,profile){
     }
     if(path==="/profile/email/verify"){
       const row=await consumeEmailChallenge(env,id,"verify",b.challengeId,String(b.code||"").trim());
-      await env.DB.batch([
-        env.DB.prepare("INSERT INTO profile_emails(id,email,verified,revision,updated) VALUES(?,?,1,1,?) ON CONFLICT(id) DO UPDATE SET email=excluded.email,verified=1,revision=profile_emails.revision+1,updated=excluded.updated").bind(id,row.email,Date.now()),
+      const installed=await env.DB.batch([
+        env.DB.prepare("INSERT INTO profile_emails(id,email,verified,revision,updated) VALUES(?,?,1,1,?) ON CONFLICT(id) DO UPDATE SET email=excluded.email,verified=1,revision=profile_emails.revision+1,updated=excluded.updated WHERE profile_emails.revision=?").bind(id,row.email,Date.now(),row.email_revision),
         env.DB.prepare("UPDATE email_challenges SET consumed=1 WHERE id=? AND purpose='reset'").bind(id)
       ]);
+      if(!installed[0].meta.changes)throw emailFlowError("bad_email_code");
       return out({ok:true,email:row.email,verified:true},200,headers);
     }
     return out({error:"not_found"},404,headers);
