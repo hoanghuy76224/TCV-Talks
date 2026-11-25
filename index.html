@@ -3015,7 +3015,7 @@ function mobileVoice(text,rate,vk,signal){
         url=URL.createObjectURL(blob);player.src=url;player.playbackRate=rate;player.hidden=false;
         info.textContent="Bấm ▶ để nghe.";
         try{await player.play()}catch{}
-      }catch{if(!signal.aborted&&!usingDevice){info.textContent="Giọng đã chọn hiện chưa tải được. Bạn có thể thử lại hoặc dùng giọng thiết bị.";retryVoice.hidden=false}}
+      }catch{if(!signal.aborted&&!usingDevice){if(!strictVoice){retry.onclick();return}info.textContent="Giọng đã chọn hiện chưa tải được. Bạn có thể thử lại hoặc dùng giọng thiết bị.";retryVoice.hidden=false}}
       finally{clearTimeout(timer)}
     })();
   });
@@ -3067,7 +3067,7 @@ async function say(text,rate=1,vk="f"){
     if(cloudVoiceOn()){await mobileVoice(text,rate,vk,signal);return}
   }catch(e){}
   if(signal.aborted)return;
-  if(cloudVoiceOn()){offerVoiceRetry(text,rate,vk);return}
+  if(cloudVoiceOn()&&exactVoiceRequired()){offerVoiceRetry(text,rate,vk);return}
   voiceStatus("Đang dùng giọng trình duyệt…");
   const played=await webSay(text,rate,signal);
   if(!signal.aborted)voiceStatus(played?"":"Không phát được giọng. Bấm Nghe để thử lại.");
