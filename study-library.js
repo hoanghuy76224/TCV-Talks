@@ -104,8 +104,8 @@ window.createStudyLibrary = function createStudyLibrary({ app, state, save, awar
         <label>Trình độ<select name="level">${selectOptions([["","Tất cả"],...levels.map(level=>[level,level])],filters.level)}</select></label>
       </form>
       <p class="sm study-results-count">Hiển thị ${Math.min(rows.length,visibleLessons)} / ${rows.length} bài.</p>
-      <div class="study-grid">${rows.slice(0,visibleLessons).map(([lesson,kind,meta])=>`<a class="study-tile" href="#study-lesson-${lesson.id}">
-        <span class="study-tile-type">${lesson.level} · ${kind}</span><strong>${escape(lesson.title)}</strong><span>${meta}</span>
+      <div class="study-grid study-lesson-grid">${rows.slice(0,visibleLessons).map(([lesson,kind,meta])=>`<a class="study-tile study-lesson-card" href="#study-lesson-${lesson.id}">
+        <span class="study-tile-type" data-kind="${kind==="Ngữ pháp"?"grammar":"vocabulary"}">${lesson.level} · ${kind}</span><strong>${escape(lesson.title)}</strong><span>${meta}</span>
       </a>`).join("")}</div>
       ${rows.length?"":'<p class="box">Chưa tìm thấy bài phù hợp. Thử đổi bộ lọc hoặc từ khóa.</p>'}
       ${rows.length>visibleLessons?'<button id="study-more" type="button">Xem thêm bài</button>':""}
@@ -419,13 +419,17 @@ window.createStudyLibrary = function createStudyLibrary({ app, state, save, awar
 
   function showIeltsResult(container,report,task){
     const labels={task:task===1?"Task Achievement":"Task Response",coherence:"Coherence and Cohesion",lexical:"Lexical Resource",grammar:"Grammatical Range and Accuracy"};
-    container.innerHTML=`<section class="box"><h2 tabindex="-1">Band ước lượng ${report.band.toFixed(1)}</h2>
-      <div class="study-grid ielts-scores">${Object.entries(labels).map(([key,label])=>`<article class="study-tile">
-        <h3>${label} · ${report.scores[key]}</h3><p>${escape(report.comments[key])}</p></article>`).join("")}</div>
-      ${report.chartNotes?`<h3 class="sec-h">Đối chiếu với biểu đồ</h3><p>${escape(report.chartNotes)}</p>`:""}
-      ${report.corrections.length?`<h3 class="sec-h">Chỗ cần sửa</h3><ul>${report.corrections.map(item=>`<li><s>${escape(item.quote)}</s> → <strong>${escape(item.revision)}</strong><br>${escape(item.reason)}</li>`).join("")}</ul>`:""}
-      <h3 class="sec-h">Bài viết tham khảo</h3><p class="course-copy" lang="en">${escape(report.rewrite)}</p>
-      <a href="https://ielts.org/take-a-test/test-types/ielts-academic-test/ielts-academic-format-writing" target="_blank" rel="noopener">Tiêu chí IELTS Academic Writing</a></section>`;
+    container.innerHTML=`<section class="ielts-report">
+      <h2 class="ielts-band" tabindex="-1"><span>Band ước lượng</span> <strong>${report.band.toFixed(1)}</strong></h2>
+      <section class="box ielts-criteria"><h3>Điểm theo tiêu chí</h3>
+        ${Object.entries(labels).map(([key,label])=>`<details><summary><span>${label}</span> <b>${report.scores[key]}</b></summary>
+          <p>${escape(report.comments[key])}</p></details>`).join("")}
+      </section>
+      ${report.chartNotes?`<section class="box ielts-chart-notes"><h3>Đối chiếu với biểu đồ</h3><p>${escape(report.chartNotes)}</p></section>`:""}
+      ${report.corrections.length?`<section class="box ielts-corrections"><h3>Chỗ cần sửa</h3><ul>${report.corrections.map(item=>`<li><s lang="en">${escape(item.quote)}</s><strong lang="en">${escape(item.revision)}</strong><span>${escape(item.reason)}</span></li>`).join("")}</ul></section>`:""}
+      <details class="box ielts-rewrite"><summary>Bài viết tham khảo</summary><p class="course-copy" lang="en">${escape(report.rewrite)}</p></details>
+      <a class="study-back" href="https://ielts.org/take-a-test/test-types/ielts-academic-test/ielts-academic-format-writing" target="_blank" rel="noopener">Tiêu chí IELTS Academic Writing</a>
+    </section>`;
   }
 
   function render(route){

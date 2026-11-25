@@ -1,6 +1,6 @@
 // Cache the lesson shell for offline revisits. Profile/API/audio responses stay out of this cache.
-const SHELL_CACHE="tcv-shell-v4";
-const STUDY_ASSETS=["/study-content.js","/study-grammar-bank.js","/study-vocabulary-bank.js","/study-library.js?v=4","/assets/dino-study.webp"];
+const SHELL_CACHE="tcv-shell-v5";
+const STUDY_ASSETS=["/study-content.js","/study-grammar-bank.js","/study-vocabulary-bank.js","/study-library.js?v=5","/dino-design.css?v=1","/assets/dino-study.webp","/assets/dino-daily.webp"];
 const STUDY_PATHS=new Set(STUDY_ASSETS.map(path=>path.split("?")[0]));
 self.addEventListener("install",event=>{
   event.waitUntil(caches.open(SHELL_CACHE).then(cache=>cache.addAll(["/",...STUDY_ASSETS].map(path=>new Request(path,{cache:"reload"})))).then(()=>self.skipWaiting()));
