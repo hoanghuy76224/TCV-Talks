@@ -93,16 +93,17 @@ window.createStudyLibrary = function createStudyLibrary({ app, state, save, awar
       ...grammar.filter(matches).filter(()=>filters.kind!=="vocabulary").map(lesson=>[lesson,"Ngữ pháp",saved.stars[lesson.id]?`${saved.stars[lesson.id]}/3 sao`:"Ví dụ và 3 mức luyện"]),
       ...vocabulary.filter(matches).filter(()=>filters.kind!=="grammar").map(lesson=>[lesson,"Từ vựng",`${lesson.cards.length} thẻ từ`])
     ];
-    app.innerHTML=`<div class="study-page">${modeLinks("")}
-      <section class="study-intro"><div><h1>Kho bài học</h1><p>${grammar.length} bài ngữ pháp và ${vocabulary.length} bài từ vựng từ A1 đến C2.</p></div>
-      <div class="study-actions"><a class="btn" href="#study-review">Ôn từ${due().length?` · ${due().length}`:""}</a><a class="btn" href="#study-tools">Công cụ</a></div></section>
+    app.innerHTML=`<div class="study-page">
+      <section class="study-intro study-catalog-intro"><div><h1>Kho bài học</h1><p>${grammar.length} bài ngữ pháp và ${vocabulary.length} bài từ vựng từ A1 đến C2.</p></div>
+      <div class="study-actions"><a class="btn study-accent-action" href="#study-ielts">IELTS Writing</a><a class="btn" href="#study-review">Ôn từ${due().length?` · ${due().length}`:""}</a><a class="study-back" href="#study-tools">Công cụ khác</a></div></section>
+      ${modeLinks("")}
       <form id="study-filters" class="study-filters">
+        <div class="study-search"><label>Tìm bài hoặc từ vựng<input name="query" type="search" value="${escape(filters.query)}" placeholder="Ví dụ: lịch hẹn"></label>
+        <button class="pri" type="submit">Tìm bài</button></div>
         <label>Nội dung<select name="kind">${selectOptions([["","Tất cả"],["grammar","Ngữ pháp"],["vocabulary","Từ vựng"]],filters.kind)}</select></label>
         <label>Trình độ<select name="level">${selectOptions([["","Tất cả"],...levels.map(level=>[level,level])],filters.level)}</select></label>
-        <label>Tìm bài hoặc từ vựng<input name="query" type="search" value="${escape(filters.query)}" placeholder="Ví dụ: lịch hẹn"></label>
-        <button class="pri" type="submit">Tìm bài</button>
       </form>
-      <p class="sm">Hiển thị ${Math.min(rows.length,visibleLessons)} / ${rows.length} bài.</p>
+      <p class="sm study-results-count">Hiển thị ${Math.min(rows.length,visibleLessons)} / ${rows.length} bài.</p>
       <div class="study-grid">${rows.slice(0,visibleLessons).map(([lesson,kind,meta])=>`<a class="study-tile" href="#study-lesson-${lesson.id}">
         <span class="study-tile-type">${lesson.level} · ${kind}</span><strong>${escape(lesson.title)}</strong><span>${meta}</span>
       </a>`).join("")}</div>
@@ -263,6 +264,15 @@ window.createStudyLibrary = function createStudyLibrary({ app, state, save, awar
       <a class="study-tile" href="#${signedIn()?"chat":"access"}"><strong>Luyện hội thoại</strong><span>Đóng vai trong tình huống công việc.</span></a></div></div>`;
   }
 
+  function ieltsHub(){
+    app.innerHTML=`<div class="study-page">${link}
+      <section class="study-intro ielts-intro"><div><h1>IELTS Academic Writing</h1><p>Nhận band ước lượng, góp ý theo bốn tiêu chí và gợi ý sửa bài.</p></div></section>
+      <div class="study-grid ielts-hub-grid">
+        <a class="study-tile" href="#study-ielts-1"><strong>Task 1 · Mô tả biểu đồ</strong><span>Đính kèm ảnh hoặc nhập số liệu · Từ 150 từ</span></a>
+        <a class="study-tile" href="#study-ielts-2"><strong>Task 2 · Viết bài luận</strong><span>Phát triển quan điểm và lập luận · Từ 250 từ</span></a>
+      </div></div>`;
+  }
+
   function writing(){
     if(!signedIn()){
       app.innerHTML=`<div class="study-page">${link}<section class="box"><h1>Luyện viết công sở</h1><p>Mở hồ sơ để nhận góp ý và lưu bài viết.</p><a class="btn pri" href="#access">Mở hồ sơ</a></section></div>`;
@@ -312,18 +322,60 @@ window.createStudyLibrary = function createStudyLibrary({ app, state, save, awar
       app.innerHTML=`<div class="study-page">${link}<section class="box"><h1>${title}</h1><p>Mở hồ sơ để nộp bài lấy nhận xét.</p><a class="btn pri" href="#access">Mở hồ sơ</a></section></div>`;
       return;
     }
-    app.innerHTML=`<div class="study-page"><a class="study-back" href="#study-tools">← Công cụ học</a>
-      <section class="study-intro"><div><h1>${title}</h1><p>Mục tiêu tối thiểu ${minimum} từ. Điểm AI dùng để luyện tập.</p></div>
-      <a class="btn" href="#study-ielts-${task===1?2:1}">Đổi sang Task ${task===1?2:1}</a></section>
+    app.innerHTML=`<div class="study-page"><a class="study-back" href="#study-ielts">← IELTS Writing</a>
+      <section class="study-intro ielts-intro"><div><h1>${title}</h1><p>Mục tiêu tối thiểu ${minimum} từ. Điểm AI dùng để luyện tập.</p></div>
+      <div class="ielts-tabs" role="group" aria-label="Chọn phần viết">${[1,2].map(number=>`<a class="btn" href="#study-ielts-${number}"${number===task?' aria-current="page"':""}>Task ${number}</a>`).join("")}</div></section>
       <form class="box" id="ielts-form">
         <label>Đề bài<textarea name="question" rows="3" maxlength="2000" required>${escape(draft.question||"")}</textarea></label>
-        ${task===1?`<label>Ảnh biểu đồ (PNG, JPG, WebP; tối đa 1,5 MB)<input name="image" type="file" accept="image/png,image/jpeg,image/webp"></label>
-        <label>Hoặc nhập dữ liệu biểu đồ<textarea name="chart" rows="3" maxlength="3000" placeholder="Ghi tên biểu đồ, đơn vị, năm và số liệu.">${escape(draft.chart||"")}</textarea></label>`:""}
+        ${task===1?`<fieldset class="ielts-upload"><legend>Dữ liệu biểu đồ</legend>
+          <p class="sm" id="ielts-image-hint">Tải ảnh PNG, JPG, WebP tối đa 1,5 MB hoặc nhập số liệu bên dưới.</p>
+          <div class="ielts-upload-controls">
+            <div class="btn ielts-image-file"><span id="ielts-image-action">Chọn ảnh biểu đồ</span>
+              <input name="image" type="file" accept="image/png,image/jpeg,image/webp" aria-labelledby="ielts-image-action" aria-describedby="ielts-image-hint">
+            </div>
+            <button type="button" id="ielts-remove-image" hidden>Bỏ ảnh</button>
+          </div>
+          <p class="sm ielts-upload-error" id="ielts-image-error" role="status" hidden></p>
+          <figure class="ielts-image-preview" hidden><img alt="Xem trước ảnh biểu đồ"><figcaption class="sm" aria-live="polite"></figcaption></figure>
+          <label class="ielts-data-label">Hoặc nhập dữ liệu biểu đồ<textarea name="chart" rows="3" maxlength="3000" placeholder="Ghi tên biểu đồ, đơn vị, năm và số liệu.">${escape(draft.chart||"")}</textarea></label>
+        </fieldset>`:""}
         <label>Bài viết<textarea name="essay" rows="9" maxlength="6000" required>${escape(draft.essay||"")}</textarea></label>
         <p id="ielts-count" class="sm"></p>
         <div class="study-actions"><button class="pri" type="submit">Chấm bài</button><button type="button" id="ielts-sample">Điền đề mẫu</button></div>
       </form><div id="ielts-result" aria-live="polite"></div></div>`;
     const form=app.querySelector("#ielts-form"), result=app.querySelector("#ielts-result");
+    const imageInput=form.elements.image;
+    const validImage=file=>file.size>0&&file.size<=1500000&&["image/png","image/jpeg","image/webp"].includes(file.type);
+    if(imageInput){
+      const preview=form.querySelector(".ielts-image-preview"), picture=preview.querySelector("img"), caption=preview.querySelector("figcaption");
+      const action=form.querySelector("#ielts-image-action"), remove=form.querySelector("#ielts-remove-image"), error=form.querySelector("#ielts-image-error");
+      const showPreview=(file,source)=>{
+        preview.hidden=remove.hidden=!file;
+        action.textContent=file?"Đổi ảnh":"Chọn ảnh biểu đồ";
+        caption.textContent=file?file.name:"";
+        if(source)picture.src=source;
+        else picture.removeAttribute("src");
+      };
+      const clearFile=(message="")=>{
+        imageInput.value="";
+        showPreview(null);
+        error.textContent=message;
+        error.hidden=!message;
+      };
+      imageInput.onchange=()=>{
+        const file=imageInput.files[0];
+        if(!file){clearFile();return}
+        if(!validImage(file)){clearFile("Chọn ảnh PNG, JPG hoặc WebP không quá 1,5 MB.");return}
+        error.hidden=true;
+        showPreview(null);
+        const reader=new FileReader();
+        reader.onload=()=>{if(imageInput.files[0]===file)showPreview(file,reader.result)};
+        reader.onerror=()=>{if(imageInput.files[0]===file)clearFile("Không mở được ảnh. Hãy chọn tệp khác.")};
+        reader.readAsDataURL(file);
+      };
+      picture.onerror=()=>{if(picture.hasAttribute("src"))clearFile("Ảnh không đọc được. Hãy chọn tệp khác.")};
+      remove.onclick=()=>{clearFile();imageInput.focus()};
+    }
     const updateCount=()=>{
       const count=(form.elements.essay.value.match(/\p{L}[\p{L}\p{N}'’-]*|\p{N}+/gu)||[]).length;
       app.querySelector("#ielts-count").textContent=`${count} từ · Mục tiêu tối thiểu ${minimum}`;
@@ -342,7 +394,7 @@ window.createStudyLibrary = function createStudyLibrary({ app, state, save, awar
       const chart=form.elements.chart?.value.trim()||"", file=form.elements.image?.files[0];
       if(question.length<12||essay.length<30){result.textContent="Nhập đầy đủ đề và ít nhất vài câu trong bài viết.";return}
       if(task===1&&!file&&chart.length<12){result.textContent="Đính kèm ảnh hoặc nhập dữ liệu biểu đồ.";return}
-      if(file&&(file.size>1500000||!["image/png","image/jpeg","image/webp"].includes(file.type))){
+      if(file&&!validImage(file)){
         result.textContent="Chọn ảnh PNG, JPG hoặc WebP dưới 1,5 MB.";return;
       }
       (saved.ielts??={})[task]={question,essay,chart};
@@ -352,7 +404,12 @@ window.createStudyLibrary = function createStudyLibrary({ app, state, save, awar
       result.textContent="Đang nhận xét bài viết…";
       try{
         const report=await gradeIelts({task,question,essay,chart,file});
-        if(result.isConnected&&state()===saved)showIeltsResult(result,report,task);
+        if(result.isConnected&&state()===saved){
+          showIeltsResult(result,report,task);
+          const heading=result.querySelector("h2");
+          heading.focus({preventScroll:true});
+          heading.scrollIntoView({block:"start"});
+        }
       }catch(error){
         if(result.isConnected)result.textContent=error.message==="rate_limited"?"Dịch vụ đang bận. Bài đã được lưu, bạn thử lại sau ít phút.":
           error.message==="session_expired"?"Phiên đăng nhập hết hạn. Hãy mở lại hồ sơ.":"Chưa chấm được bài. Bài đã được lưu để bạn thử lại.";
@@ -362,7 +419,7 @@ window.createStudyLibrary = function createStudyLibrary({ app, state, save, awar
 
   function showIeltsResult(container,report,task){
     const labels={task:task===1?"Task Achievement":"Task Response",coherence:"Coherence and Cohesion",lexical:"Lexical Resource",grammar:"Grammatical Range and Accuracy"};
-    container.innerHTML=`<section class="box"><h2>Band ước lượng ${report.band.toFixed(1)}</h2>
+    container.innerHTML=`<section class="box"><h2 tabindex="-1">Band ước lượng ${report.band.toFixed(1)}</h2>
       <div class="study-grid ielts-scores">${Object.entries(labels).map(([key,label])=>`<article class="study-tile">
         <h3>${label} · ${report.scores[key]}</h3><p>${escape(report.comments[key])}</p></article>`).join("")}</div>
       ${report.chartNotes?`<h3 class="sec-h">Đối chiếu với biểu đồ</h3><p>${escape(report.chartNotes)}</p>`:""}
@@ -382,6 +439,7 @@ window.createStudyLibrary = function createStudyLibrary({ app, state, save, awar
     else if(route==="study-review")review();
     else if(route==="study-tools")tools();
     else if(route==="study-writing")writing();
+    else if(route==="study-ielts")ieltsHub();
     else if(route==="study-ielts-1"||route==="study-ielts-2")ielts(Number(route.at(-1)));
     else if(route.startsWith("study-lesson-")){
       const id=route.slice("study-lesson-".length);
