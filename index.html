@@ -2681,7 +2681,13 @@ function aiStatusHTML(data,now=Date.now()){
   const gemOut=Boolean(gm.limited&&now<(gm.capturedAt||0)+120000);
   const gt=p.groq_tts?.snapshot?.error,mt=p.gemini_tts?.snapshot?.error;
   const chat=[["Cloudflare",cfOut,"hết hạn mức hôm nay, mở lại lúc "+fmtReset(cf.resetAt||data.resetAt)],["Groq",groqOut,"tạm hết lượt, thử lại lúc "+fmtReset(groqAt)],["Gemini",gemOut,"đang bị giới hạn tạm thời"]];
-  const voice=[["Cloudflare",cfOut,"hết hạn mức hôm nay, mở lại lúc "+fmtReset(cf.resetAt||data.resetAt)],["Groq",Boolean(gt),ttsErrorText(gt)],["Gemini",Boolean(mt),ttsErrorText(mt)]];
+  const cfg=data.configured||{},mo=data.month||{};
+  const capped=k=>mo[k]&&mo[k].used+50>mo[k].cap;
+  const monthTxt=k=>mo[k]?" (tháng này "+mo[k].used.toLocaleString("vi-VN")+"/"+mo[k].cap.toLocaleString("vi-VN")+" ký tự)":"";
+  const voice=[["Cloudflare",cfOut,"hết hạn mức hôm nay, mở lại lúc "+fmtReset(cf.resetAt||data.resetAt)]];
+  if(cfg.google_tts){const e=p.google_tts?.snapshot?.error;voice.push(["Google"+monthTxt("google_tts"),Boolean(e)||capped("google_tts"),capped("google_tts")?"đã chạm mức miễn phí tháng, tự dừng tới tháng sau":ttsErrorText(e)])}
+  if(cfg.azure_tts){const e=p.azure_tts?.snapshot?.error;voice.push(["Azure"+monthTxt("azure_tts"),Boolean(e)||capped("azure_tts"),capped("azure_tts")?"đã chạm mức miễn phí tháng, tự dừng tới tháng sau":ttsErrorText(e)])}
+  voice.push(["Groq",Boolean(gt),ttsErrorText(gt)],["Gemini",Boolean(mt),ttsErrorText(mt)]);
   const line=([name,bad,why])=>"<div>"+esc(name)+": "+(bad?"<b>"+esc(why)+"</b>":"đang dùng được")+"</div>";
   const head=(label,rows)=>"<p><b>"+label+": "+(rows.every(r=>r[1])?"đang hết hạn mức, tạm thời không dùng được":rows.some(r=>r[1])?"còn hoạt động, một số nguồn đã hết":"hoạt động bình thường")+"</b></p>"+rows.map(line).join("");
   return head("Trợ lý AI",chat)+head("Giọng đọc AI",voice);

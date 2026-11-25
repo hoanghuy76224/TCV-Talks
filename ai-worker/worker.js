@@ -57,7 +57,9 @@ async function usageApi(env, headers) {
       let snapshot={};try{snapshot=JSON.parse(row.snapshot)}catch{}
       providers[row.provider]={requests:row.requests,tokens:row.tokens,chars:row.chars,snapshot,updated:row.updated};
     }
-    return out({day:usageDay(),resetAt:nextUsageReset(),providers},200,{...headers,"Cache-Control":"no-store"});
+    const month={};
+    for(const k of Object.keys(MONTHLY_CAP)) month[k]={used:await monthChars(env,k),cap:MONTHLY_CAP[k]};
+    return out({day:usageDay(),resetAt:nextUsageReset(),providers,month,configured:{google_tts:!!env.GOOGLE_TTS_KEY,azure_tts:!!(env.AZURE_SPEECH_KEY&&env.AZURE_SPEECH_REGION)}},200,{...headers,"Cache-Control":"no-store"});
   }catch{return out({error:"usage_unavailable"},503,headers)}
 }
 
@@ -215,6 +217,66 @@ async function synthesizeGroq(env, text, speaker) {
   }
 }
 
+// Google Cloud TTS (Neural2) và Azure Neural: dùng gói miễn phí hàng tháng, tự dừng trước khi vượt mức để không phát sinh phí.
+const GOOGLE_TTS_VOICES = { luna:"en-US-Neural2-F", orion:"en-US-Neural2-D", thalia:"en-US-Neural2-C", apollo:"en-US-Neural2-J", pandora:"en-US-Neural2-H", draco:"en-US-Neural2-A", theia:"en-US-Neural2-E", hyperion:"en-US-Neural2-I" };
+const AZURE_TTS_VOICES = { luna:"en-US-JennyNeural", orion:"en-US-GuyNeural", thalia:"en-US-AriaNeural", apollo:"en-US-DavisNeural", pandora:"en-US-JaneNeural", draco:"en-US-JasonNeural", theia:"en-US-NancyNeural", hyperion:"en-US-TonyNeural" };
+const MONTHLY_CAP = { google_tts: 900000, azure_tts: 450000 };
+const monthStart = () => usageDay().slice(0,7) + "-01";
+async function monthChars(env, provider) {
+  if (!env.DB) return Infinity;
+  try {
+    await initUsage(env);
+    const row = await env.DB.prepare("SELECT COALESCE(SUM(chars),0) AS n FROM ai_usage WHERE provider=? AND day>=?").bind(provider, monthStart()).first();
+    return Number(row?.n) || 0;
+  } catch { return Infinity; }
+}
+async function withinCap(env, provider, text) {
+  return (await monthChars(env, provider)) + text.length <= MONTHLY_CAP[provider];
+}
+async function synthesizeGoogle(env, text, speaker) {
+  if (!env.GOOGLE_TTS_KEY || !(await withinCap(env, "google_tts", text))) return null;
+  try {
+    const r = await fetch("https://texttospeech.googleapis.com/v1/text:synthesize", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": env.GOOGLE_TTS_KEY },
+      body: JSON.stringify({ input: { text }, voice: { languageCode: "en-US", name: GOOGLE_TTS_VOICES[speaker] || "en-US-Neural2-F" }, audioConfig: { audioEncoding: "MP3" } }),
+      signal: AbortSignal.timeout(12000)
+    });
+    if (!r.ok) { await rememberUsage(env, "google_tts", { snapshot: { error: r.status, at: Date.now() } }); return null; }
+    const j = await r.json().catch(() => null);
+    if (!j?.audioContent) return null;
+    const bytes = base64ToBytes(j.audioContent);
+    if (!bytes.byteLength) return null;
+    await rememberUsage(env, "google_tts", { success: true, chars: text.length });
+    return { body: bytes.buffer, type: "audio/mpeg", provider: "google" };
+  } catch {
+    await rememberUsage(env, "google_tts", { snapshot: { error: "network", at: Date.now() } });
+    return null;
+  }
+}
+const xmlEscape = t => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+async function synthesizeAzure(env, text, speaker) {
+  const region = String(env.AZURE_SPEECH_REGION || "").trim();
+  if (!env.AZURE_SPEECH_KEY || !/^[a-z0-9]+$/i.test(region) || !(await withinCap(env, "azure_tts", text))) return null;
+  try {
+    const voice = AZURE_TTS_VOICES[speaker] || "en-US-JennyNeural";
+    const r = await fetch(`https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`, {
+      method: "POST",
+      headers: { "Ocp-Apim-Subscription-Key": env.AZURE_SPEECH_KEY, "Content-Type": "application/ssml+xml", "X-Microsoft-OutputFormat": "audio-24khz-48kbitrate-mono-mp3", "User-Agent": "tcv-talks" },
+      body: `<speak version="1.0" xml:lang="en-US"><voice xml:lang="en-US" name="${voice}">${xmlEscape(text)}</voice></speak>`,
+      signal: AbortSignal.timeout(12000)
+    });
+    if (!r.ok) { await rememberUsage(env, "azure_tts", { snapshot: { error: r.status, at: Date.now() } }); return null; }
+    const body = await r.arrayBuffer();
+    if (!body.byteLength) return null;
+    await rememberUsage(env, "azure_tts", { success: true, chars: text.length });
+    return { body, type: "audio/mpeg", provider: "azure" };
+  } catch {
+    await rememberUsage(env, "azure_tts", { snapshot: { error: "network", at: Date.now() } });
+    return null;
+  }
+}
+
 async function synthesizeGemini(env, text, speaker) {
   if (!env.GEMINI_KEY) return null;
   try {
@@ -259,7 +321,7 @@ async function synthesizeGemini(env, text, speaker) {
 
 async function synthesize(req, env, headers, ctx) {
   if (req.method !== "POST") return out({ error: "method" }, 405, headers);
-  if (!env.AI && !env.GROQ_API_KEY && !env.GEMINI_KEY) return out({ error: "voice_unavailable" }, 503, headers);
+  if (!env.AI && !env.GROQ_API_KEY && !env.GEMINI_KEY && !env.GOOGLE_TTS_KEY && !env.AZURE_SPEECH_KEY) return out({ error: "voice_unavailable" }, 503, headers);
   if (+(req.headers.get("Content-Length") || 0) > 8192) {
     return out({ error: "too_big" }, 413, headers);
   }
@@ -303,6 +365,8 @@ async function synthesize(req, env, headers, ctx) {
     }
   }
 
+  if (!result && !strictVoice) result = await synthesizeGoogle(env, text, input.speaker);
+  if (!result && !strictVoice) result = await synthesizeAzure(env, text, input.speaker);
   if (!result && !strictVoice) result = await synthesizeGroq(env, text, input.speaker);
   if (!result && !strictVoice) result = await synthesizeGemini(env, text, input.speaker);
   if (!result) return out({ error: "voice_unavailable" }, 503, headers);
