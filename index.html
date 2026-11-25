@@ -2742,26 +2742,28 @@ function stopAudio(){
   voiceStatus();
 }
 
-const TTS_CACHE="tcv-tts-v1";
-function ttsCacheUrl(speaker,text){return new URL("/__tts_cache/"+encodeURIComponent(speaker)+"/"+encodeURIComponent(text),location.origin).href}
-async function readTtsCache(speaker,text){
+const TTS_CACHE="tcv-tts-v2";
+const exactVoiceRequired=()=>!["auto","browser"].includes(voiceChoice());
+function ttsCacheUrl(speaker,text,strictVoice){return new URL("/__tts_cache/v2/"+(strictVoice?"exact":"auto")+"/"+encodeURIComponent(speaker)+"/"+encodeURIComponent(text),location.origin).href}
+async function readTtsCache(speaker,text,strictVoice){
   if(!("caches" in window))return null;
-  try{const c=await caches.open(TTS_CACHE);return await c.match(ttsCacheUrl(speaker,text))}catch{return null}
+  try{const c=await caches.open(TTS_CACHE);return await c.match(ttsCacheUrl(speaker,text,strictVoice))}catch{return null}
 }
-async function writeTtsCache(speaker,text,blob){
+async function writeTtsCache(speaker,text,blob,strictVoice){
   if(!("caches" in window)||!blob?.size)return;
   try{
     const c=await caches.open(TTS_CACHE);
     const keys=await c.keys();
     if(keys.length>=80)await c.delete(keys[0]);
-    await c.put(ttsCacheUrl(speaker,text),new Response(blob,{headers:{"Content-Type":blob.type||"audio/mpeg"}}));
+    await c.put(ttsCacheUrl(speaker,text,strictVoice),new Response(blob,{headers:{"Content-Type":blob.type||"audio/mpeg"}}));
   }catch{}
 }
 
 async function voiceBuffer(text,speaker,ctx,signal){
-  const key=JSON.stringify([speaker,text]);
+  const strictVoice=exactVoiceRequired();
+  const key=JSON.stringify([speaker,strictVoice,text]);
   if(voiceBuffers.has(key))return voiceBuffers.get(key);
-  const cached=await readTtsCache(speaker,text);
+  const cached=await readTtsCache(speaker,text,strictVoice);
   if(cached){
     try{
       const buffer=await ctx.decodeAudioData(await cached.arrayBuffer());
@@ -2778,12 +2780,12 @@ async function voiceBuffer(text,speaker,ctx,signal){
   try{
     const response=await fetch(new URL("/tts",CFG.aiUrl),{
       method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({text,speaker}),signal:controller.signal
+      body:JSON.stringify({text,speaker,strictVoice}),signal:controller.signal
     });
     if(!response.ok)throw new Error("TTS "+response.status);
     const blob=await response.blob();
     if(!blob.size)throw new Error("TTS empty");
-    writeTtsCache(speaker,text,blob);
+    writeTtsCache(speaker,text,blob,strictVoice);
     const buffer=await ctx.decodeAudioData(await blob.arrayBuffer());
     voiceBuffers.set(key,buffer);
     if(voiceBuffers.size>24)voiceBuffers.delete(voiceBuffers.keys().next().value);
@@ -2833,12 +2835,13 @@ function webSay(text,rate,signal){
 
 function mobileVoice(text,rate,vk,signal){
   const status=document.getElementById("voice-status");
-  const panel=document.createElement("div"), info=document.createElement("p"), player=document.createElement("audio"), retry=document.createElement("button");
+  const panel=document.createElement("div"), info=document.createElement("p"), player=document.createElement("audio"), retry=document.createElement("button"), retryVoice=document.createElement("button");
   panel.className="box";panel.style.maxWidth="34rem";
   info.setAttribute("role","status");info.textContent="Đang tải bản nghe…";
   player.controls=true;player.preload="auto";player.style.width="100%";player.hidden=true;
   retry.type="button";retry.textContent="Nghe bằng giọng của thiết bị";
-  panel.append(info,player,retry);
+  retryVoice.type="button";retryVoice.textContent="Thử lại giọng đã chọn";retryVoice.hidden=true;
+  panel.append(info,player,retryVoice,retry);
   const focused=document.activeElement;
   if(focused?.tagName==="BUTTON"&&focused.closest("main"))focused.parentElement.after(panel);else status.after(panel);
   return new Promise(resolve=>{
@@ -2847,6 +2850,7 @@ function mobileVoice(text,rate,vk,signal){
     let url="",usingDevice=false;
     function finish(){clearTimeout(timer);controller.abort();player.pause();player.removeAttribute("src");player.load();panel.remove();if(url)URL.revokeObjectURL(url);signal.removeEventListener("abort",finish);resolve()}
     signal.addEventListener("abort",finish,{once:true});
+    retryVoice.onclick=()=>{finish();say(text,rate,vk)};
     retry.onclick=async()=>{
       usingDevice=true;controller.abort();player.pause();player.hidden=true;retry.disabled=true;info.textContent="Đang dùng giọng của thiết bị…";
       const ok=await webSay(text,rate,signal);
@@ -2855,27 +2859,44 @@ function mobileVoice(text,rate,vk,signal){
     };
     player.onended=finish;
     player.onplaying=()=>{info.textContent="Đang phát bản nghe."};
-    player.onerror=()=>{if(url&&panel.isConnected)info.textContent="Thiết bị không đọc được bản nghe. Bạn có thể dùng giọng của thiết bị."};
+    player.onerror=()=>{if(url&&panel.isConnected){info.textContent="Thiết bị chưa phát được bản nghe. Bạn có thể thử lại hoặc dùng giọng thiết bị.";retryVoice.hidden=false}};
     (async()=>{
       try{
-        const choice=voiceChoice(),speaker=["auto","browser"].includes(choice)?(VOICE_SPEAKERS[vk]||"luna"):choice;
+        const choice=voiceChoice(),strictVoice=exactVoiceRequired(),speaker=["auto","browser"].includes(choice)?(VOICE_SPEAKERS[vk]||"luna"):choice;
         let blob=null;
-        const cached=await readTtsCache(speaker,text);
+        const cached=await readTtsCache(speaker,text,strictVoice);
         if(cached)blob=await cached.blob();
         if(!blob?.size){
-          const response=await fetch(new URL("/tts",CFG.aiUrl),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text,speaker}),signal:controller.signal});
+          const response=await fetch(new URL("/tts",CFG.aiUrl),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text,speaker,strictVoice}),signal:controller.signal});
           if(!response.ok)throw Error();
           blob=await response.blob();if(!blob.size)throw Error();
-          writeTtsCache(speaker,text,blob);
+          writeTtsCache(speaker,text,blob,strictVoice);
         }
         if(signal.aborted||usingDevice)return;
         url=URL.createObjectURL(blob);player.src=url;player.playbackRate=rate;player.hidden=false;
         info.textContent="Bấm ▶ để nghe.";
         try{await player.play()}catch{}
-      }catch{if(!signal.aborted&&!usingDevice)info.textContent="Chưa tải được bản nghe. Bấm bên dưới để dùng giọng của thiết bị."}
+      }catch{if(!signal.aborted&&!usingDevice){info.textContent="Giọng đã chọn hiện chưa tải được. Bạn có thể thử lại hoặc dùng giọng thiết bị.";retryVoice.hidden=false}}
       finally{clearTimeout(timer)}
     })();
   });
+}
+
+function offerVoiceRetry(text,rate,vk){
+  voiceStatus("Giọng đã chọn hiện chưa phát được. Bạn có thể thử lại hoặc dùng giọng của thiết bị.");
+  const el=$("#voice-status"),retry=document.createElement("button"),device=document.createElement("button");
+  retry.type=device.type="button";
+  retry.textContent="Thử lại giọng đã chọn";device.textContent="Dùng giọng thiết bị";
+  retry.style.margin=device.style.margin="6px 6px 0 0";
+  retry.onclick=()=>say(text,rate,vk);
+  device.onclick=async()=>{
+    stopAudio();
+    const request=new AbortController();voiceRequest=request;
+    voiceStatus("Đang dùng giọng của thiết bị cho câu này…");
+    const played=await webSay(text,rate,request.signal);
+    if(!request.signal.aborted)voiceStatus(played?"Đã phát bằng giọng thiết bị. Lựa chọn giọng AI của bạn vẫn được giữ.":"Thiết bị chưa phát được tiếng. Bạn có thể bấm nghe lại.");
+  };
+  el.append(document.createElement("br"),retry,device);
 }
 
 async function say(text,rate=1,vk="f"){
@@ -2885,7 +2906,6 @@ async function say(text,rate=1,vk="f"){
   const request=new AbortController();
   voiceRequest=request;
   const {signal}=request;
-  let cloudFailed=false;
   try{
     if(tts){await tts.speak(text,{language:"en",rate});return}
     if(cloudVoiceOn()&&(/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1)||matchMedia("(pointer: coarse)").matches)){
@@ -2896,7 +2916,7 @@ async function say(text,rate=1,vk="f"){
     if(ctx){
       voiceStatus("Đang tải âm thanh…");
       const choice=voiceChoice();
-      const speaker=choice==="auto"?VOICE_SPEAKERS[vk]:choice;
+      const speaker=choice==="auto"?(VOICE_SPEAKERS[vk]||"luna"):choice;
       const buffer=await voiceBuffer(text,speaker,ctx,signal);
       if(signal.aborted)return;
       if(ctx.state!=="running")throw new Error("Audio context is suspended");
@@ -2905,9 +2925,11 @@ async function say(text,rate=1,vk="f"){
       if(!signal.aborted)voiceStatus();
       return;
     }
-  }catch(e){cloudFailed=true}
+    if(cloudVoiceOn()){await mobileVoice(text,rate,vk,signal);return}
+  }catch(e){}
   if(signal.aborted)return;
-  voiceStatus(cloudFailed?"Giọng AI tạm hết hạn mức, đang dùng giọng trình duyệt…":"Đang dùng giọng trình duyệt…");
+  if(cloudVoiceOn()){offerVoiceRetry(text,rate,vk);return}
+  voiceStatus("Đang dùng giọng trình duyệt…");
   const played=await webSay(text,rate,signal);
   if(!signal.aborted)voiceStatus(played?"":"Không phát được giọng. Bấm Nghe để thử lại.");
 }
@@ -3560,7 +3582,8 @@ function vChat(){
   const input=$("#ci"),cm=$("#cm"),status=$("#chat-status"),start=$("#cr"),sendButton=$("#cg"),scenario=$("#cs"),cl=$("#cl"),endBtn=$("#ce"),rv=$("#rv");
   let recorder,working=false;
   function draw(){
-    cl.innerHTML=chat.log.length?chat.log.map(m=>m.r==="ai"?`<div class="msg ai">${esc(m.t)}</div>`:`<div class="msg me">${esc(m.t)}</div>${m.fix?`<div class="fixn">Nên nói: <b class="good">${esc(m.fix)}</b>${m.note?" · "+esc(m.note):""}</div>`:""}${m.pron?`<div class="fixn">Phát âm: ${esc(m.pron)}</div>`:""}`).join(""):'<p class="sm">Bấm Bắt đầu để AI mở lời.</p>';
+    cl.innerHTML=chat.log.length?chat.log.map((m,i)=>m.r==="ai"?`<div class="msg ai">${esc(m.t)} <button type="button" class="ico" data-chat-audio="${i}" aria-label="Nghe lại câu trả lời">${I.spk}</button></div>`:`<div class="msg me">${esc(m.t)}</div>${m.fix?`<div class="fixn">Nên nói: <b class="good">${esc(m.fix)}</b>${m.note?" · "+esc(m.note):""}</div>`:""}${m.pron?`<div class="fixn">Phát âm: ${esc(m.pron)}</div>`:""}`).join(""):'<p class="sm">Bấm Bắt đầu để AI mở lời.</p>';
+    cl.querySelectorAll("[data-chat-audio]").forEach(button=>button.onclick=()=>say(chat.log[+button.dataset.chatAudio].t));
     cl.scrollTop=cl.scrollHeight;
   }
   function controls(){
