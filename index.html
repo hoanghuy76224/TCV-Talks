@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>TCV Talks</title>
+<title>English with Dino</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -134,7 +134,7 @@ table{border-collapse:collapse;width:100%;background:var(--card);border-radius:1
 <body class="profile-locked">
 <header>
   <div class="top">
-    <a href="#today" class="brand" aria-label="TCV Talks – Trang chủ"><svg viewBox="0 0 40 40"><rect x="2" y="4" width="26" height="20" rx="8" fill="#ff6b5a"/><path d="M8 24l-2 7 8-7z" fill="#ff6b5a"/><rect x="14" y="14" width="24" height="18" rx="8" fill="#4f8cff"/><path d="M32 32l2 6-8-6z" fill="#4f8cff"/><path d="M21 23v2M25 20v8M29 22v4M33 23v2" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>TCV Talks</a>
+    <a href="#today" class="brand" aria-label="English with Dino – Trang chủ"><svg viewBox="0 0 40 40"><rect x="2" y="4" width="26" height="20" rx="8" fill="#ff6b5a"/><path d="M8 24l-2 7 8-7z" fill="#ff6b5a"/><rect x="14" y="14" width="24" height="18" rx="8" fill="#4f8cff"/><path d="M32 32l2 6-8-6z" fill="#4f8cff"/><path d="M21 23v2M25 20v8M29 22v4M33 23v2" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>English with Dino</a>
     <div class="stats"><button type="button" id="lock-profile" hidden>Khóa hồ sơ</button><a class="mechip" href="#profile" id="me">Tạo hồ sơ</a><span class="s1">Cấp <b id="lvl">?</b></span><span class="s2">XP <b id="xp">0</b></span><span class="s3">Chuỗi <b id="streak">0</b> ngày</span></div>
   </div>
   <nav id="nav" aria-label="Các khu vực học">
@@ -3183,7 +3183,7 @@ function speakCard(el,item,opt={}){
     <div class="target" id="tg">${esc(item.en)}</div>${ipa?`<div class="ipa">${esc(ipa)}</div>`:""}<div class="sm" style="margin-top:4px">${esc(item.vi||"")}</div>
     <div class="row center" style="margin-top:14px"><button data-a="say">${I.spk} Nghe mẫu</button><button data-a="slow">${I.slow} Nghe chậm</button><button data-a="shadow">${I.rep} Nghe rồi nhại</button></div>
     <button class="mic" data-a="mic" aria-label="Bấm để nói">${I.mic}</button>
-    <div class="sm" data-k="hint">${canRec()?(phoneMode()?"Chấm từng âm đang bật. Bấm mic, đọc to, bấm lần nữa để chấm.":"Bấm mic rồi đọc to câu trên."):(IN_CLAUDE?"Ghi âm cần mở trang bằng Chrome trên máy tính. Trên điện thoại hãy dùng bản web TCV Talks.":"Trình duyệt này chưa hỗ trợ ghi âm. Hãy dùng Chrome.")}</div>
+    <div class="sm" data-k="hint">${canRec()?(phoneMode()?"Chấm từng âm đang bật. Bấm mic, đọc to, bấm lần nữa để chấm.":"Bấm mic rồi đọc to câu trên."):(IN_CLAUDE?"Ghi âm cần mở trang bằng Chrome trên máy tính. Trên điện thoại hãy dùng bản web English with Dino.":"Trình duyệt này chưa hỗ trợ ghi âm. Hãy dùng Chrome.")}</div>
     <div class="prog hide" data-k="prog"><i></i></div>
     <div class="heard" data-k="heard"></div>
     <div class="hide" data-k="res"><div class="score" data-k="sc"></div><div class="sm" data-k="scm"></div><div class="phs hide" data-k="wd"></div><div class="box hide" data-k="fb"></div>
@@ -3237,7 +3237,7 @@ function vToday(){
     (S.hw?.items?.some(h=>!h.done)?'<section class="box"><h3>Bài từ buổi hội thoại trước</h3><p>Còn '+S.hw.items.filter(h=>!h.done).length+' bài để luyện thêm.</p><a class="btn" href="#chat">Xem bài luyện thêm</a></section>':"")+
     '<details class="box" id="more-tools"><summary>Tiến độ và công cụ luyện thêm</summary><div style="margin-top:12px"><p>Chuỗi học: '+streak()+' ngày · Hôm nay: '+t+' XP</p><div class="row"><a class="btn" href="#assessment">Nhận xét học tập</a><a class="btn" href="#history">Lịch sử</a><a class="btn" href="#practice">Luyện tự chọn</a><a class="btn" href="#start">Đổi mục tiêu</a></div>'+assessmentSummary(S.lastAssessment)+`
   ${AIWEB?`<div class="box" id="ai-status"><b>Trạng thái AI</b><div id="ai-status-body" class="sm" role="status">Đang kiểm tra…</div><button type="button" id="ai-status-refresh">Kiểm tra lại</button></div>`:""}
-  ${!IN_CLAUDE?`<label class="switch"><input type="checkbox" id="pm" ${S.phone?"checked":""} ${canMedia?"":"disabled"}><span><b>Chấm chi tiết từng âm như Elsa</b><br><span class="sm">Dùng mô hình nhận dạng âm vị chạy ngay trên máy bạn, không gửi giọng nói đi đâu. Lần đầu tải khoảng 355 MB, các lần sau dùng lại bản đã lưu. Nên bật trên máy tính hoặc điện thoại mạnh, dùng wifi.</span></span></label>`:`<p class="note">Bản này chạy trong Claude nên có AI sửa lỗi và hội thoại, chấm phát âm theo từ.${CFG.webUrl.startsWith("http")?` Muốn chấm chi tiết từng âm, mở <a href="${esc(CFG.webUrl)}">bản web TCV Talks</a> bằng Chrome.`:""}</p>`}
+  ${!IN_CLAUDE?`<label class="switch"><input type="checkbox" id="pm" ${S.phone?"checked":""} ${canMedia?"":"disabled"}><span><b>Chấm chi tiết từng âm như Elsa</b><br><span class="sm">Dùng mô hình nhận dạng âm vị chạy ngay trên máy bạn, không gửi giọng nói đi đâu. Lần đầu tải khoảng 355 MB, các lần sau dùng lại bản đã lưu. Nên bật trên máy tính hoặc điện thoại mạnh, dùng wifi.</span></span></label>`:`<p class="note">Bản này chạy trong Claude nên có AI sửa lỗi và hội thoại, chấm phát âm theo từ.${CFG.webUrl.startsWith("http")?` Muốn chấm chi tiết từng âm, mở <a href="${esc(CFG.webUrl)}">bản web English with Dino</a> bằng Chrome.`:""}</p>`}
     </div></details>`;
   wireAssessment(app,S.lastAssessment,vToday);
   if(AIWEB){const more=$("#more-tools"),refresh=$("#ai-status-refresh");if(refresh)refresh.onclick=loadAIStatus;if(more)more.addEventListener("toggle",()=>{if(more.open)loadAIStatus()},{once:true})}
@@ -3247,7 +3247,7 @@ function vToday(){
 /* ---------- màn hình: hồ sơ cá nhân ---------- */
 function vProfile(){
   const p=P();
-  app.innerHTML=`<h2>Hồ sơ của bạn</h2><p class="lead">TCV Talks dùng hồ sơ để gợi ý bài, đặt mục tiêu mỗi ngày và cho AI đóng vai sát với công việc của bạn. Tiến độ được lưu theo hồ sơ để bạn học tiếp trên thiết bị khác.</p>
+  app.innerHTML=`<h2>Hồ sơ của bạn</h2><p class="lead">English with Dino dùng hồ sơ để gợi ý bài, đặt mục tiêu mỗi ngày và cho AI đóng vai sát với công việc của bạn. Tiến độ được lưu theo hồ sơ để bạn học tiếp trên thiết bị khác.</p>
   <div class="field"><b>Tên gọi</b><input type="text" id="pn" maxlength="30" placeholder="Ví dụ: Huy" value="${esc(p.name||"")}"></div>
   <div class="field"><b>Công việc của bạn</b><div class="chips">${ROLES.map(r=>`<label><input type="radio" name="pr" value="${r[0]}" ${p.role===r[0]?"checked":""}>${esc(r[1])}</label>`).join("")}</div>
     <input type="text" id="prt" maxlength="60" placeholder="Ghi rõ công việc của bạn" value="${esc(p.roleText||"")}" style="margin-top:10px" class="${p.role==="other"?"":"hide"}"></div>
@@ -3625,7 +3625,7 @@ function vTrans(){
   const tm=$("#tm");if(tm)tm.onclick=()=>{if(rec.on){stopRec();return}tm.classList.add("sec");startRec(t=>$("#ta").value=t,r=>{tm.classList.remove("sec");if(r&&r.text)$("#ta").value=r.text})};
   $("#tc").onclick=async()=>{const t=$("#ta").value.trim();if(!t)return;const o=$("#tout"),b=$("#tc");
     const W=finishWords(it.en,t);
-    if(!ai){o.innerHTML=`<div class="box"><div class="row" style="justify-content:space-between"><b>Khớp với câu mẫu</b><div class="score small ${cls(W.sc)}" style="--p:${W.sc}">${W.sc}</div></div><div class="target" style="font-size:20px;text-align:left">${W.words.map(w=>`<span class="${cls(w.sc)}">${esc(w.w)}</span>`).join(" ")}</div><p class="sm">Từ đỏ là từ câu mẫu có mà câu của bạn thiếu hoặc khác. Có nhiều cách dịch đúng, nên điểm thấp chưa chắc là sai. Muốn AI chấm theo ý nghĩa và chỉ lỗi ngữ pháp, mở bản TCV Talks trong Claude.</p></div>`+showRef();wire();if(W.sc>=80)gain(4);return}
+    if(!ai){o.innerHTML=`<div class="box"><div class="row" style="justify-content:space-between"><b>Khớp với câu mẫu</b><div class="score small ${cls(W.sc)}" style="--p:${W.sc}">${W.sc}</div></div><div class="target" style="font-size:20px;text-align:left">${W.words.map(w=>`<span class="${cls(w.sc)}">${esc(w.w)}</span>`).join(" ")}</div><p class="sm">Từ đỏ là từ câu mẫu có mà câu của bạn thiếu hoặc khác. Có nhiều cách dịch đúng, nên điểm thấp chưa chắc là sai. Muốn AI chấm theo ý nghĩa và chỉ lỗi ngữ pháp, mở bản English with Dino trong Claude.</p></div>`+showRef();wire();if(W.sc>=80)gain(4);return}
     b.disabled=true;o.innerHTML='<div class="box">Đang chấm…</div>';
     try{const p=P();const r=await askJSON(`Bạn là giáo viên tiếng Anh văn phòng cho người Việt${p.name?", học viên tên "+p.name:""}${roleText()?", công việc: "+roleText():""}. Học viên dịch câu tiếng Việt sang tiếng Anh.\nCâu gốc: """${it.vi}"""\nCâu mẫu tham khảo: """${it.en}"""\nBài của học viên: """${t}"""\nChấm theo ý nghĩa và ngữ pháp, không bắt buộc giống câu mẫu; cách diễn đạt khác mà đúng và tự nhiên thì vẫn cho điểm cao. Trả về DUY NHẤT JSON: {"score":0-100,"meaning_ok":true/false,"corrected":"bản sửa gần nhất với câu học viên, đúng ngữ pháp","errors":[{"wrong":"cụm sai","right":"cụm đúng","why":"giải thích ngắn bằng tiếng Việt"}],"comment":"một câu nhận xét ngắn bằng tiếng Việt"}`);
       const sc=+r.score||0;
@@ -3696,7 +3696,7 @@ function vQuiz(){
 async function askJSON(prompt){if(!ai)throw{message:"no_ai"};
   try{if(ai.json)return await ai.json(prompt,{modelTier:"quick"})}catch(e){if(e&&(e.code==="not_granted"||e.code==="rate_limited"))throw e}
   const r=await ai(prompt,{modelTier:"quick"});const m=r.text.match(/\{[\s\S]*\}/);return JSON.parse(m?m[0]:r.text)}
-const noAI=()=>IN_CLAUDE||AIWEB?`<p class="note">Đang kết nối AI${AIWEB?"":" của Claude"}… nếu không thấy phản hồi, tải lại trang.</p>`:`<div class="box"><b>Tính năng AI chỉ có ở bản chạy trong Claude.</b><p class="sm">Bản web này tập trung chấm phát âm chi tiết. Để dùng AI sửa lỗi và hội thoại, mở TCV Talks trong Claude${CFG.claudeUrl.startsWith("http")?`: <a href="${esc(CFG.claudeUrl)}">mở bản Claude</a>`:"."}</p></div>`;
+const noAI=()=>IN_CLAUDE||AIWEB?`<p class="note">Đang kết nối AI${AIWEB?"":" của Claude"}… nếu không thấy phản hồi, tải lại trang.</p>`:`<div class="box"><b>Tính năng AI chỉ có ở bản chạy trong Claude.</b><p class="sm">Bản web này tập trung chấm phát âm chi tiết. Để dùng AI sửa lỗi và hội thoại, mở English with Dino trong Claude${CFG.claudeUrl.startsWith("http")?`: <a href="${esc(CFG.claudeUrl)}">mở bản Claude</a>`:"."}</p></div>`;
 function vFix(){
   app.innerHTML=`<h2>Sửa lỗi câu</h2><p class="lead">Gõ hoặc nói một câu, email, tin nhắn công việc. AI chỉ lỗi sai, giải thích bằng tiếng Việt và gợi ý cách nói tự nhiên kiểu văn phòng.</p>
   ${ai?"":noAI()}<textarea id="tx" placeholder="Ví dụ: I want to discuss with you about the project timeline tomorrow"></textarea>
@@ -4006,7 +4006,7 @@ function createCourse(rows){
   function welcome(){
     const old=document.getElementById("course-welcome");if(old)old.remove();
     const d=db(),current=unit(d.current),resume=current&&!d.work[current.id]?.finished;
-    app.insertAdjacentHTML("afterbegin",'<section id="course-welcome" class="hero"><div><span>TCV Talks · Tiếng Anh cho mỗi ngày</span><h2>Học một chút. Dùng được ngay.</h2><p>Thử một tình huống ngắn: hiểu câu nói, luyện mẫu câu rồi tự trả lời. Bạn sẽ thấy kết quả trước khi cần tạo hồ sơ.</p><div class="row">'+link(resume?url(current):"#lesson-appointment",resume?"Học tiếp bài thử":"Học thử 5 phút",true)+link("#course-path","Chọn bài theo trình độ")+'</div><p class="sm" style="margin-top:14px">Không cần đăng ký để học thử. Kết quả được giữ trên trình duyệt này.</p></div></section>');
+    app.insertAdjacentHTML("afterbegin",'<section id="course-welcome" class="hero"><div><span>English with Dino · Tiếng Anh cho mỗi ngày</span><h2>Học một chút. Dùng được ngay.</h2><p>Thử một tình huống ngắn: hiểu câu nói, luyện mẫu câu rồi tự trả lời. Bạn sẽ thấy kết quả trước khi cần tạo hồ sơ.</p><div class="row">'+link(resume?url(current):"#lesson-appointment",resume?"Học tiếp bài thử":"Học thử 5 phút",true)+link("#course-path","Chọn bài theo trình độ")+'</div><p class="sm" style="margin-top:14px">Không cần đăng ký để học thử. Kết quả được giữ trên trình duyệt này.</p></div></section>');
   }
   function start(){
     const d=db(), opts=(items,value)=>items.map(x=>`<option ${x===value?"selected":""}>${esc(x)}</option>`).join("");
