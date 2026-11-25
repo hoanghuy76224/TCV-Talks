@@ -250,6 +250,17 @@ function sameText(a, b) {
   return d === 0;
 }
 
+
+const SESSION_TTL = 30 * 86400000;
+async function issueSession(env, id, now) {
+  const token = hex(crypto.getRandomValues(new Uint8Array(32)));
+  const hash = await pinHash("session", id, token);
+  const expires = now + SESSION_TTL;
+  await env.DB.prepare("DELETE FROM learner_sessions WHERE expires <= ?").bind(now).run();
+  await env.DB.prepare("INSERT INTO learner_sessions (hash, id, expires) VALUES (?, ?, ?)").bind(hash,id,expires).run();
+  return { token, expires };
+}
+
 async function profileApi(req, env, headers, path) {
   if (req.method !== "POST") return out({ error: "method" }, 405, headers);
   if (!env.DB) return out({ error: "profile_unavailable" }, 503, headers);
@@ -259,12 +270,14 @@ async function profileApi(req, env, headers, path) {
   const id = typeof b?.id === "string" ? b.id.trim().toLowerCase() : "";
   const pin = typeof b?.pin === "string" ? b.pin : "";
   if (!/^[a-z0-9_]{3,30}$/.test(id)) return out({ error: "bad_name" }, 400, headers);
-  if (!/^\d{4}$/.test(pin)) return out({ error: "bad_pin" }, 400, headers);
+  const token = typeof b?.token === "string" ? b.token : "";
+  if ((!token || path === "/profile/reset" || path === "/profile/create") && !/^\d{4}$/.test(pin)) return out({ error: "bad_pin" }, 400, headers);
   const no = { ...headers, "Cache-Control": "no-store" };
 
   try {
     await initTable(env);
     const now = Date.now();
+    await env.DB.exec("CREATE TABLE IF NOT EXISTS learner_sessions (hash TEXT PRIMARY KEY, id TEXT NOT NULL, expires INTEGER NOT NULL)");
 
     await env.DB.exec("CREATE TABLE IF NOT EXISTS recovery_codes (id TEXT PRIMARY KEY, hash TEXT NOT NULL, FOREIGN KEY(id) REFERENCES profiles(id))");
     if (path === "/profile/reset") {
@@ -277,6 +290,7 @@ async function profileApi(req, env, headers, path) {
         .bind(salt, hash, now, id, id, digest).run();
       if (!result.meta.changes) return out({ error: "bad_recovery" }, 401, no);
       await env.DB.prepare("DELETE FROM recovery_codes WHERE id = ? AND hash = ?").bind(id, digest).run();
+      await env.DB.prepare("DELETE FROM learner_sessions WHERE id = ?").bind(id).run();
       return out({ok:true},200,no);
     }
     if (path === "/profile/create") {
@@ -287,11 +301,19 @@ async function profileApi(req, env, headers, path) {
         "INSERT OR IGNORE INTO profiles (id, salt, hash, data, ver, created, updated) VALUES (?, ?, ?, ?, 1, ?, ?)"
       ).bind(id, salt, await pinHash(salt, id, pin), data, now, now).run();
       if (!r.meta.changes) return out({ error: "name_taken" }, 409, no);
-      return out({ ok: true, ver: 1 }, 200, no);
+      const session = await issueSession(env,id,now);
+      return out({ ok: true, ver: 1, session }, 200, no);
     }
 
     const row = await env.DB.prepare("SELECT salt, hash, data, ver, fails, locked_until FROM profiles WHERE id = ?").bind(id).first();
     if (!row) return out({ error: "bad_credentials" }, 401, no);
+    let sessionHash = "";
+    if (token) {
+      if (!/^[a-f0-9]{64}$/.test(token)) return out({error:"session_expired"},401,no);
+      sessionHash = await pinHash("session",id,token);
+      const session = await env.DB.prepare("SELECT expires FROM learner_sessions WHERE hash = ? AND id = ? AND expires > ?").bind(sessionHash,id,now).first();
+      if (!session) return out({error:"session_expired"},401,no);
+    } else {
     if (row.locked_until > now) {
       return out({ error: "locked", wait: Math.ceil((row.locked_until - now) / 1000) }, 429, no);
     }
@@ -306,16 +328,23 @@ async function profileApi(req, env, headers, path) {
     }
     if (row.fails) await env.DB.prepare("UPDATE profiles SET fails = 0 WHERE id = ?").bind(id).run();
 
+    }
+    if (path === "/profile/close") {
+      if(sessionHash)await env.DB.prepare("DELETE FROM learner_sessions WHERE hash = ? AND id = ?").bind(sessionHash,id).run();
+      return out({ok:true},200,no);
+    }
+
     if (path === "/profile/recovery") {
       const code = hex(crypto.getRandomValues(new Uint8Array(16)));
       const hash = await pinHash("recovery", id, code);
       await env.DB.prepare("INSERT INTO recovery_codes (id, hash) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET hash = excluded.hash").bind(id, hash).run();
       return out({ok:true,code},200,no);
     }
-    if (path === "/profile/open") {
+    if (path === "/profile/open" || path === "/profile/resume") {
       let data = {};
       try { data = JSON.parse(row.data) } catch (e) {}
-      return out({ ok: true, data, ver: row.ver }, 200, no);
+      const session = token ? undefined : await issueSession(env,id,now);
+      return out({ ok: true, data, ver: row.ver, session }, 200, no);
     }
 
     if (path === "/profile/save") {
