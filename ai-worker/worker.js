@@ -279,14 +279,17 @@ async function synthesizeAzure(env, text, speaker) {
   }
 }
 
-function geminiSegments(text, limit = 200) {
+function geminiSegments(text, limit = 360) {
   const sentences = [...new Intl.Segmenter("en", { granularity: "sentence" }).segment(text)]
     .map(({ segment }) => segment.trim()).filter(Boolean);
   const chunks = [];
   let current = "";
   for (const [index, sentence] of sentences.entries()) {
-    // Give the final sentence its own request so it cannot be dropped from a multi-sentence generation.
-    if (index === sentences.length - 1 && current) { chunks.push(current); current = ""; }
+    // Keep the final sentence separate and prefer sentence boundaries when grouping the rest.
+    if (current && (index === sentences.length - 1 || current.length + 1 + sentence.length > limit)) {
+      chunks.push(current);
+      current = "";
+    }
     for (const word of sentence.split(/\s+/u)) {
       if (current && current.length + 1 + word.length > limit) { chunks.push(current); current = ""; }
       current = current ? current + " " + word : word;
@@ -297,15 +300,23 @@ function geminiSegments(text, limit = 200) {
 }
 
 async function geminiCandidate(env, model, parts, generationConfig, signal) {
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  const options = {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_KEY },
     body: JSON.stringify({ contents: [{ role: "user", parts }], generationConfig }),
     signal
-  });
-  if (!response.ok) throw Object.assign(Error("Gemini request failed"), { status: response.status });
-  const candidate = (await response.json())?.candidates?.[0];
-  return candidate?.finishReason === "STOP" ? candidate.content?.parts || [] : [];
+  };
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const response = await fetch(url, options);
+      if (!response.ok) throw Object.assign(Error("Gemini request failed"), { status: response.status });
+      const candidate = (await response.json())?.candidates?.[0];
+      return candidate?.finishReason === "STOP" ? candidate.content?.parts || [] : [];
+    } catch (error) {
+      if (attempt || signal.aborted || (error.status && error.status < 500)) throw error;
+    }
+  }
 }
 
 function geminiPcm(parts) {
