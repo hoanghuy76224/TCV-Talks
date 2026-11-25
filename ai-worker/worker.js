@@ -829,8 +829,15 @@ async function adminApi(req, env, headers) {
     const feedback = await all("SELECT id, kind, message, contact, created FROM feedback ORDER BY created DESC LIMIT 50");
     const usage = await all("SELECT day, provider, requests, tokens, chars FROM ai_usage ORDER BY day DESC LIMIT 60");
     const d1 = now - 86400000, d7 = now - 7 * 86400000;
+    const today = {};
+    for (const r of await all("SELECT provider,requests,tokens,chars,snapshot FROM ai_usage WHERE day=?", usageDay())) {
+      let snap = {}; try { snap = JSON.parse(r.snapshot); } catch {}
+      today[r.provider] = { requests: r.requests, tokens: r.tokens, chars: r.chars, snapshot: snap };
+    }
+    const month = {};
+    for (const k of Object.keys(MONTHLY_CAP)) month[k] = { used: await monthChars(env, k), cap: MONTHLY_CAP[k] };
     return out({
-      now,
+      now, resetAt: nextUsageReset(), today, month,
       total: learners.length,
       active24h: learners.filter(r => r.updated > d1).length,
       active7d: learners.filter(r => r.updated > d7).length,
