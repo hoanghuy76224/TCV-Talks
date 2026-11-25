@@ -158,6 +158,7 @@ table{border-collapse:collapse;width:100%;background:var(--card);border-radius:1
     <div class="row">
       <label class="sm" for="ai-provider">Chọn trợ lý</label>
       <select id="ai-provider">
+        <option value="cloudflare" disabled>Cloudflare Workers AI · Llama 3.3</option>
         <option value="gemini">Google Gemini</option>
         <option value="groq" disabled>Groq · GPT-OSS 20B</option>
       </select>
@@ -2397,8 +2398,8 @@ function ipaText(text){const r=refOf(text);if(!r)return"";return"/"+r.map(x=>x.p
 /* ---------- đọc mẫu ---------- */
 let tts=null,dict=null,ai=null;
 const AIWEB=!IN_CLAUDE&&/^https:/.test(CFG.aiUrl);
-const selectedAI=()=>S.aiProvider==="groq"?"groq":"gemini";
-const aiLabel=()=>selectedAI()==="groq"?"Groq · GPT-OSS 20B":"Google Gemini";
+const selectedAI=()=>["cloudflare","groq","gemini"].includes(S.aiProvider)?S.aiProvider:"cloudflare";
+const aiLabel=()=>({cloudflare:"Cloudflare Workers AI · Llama 3.3",groq:"Groq · GPT-OSS 20B",gemini:"Google Gemini"})[selectedAI()];
 
 function updateAIPicker(){
   const picker=$("#ai-provider");
@@ -2409,7 +2410,7 @@ function updateAIPicker(){
 async function setupAIPicker(){
   if(!AIWEB)return;
   $("#ai-picker").hidden=false;
-  const picker=$("#ai-provider"),groq=picker.querySelector('[value="groq"]'),status=$("#ai-provider-status");
+  const picker=$("#ai-provider"),groq=picker.querySelector('[value="groq"]'),cloudflare=picker.querySelector('[value="cloudflare"]'),status=$("#ai-provider-status");
   const help="Áp dụng cho hội thoại, sửa câu và chấm bài viết. Chấm phát âm bằng bản thu dùng Gemini.";
   updateAIPicker();
   picker.onchange=()=>{
@@ -2417,13 +2418,17 @@ async function setupAIPicker(){
     save();
     updateAIPicker();
   };
-  status.textContent="Đang kiểm tra Groq… "+help;
+  status.textContent="Đang kiểm tra trợ lý AI… "+help;
   try{
     const response=await fetch(CFG.aiUrl,{cache:"no-store",signal:AbortSignal.timeout(5000)});
     const config=await response.json();
+    if(!response.ok)throw new Error("AI status");
     groq.disabled=config.providers?.groq!==true;
-    status.textContent=(groq.disabled?"Groq chưa được cấu hình trên máy chủ. ":"")+help;
-  }catch(e){status.textContent="Chưa kiểm tra được trạng thái Groq. "+help}
+    cloudflare.disabled=config.providers?.cloudflare!==true;
+    if(selectedAI()==="cloudflare"&&cloudflare.disabled){S.aiProvider="gemini";save();}
+    updateAIPicker();
+    status.textContent=(cloudflare.disabled?"Cloudflare AI chưa được triển khai. ":"Cloudflare AI đã sẵn sàng. ")+help;
+  }catch(e){status.textContent="Chưa kiểm tra được trạng thái trợ lý AI. "+help}
 }
 async function gem(body,signal){let r;try{r=await fetch(CFG.aiUrl,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...body,provider:body.audio?"gemini":selectedAI()}),signal})}catch(e){throw{code:"network"}}
   const j=await r.json().catch(()=>({}));if(!r.ok)throw{code:j.error==="rate_limited"?"rate_limited":(j.error||"upstream")};return j}
