@@ -138,7 +138,7 @@ table{border-collapse:collapse;width:100%;background:var(--card);border-radius:1
     <div class="stats"><button type="button" id="lock-profile" hidden>Khóa hồ sơ</button><a class="mechip" href="#profile" id="me">Tạo hồ sơ</a><span class="s1">Cấp <b id="lvl">?</b></span><span class="s2">XP <b id="xp">0</b></span><span class="s3">Chuỗi <b id="streak">0</b> ngày</span></div>
   </div>
   <nav id="nav" aria-label="Các khu vực học">
-    <a href="#today">Hôm nay</a><a href="#course-path">Lộ trình</a><a href="#practice">Luyện tự chọn</a><a href="#notebook">Sổ tay</a><a href="#path">Phát âm &amp; công sở</a><a href="#review">Ôn tập<span class="dot hide" id="due"></span></a><a href="#speak">Luyện nói</a><a href="#listen">Luyện nghe</a><a href="#trans">Dịch câu</a><a href="#quiz">Bài tập</a><a href="#fix">Sửa lỗi</a><a href="#chat">Học 1-1 với AI</a>
+    <a href="#today">Hôm nay</a><a href="#course-path">Lộ trình</a><a href="#practice">Luyện tự chọn</a><a href="#notebook">Sổ tay</a><a href="#path">Phát âm &amp; công sở</a><a href="#review">Ôn tập<span class="dot hide" id="due"></span></a><a href="#speak">Luyện nói</a><a href="#listen">Luyện nghe</a><a href="#trans">Dịch câu</a><a href="#quiz">Bài tập</a><a href="#fix">Sửa lỗi</a><a href="#chat">Học 1-1 với AI</a><a href="#history">Lịch sử</a>
   </nav>
 </header>
 <div class="preference-row"><details id="voice-picker" class="voice-picker" hidden>
@@ -2203,16 +2203,120 @@ const uById=id=>UNITS.find(u=>u.id===id);
 /* ---------- hồ sơ học viên: tên + mã PIN, lưu trên máy chủ ---------- */
 const emptyProgress=()=>({xp:0,lv:0,best:{},days:{},cards:{},ph:{},done:{},phone:false,mine:[],sessions:[],hw:null});
 let S=emptyProgress(), activeLearner=null, profileWrite=Promise.resolve(), profileSaveFailed=false, profileTimer=0, profileDirty=false;
+let profilePending=0,resumeScroll=0,scrollCacheTimer=0;
+const TAB_KEY="tcv.tab.v1";
+let tabIdentity;try{tabIdentity=sessionStorage.getItem(TAB_KEY);if(!tabIdentity){tabIdentity=crypto.randomUUID();sessionStorage.setItem(TAB_KEY,tabIdentity)}}catch{tabIdentity=String(Date.now())+Math.random()}
 let profileScreenMode="open";
 let profileAccessBusy=false;
+
+
+const SESSION_KEY="tcv.session.v1", TRIAL_KEY="tcv.trial.v1";
+const cacheKey=id=>"tcv.progress.v1."+id;
+const historyKey=id=>"tcv.chat-history.v1."+id;
+function storageRead(key){try{return JSON.parse(localStorage.getItem(key)||"null")}catch{return null}}
+function storageWrite(key,value){try{localStorage.setItem(key,JSON.stringify(value));return true}catch{return false}}
+function clearSession(){try{localStorage.removeItem(SESSION_KEY)}catch{}}
+function rememberSession(learner){
+  if(learner.token&&learner.expires>Date.now())storageWrite(SESSION_KEY,{id:learner.id,token:learner.token,expires:learner.expires});
+}
+function cacheProgress(){
+  if(!activeLearner)return;
+  const ok=storageWrite(cacheKey(activeLearner.id),{id:activeLearner.id,ver:activeLearner.ver,data:S,dirty:profileDirty||profilePending>0,updated:Date.now()});
+  if(!ok){$("#save-message").textContent="Bộ nhớ thiết bị đã đầy hoặc bị chặn. Tiến độ vẫn được gửi lên máy chủ khi có mạng.";$("#save-message").hidden=false}
+}
+function profileSnapshot(){
+  const data=JSON.parse(JSON.stringify(S));
+  while(JSON.stringify(data).length>270000&&data.chat?.log?.length>2)data.chat.log.shift();
+  return data;
+}
+function persistChat(){
+  S.chat=JSON.parse(JSON.stringify(chat));
+  queueProfileSave();
+}
+function archiveChat(){
+  if(!activeLearner||!chat.log.length)return;
+  chat.id??=String(Date.now());
+  let items=storageRead(historyKey(activeLearner.id))||[];
+  const item={id:chat.id||String(Date.now()),date:Date.now(),s:chat.s,log:chat.log.slice(-200),review:chat.review||null};
+  items=[item,...items.filter(x=>x.id!==item.id)].slice(0,20);
+  while(items.length&&!storageWrite(historyKey(activeLearner.id),items))items.pop();
+}
+function viewHistory(){
+  const items=storageRead(historyKey(activeLearner.id))||[];
+  const backup=storageRead(cacheKey(activeLearner.id)+".backup");
+  const visits=[...(S.ui?.visits||[])].reverse().filter(x=>x.hash!=="#history");
+  app.innerHTML='<h2>Lịch sử học</h2><p class="lead">Tiếp tục đoạn chat hiện tại hoặc mở lại những buổi trước trên thiết bị này.</p><a class="btn pri" href="#chat">Tiếp tục hội thoại</a><h3>Hội thoại đã lưu</h3>'+
+    (items.map((x,i)=>'<section class="box"><b>'+esc(SCN[x.s]?.[0]||"Hội thoại AI")+'</b><p class="sm">'+esc(new Date(x.date).toLocaleString("vi-VN"))+' · '+x.log.length+' tin nhắn</p><p>'+esc(x.log.find(m=>m.r==="me")?.t?.slice(0,140)||x.log[0]?.t?.slice(0,140)||"")+'</p><button data-chat-history="'+i+'">Mở hội thoại</button></section>').join("")||'<p>Buổi chat sẽ được lưu khi bạn bắt đầu buổi mới hoặc kết thúc buổi học.</p>')+
+    (backup?'<section class="box"><h3>Bản nháp chưa đồng bộ</h3><p>Đã giữ bản nháp trên thiết bị khi máy khác có cập nhật mới.</p><button id="recover-draft">Dùng lại bản nháp này</button></section>':'')+'<h3>Trang đã học gần đây</h3>'+visits.slice(0,30).map(x=>'<p><a href="'+esc(x.hash)+'">'+esc(x.title||x.hash.slice(1))+'</a> <span class="sm">'+esc(new Date(x.date).toLocaleDateString("vi-VN"))+'</span></p>').join("");
+  const recover=$("#recover-draft");if(recover)recover.onclick=()=>{const learner=activeLearner;initProfile(learner,backup.data);queueProfileSave();history.replaceState(null,"",S.ui?.route||"#today");route()};
+  app.querySelectorAll("[data-chat-history]").forEach(button=>button.onclick=()=>{
+    archiveChat();const item=items[+button.dataset.chatHistory];
+    chat={id:item.id,s:item.s,log:JSON.parse(JSON.stringify(item.log)),review:item.review||null};
+    persistChat();location.hash="chat";
+  });
+}
+function rememberView(){
+  if(!activeLearner)return;
+  S.ui??={};S.ui.route=location.hash||"#today";
+  const title=app.querySelector("h2")?.textContent||S.ui.route.slice(1);
+  const visits=S.ui.visits??=[];
+  if(visits[visits.length-1]?.hash!==S.ui.route)visits.push({hash:S.ui.route,title,date:Date.now()});
+  S.ui.visits=visits.slice(-100);
+  const draft=S.ui.drafts?.[S.ui.route]||{};
+  for(const [id,value] of Object.entries(draft)){
+    const input=document.getElementById(id);
+    if(input&&app.contains(input)&&!input.value&&input.type!=="password")input.value=value;
+  }
+  queueProfileSave();
+}
+document.addEventListener("input",event=>{
+  const input=event.target;
+  if(!activeLearner||!app.contains(input)||!input.id||!["INPUT","TEXTAREA"].includes(input.tagName)||["password","file","hidden","checkbox","radio"].includes(input.type))return;
+  S.ui??={};S.ui.drafts??={};
+  (S.ui.drafts[location.hash||"#today"]??={})[input.id]=input.value;
+  queueProfileSave();
+});
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden"){if(activeLearner){cacheProgress();flushProfile(true)}}});
+window.addEventListener("scroll",()=>{if(!activeLearner)return;clearTimeout(scrollCacheTimer);scrollCacheTimer=setTimeout(()=>{S.ui??={};S.ui.scroll={route:location.hash||"#today",y:window.scrollY};cacheProgress()},150)},{passive:true});
+window.addEventListener("pagehide",()=>{if(activeLearner){S.ui??={};S.ui.scroll={route:location.hash||"#today",y:window.scrollY};cacheProgress();flushProfile(true)}});
+async function restoreSession(){
+  const session=storageRead(SESSION_KEY);
+  if(!session||!session.token||session.expires<=Date.now()){clearSession();route();return}
+  document.body.classList.add("profile-locked");
+  app.innerHTML='<section class="box"><p role="status">Đang khôi phục buổi học…</p></section>';
+  const cached=storageRead(cacheKey(session.id));
+  try{
+    const result=await profileCall("resume",{id:session.id,token:session.token});
+    const ownPending=cached?.dirty&&cached.data?._sync?.client===result.data?._sync?.client&&cached.data?._sync?.revision>=result.data?._sync?.revision;
+    const local=cached?.id===session.id&&(cached.ver===result.ver||ownPending);
+    const progress=local?cached.data:result.data;
+    if(cached?.dirty&&!local)storageWrite(cacheKey(session.id)+".backup",cached);
+    if(!location.hash&&progress.ui?.route)history.replaceState(null,"",progress.ui.route);
+    initProfile({...session,ver:result.ver},progress);
+    if(local&&cached.dirty){profileDirty=true;flushProfile()}
+    if(cached?.dirty&&!local){
+      $("#save-message").textContent="Máy khác có tiến độ mới hơn. Bản nháp chưa đồng bộ trên thiết bị này đã được giữ riêng để tránh ghi đè.";
+      $("#save-message").hidden=false;
+    }
+  }catch(e){
+    if(["network","profile_unavailable","server"].includes(e.message)&&cached?.data){
+      if(!location.hash&&cached.data.ui?.route)history.replaceState(null,"",cached.data.ui.route);
+      initProfile({...session,ver:cached.ver},cached.data);
+      profileDirty=!!cached.dirty;cacheProgress();
+      $("#save-message").textContent="Đang học từ bản lưu trên thiết bị. Khi có mạng, web sẽ đồng bộ lại.";$("#save-message").hidden=false;
+    }else{clearSession();route();const message=$("#profile-message");if(message)message.textContent="Phiên đã hết hạn. Mở hồ sơ một lần để tiếp tục; bản nháp vẫn được giữ trên thiết bị."}
+  }
+}
+window.addEventListener("online",()=>{if(activeLearner)flushProfile()});
 
 function readLegacyProgress(){
   try{return JSON.parse(localStorage.getItem("ot2")||"null")}catch(e){return null}
 }
 
 async function profileCall(action,body,keepalive=false){
+  if(activeLearner?.token&&body.id===activeLearner.id&&!["open","create","reset"].includes(action)){body={...body,token:activeLearner.token};delete body.pin}
   let res;
-  try{res=await fetch(CFG.aiUrl+"profile/"+action,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body),keepalive})}
+  try{res=await fetch(CFG.aiUrl+"profile/"+action,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body),keepalive,...(keepalive?{}:{signal:AbortSignal.timeout(8000)})})}
   catch(e){const err=new Error("network");throw err}
   const out=await res.json().catch(()=>({}));
   if(!res.ok){const err=new Error(out.error||"server");err.info=out;throw err}
@@ -2222,6 +2326,11 @@ async function profileCall(action,body,keepalive=false){
 function initProfile(learner,progress){
   activeLearner=learner;
   S=Object.assign(emptyProgress(),progress);
+  resumeScroll=S.ui?.scroll?.route===(location.hash||"#today")?Number(S.ui.scroll.y)||0:0;
+  chat=S.chat&&Array.isArray(S.chat.log)?JSON.parse(JSON.stringify(S.chat)):{s:-1,log:[]};
+  if(S.ui?.speaking?.list?.length){curList=S.ui.speaking.list;cur=S.ui.speaking.index||0}
+  if(learner.token){delete learner.pin;rememberSession(learner)}
+  cacheProgress();
   document.body.classList.remove("profile-locked");
   $("#lock-profile").hidden=false;
   $("#save-message").hidden=true;
@@ -2237,22 +2346,28 @@ function flushProfile(keepalive=false){
   if(!activeLearner||!profileDirty)return profileWrite;
   const learner=activeLearner;
   profileDirty=false;
-  const snapshot=JSON.parse(JSON.stringify(S));
+  const snapshot=profileSnapshot();
+  profilePending++;
+  cacheProgress();
   profileWrite=profileWrite.then(async()=>{
-    if(activeLearner!==learner)return;
+    if(activeLearner!==learner){profilePending--;return}
     try{
       const r=await profileCall("save",{id:learner.id,pin:learner.pin,ver:learner.ver,data:snapshot},keepalive);
       learner.ver=r.ver;
+      profilePending--;
+      cacheProgress();
       profileSaveFailed=false;
       $("#save-message").hidden=true;
     }catch(e){
+      profilePending--;
       profileSaveFailed=true;
       const conflict=e.message==="conflict";
       $("#save-message").textContent=conflict?
         "Hồ sơ vừa được cập nhật ở máy hoặc tab khác. Khóa hồ sơ rồi mở lại để lấy dữ liệu mới nhất.":
         "Chưa lưu được tiến độ lên máy chủ. Web sẽ tự thử lại, bạn kiểm tra mạng giúp nhé.";
       $("#save-message").hidden=false;
-      if(!conflict){profileDirty=true;profileTimer=setTimeout(()=>flushProfile(),8000)}
+      profileDirty=true;cacheProgress();
+      if(!conflict)profileTimer=setTimeout(()=>flushProfile(),8000)
     }
   });
   return profileWrite;
@@ -2261,6 +2376,8 @@ function flushProfile(keepalive=false){
 function queueProfileSave(){
   if(!activeLearner)return;
   profileDirty=true;
+  S._sync={client:tabIdentity,revision:(S._sync?.client===tabIdentity?S._sync.revision:0)+1};
+  cacheProgress();
   clearTimeout(profileTimer);
   profileTimer=setTimeout(()=>flushProfile(),1200);
 }
@@ -2309,20 +2426,26 @@ function vAccess(){
     $("#profile-enter").disabled=true;
     message.textContent=creating?"Đang tạo hồ sơ…":"Đang mở hồ sơ…";
     try{
-      let progress,ver;
+      let progress,ver,session;
       if(creating){
         progress=claim?Object.assign(emptyProgress(),readLegacyProgress()):emptyProgress();
         if(course.hasTrial())progress.courseV1=course.db();
         const r=await profileCall("create",{id,pin,data:progress});
-        ver=r.ver;
+        ver=r.ver;session=r.session;
         if(claim)localStorage.removeItem("ot2");
         if(!progress.prof)history.replaceState(null,"","#start");
       }else{
         const r=await profileCall("open",{id,pin});
-        progress=r.data;ver=r.ver;
+        progress=r.data;ver=r.ver;session=r.session;
+        const cached=storageRead(cacheKey(id));
+        if(cached?.ver===ver&&cached?.data)progress=cached.data;
+        else if(cached?.dirty)storageWrite(cacheKey(id)+".backup",cached);
       }
       pinInput.value="";
-      initProfile({id,pin,ver},progress);
+      if(!location.hash||location.hash==="#access"){if(progress.ui?.route)history.replaceState(null,"",progress.ui.route)}
+      const cachedDirty=storageRead(cacheKey(id))?.dirty;
+      initProfile({id,pin,ver,token:session?.token,expires:session?.expires},progress);
+      if(cachedDirty){profileDirty=true;flushProfile()}
     }catch(e){
       message.textContent=accessError(e,creating);
     }finally{
@@ -2354,6 +2477,11 @@ async function lockProfile(){
     const proceed=window.confirm("Thay đổi gần nhất chưa lưu được. Bạn vẫn muốn khóa hồ sơ?");
     if(!proceed){button.disabled=false;return}
   }
+  cacheProgress();
+  const learner=activeLearner;
+  clearSession();
+  try{await profileCall("close",{id:learner.id,token:learner.token,pin:learner.pin})}catch{}
+  activeLearner=null;profileDirty=false;clearTimeout(profileTimer);
   location.reload();
 }
 
@@ -3133,6 +3261,8 @@ function pairQuiz(el,pairs){let n=0,ok=0,cur=null;
 
 /* ---------- màn hình: luyện nói ---------- */
 function vSpeak(){
+  S.ui??={};
+  S.ui.speaking={list:curList,index:cur};queueProfileSave();
   const it=curList[cur]||SENT[0];const u=it.uid&&uById(it.uid);const b=S.best[it.en];
   app.innerHTML=`<div class="row between"><span class="sm">${u?esc(u.t)+" · ":""}câu ${cur+1}/${curList.length}</span><span class="sm">Cao nhất: <b>${b??"chưa có"}</b></span></div>
   <div id="sc" style="margin-top:10px"></div>
@@ -3167,7 +3297,7 @@ function vReview(){
 /* ---------- màn hình: luyện nghe ---------- */
 /* ---------- màn hình: dịch Việt sang Anh ---------- */
 function vTrans(){
-  const pool=SENT.filter(s=>!S.lv||uById(s.uid).lv<=S.lv+1);const it=pool[Math.floor(Math.random()*pool.length)];
+  const pool=SENT.filter(s=>!S.lv||uById(s.uid).lv<=S.lv+1);S.ui??={};const it=pool.find(s=>s.en===S.ui.transSentence)||pool[Math.floor(Math.random()*pool.length)];S.ui.transSentence=it.en;queueProfileSave();
   const words=it.en.split(/\s+/);
   app.innerHTML=`<h2>Dịch câu</h2><p class="lead">Đọc câu tiếng Việt rồi tự viết lại bằng tiếng Anh. Tự nghĩ ra câu là cách nhớ lâu nhất, khó hơn trắc nghiệm nhưng hiệu quả hơn nhiều.</p>
   <div class="card" style="text-align:left"><div class="sm">${esc(uById(it.uid).t)}</div><div class="target" style="font-size:clamp(20px,3vw,26px);text-align:left">${esc(it.vi)}</div>
@@ -3175,7 +3305,8 @@ function vTrans(){
   <div class="row" style="margin-top:10px"><button class="pri" id="tc">Kiểm tra</button><button id="th">Gợi ý</button><button id="ts">Xem đáp án</button>${canRec()&&!phoneMode()?`<button id="tm">${I.mic} Nói thay vì gõ</button>`:""}</div>
   <div id="thint" class="note"></div><div id="tout"></div></div>
   <div class="row" style="justify-content:flex-end;margin-top:14px"><button class="pri" id="tn">Câu khác →</button></div>`;
-  $("#tn").onclick=vTrans;let hint=0;
+  $("#ta").value=S.ui?.drafts?.["#trans"]?.ta||"";
+  $("#tn").onclick=()=>{delete S.ui.transSentence;if(S.ui.drafts?.["#trans"])S.ui.drafts["#trans"].ta="";vTrans()};let hint=0;
   $("#th").onclick=()=>{hint++;$("#thint").textContent=hint===1?`Câu mẫu có ${words.length} từ, bắt đầu bằng: ${words[0]}`:"Gợi ý: "+words.slice(0,Math.ceil(words.length/2)).join(" ")+" …"};
   const showRef=(extra="")=>`<div class="box"><b>Câu mẫu:</b> ${esc(it.en)} <button class="ico" data-say="${esc(it.en)}" aria-label="Nghe">${I.spk}</button><div class="sm">${esc(ipaText(it.en))}</div>${extra}<div class="row" style="margin-top:10px"><button class="sec" id="tp">Luyện nói câu này</button></div></div>`;
   const wire=()=>{$("#tout").querySelectorAll("[data-say]").forEach(b=>b.onclick=()=>say(b.dataset.say));const tp=$("#tp");if(tp)tp.onclick=()=>{curList=[{en:it.en,vi:it.vi}];cur=0;location.hash="speak"}};
@@ -3193,14 +3324,15 @@ function vTrans(){
   $("#ta").focus()}
 
 function vListen(mode){
-  mode=mode||"type";const pool=SENT.filter(s=>!S.lv||uById(s.uid).lv<=S.lv+1);const it=pool[Math.floor(Math.random()*pool.length)];
+  S.ui??={};mode=mode||S.ui.listenMode||"type";S.ui.listenMode=mode;const pool=SENT.filter(s=>!S.lv||uById(s.uid).lv<=S.lv+1);const it=pool.find(s=>s.en===S.ui.listenSentence)||pool[Math.floor(Math.random()*pool.length)];S.ui.listenSentence=it.en;queueProfileSave();
   app.innerHTML=`<h2>Luyện nghe</h2><p class="lead">Nghe câu văn phòng thật rồi chép lại, hoặc chọn nghĩa đúng.</p>
   <div class="row"><button id="m1" class="${mode==="type"?"sec":""}">Nghe và chép</button><button id="m2" class="${mode==="mc"?"sec":""}">Nghe và chọn nghĩa</button></div>
   <div class="card" style="margin-top:14px"><div class="row center"><button class="pri" id="pl">${I.spk} Nghe</button><button id="pls">${I.slow} Nghe chậm</button></div><div id="lz" style="text-align:left;margin-top:16px"></div></div>
   <div class="row" style="justify-content:flex-end;margin-top:14px"><button id="nx" class="pri">Câu khác →</button></div>`;
-  $("#pl").onclick=()=>say(it.en);$("#pls").onclick=()=>say(it.en,.72);$("#m1").onclick=()=>vListen("type");$("#m2").onclick=()=>vListen("mc");$("#nx").onclick=()=>vListen(mode);
+  $("#pl").onclick=()=>say(it.en);$("#pls").onclick=()=>say(it.en,.72);$("#m1").onclick=()=>vListen("type");$("#m2").onclick=()=>vListen("mc");$("#nx").onclick=()=>{delete S.ui.listenSentence;if(S.ui.drafts?.["#listen"])S.ui.drafts["#listen"].ty="";vListen(mode)};
   const z=$("#lz");
   if(mode==="type"){z.innerHTML=`<input type="text" id="ty" placeholder="Gõ lại câu bạn nghe được" autocomplete="off" autocapitalize="off"><div class="row" style="margin-top:10px"><button class="sec" id="ck">Kiểm tra</button><button id="sh">Xem đáp án</button></div><div id="out"></div>`;
+    $("#ty").value=S.ui?.drafts?.["#listen"]?.ty||"";
     const ck=()=>{const R=finishWords(it.en,$("#ty").value);$("#out").innerHTML=`<div class="box"><div class="score small ${cls(R.sc)}" style="--p:${R.sc}">${R.sc}</div><div class="target" style="font-size:22px">${R.words.map(w=>`<span class="${cls(w.sc)}">${esc(w.w)}</span>`).join(" ")}</div><div class="sm">${esc(it.vi)}</div></div>`;if(R.sc>=80)gain(3)};
     $("#ck").onclick=ck;$("#ty").onkeydown=e=>{if(e.key==="Enter")ck()};$("#sh").onclick=()=>{$("#out").innerHTML=`<div class="box"><b>${esc(it.en)}</b><div class="ipa">${esc(ipaText(it.en))}</div><div class="sm">${esc(it.vi)}</div></div>`}}
   else{const opts=[it];while(opts.length<4){const r=pool[Math.floor(Math.random()*pool.length)];if(!opts.includes(r))opts.push(r)}opts.sort(()=>Math.random()-.5);
@@ -3208,18 +3340,46 @@ function vListen(mode){
     z.querySelectorAll(".opt").forEach(b=>b.onclick=()=>{const ok=opts[+b.dataset.i]===it;z.querySelectorAll(".opt").forEach((x,i)=>{x.disabled=true;if(opts[i]===it)x.classList.add("right")});if(!ok)b.classList.add("wrong");else gain(3);$("#out").innerHTML=`Câu gốc: <b>${esc(it.en)}</b>`})}}
 
 /* ---------- bài tập ---------- */
-function quizBlock(el,items,big){let i=0,right=0;
-  const draw=()=>{if(i>=items.length){el.innerHTML=`<div class="box"><b>Hoàn thành: ${right}/${items.length} câu đúng.</b><div class="row" style="margin-top:10px"><button id="rq">Làm lại</button></div></div>`;el.querySelector("#rq").onclick=()=>{i=0;right=0;if(big)items.sort(()=>Math.random()-.5);draw()};return}
-    const{q,u}=items[i];
-    el.innerHTML=`<div class="box"><div class="sm">${big?esc(u.t)+" · ":""}Câu ${i+1}/${items.length}</div><p style="font-weight:600;font-size:18px;margin:8px 0">${esc(q[0])}</p>${q[1].map((o,k)=>`<button class="opt" data-k="${k}">${esc(o)}</button>`).join("")}<div class="note" id="ex"></div><div class="row hide" id="nxr" style="margin-top:10px"><button class="pri" id="nq">Tiếp →</button></div></div>`;
-    el.querySelectorAll(".opt").forEach(b=>b.onclick=()=>{const k=+b.dataset.k,ok=k===q[2];el.querySelectorAll(".opt").forEach((x,j)=>{x.disabled=true;if(j===q[2])x.classList.add("right")});if(!ok)b.classList.add("wrong");else{right++;gain(5)}
-      el.querySelector("#ex").textContent=(ok?"Đúng. ":"Chưa đúng. ")+q[3];el.querySelector("#nxr").classList.remove("hide");el.querySelector("#nq").onclick=()=>{i++;draw()}})};
-  draw()}
+
+function quizBlock(el,items,big){
+  S.quizV1??={};
+  const key=big?"quiz:"+(S.ui?.quizFilter||"all"):"unit:"+items[0]?.u.id;
+  const previous=S.quizV1[key];
+  const lookup=new Map(items.map(x=>[x.u.id+":"+x.u.q.indexOf(x.q),x]));
+  const ids=items.map(x=>x.u.id+":"+x.u.q.indexOf(x.q));
+  if(previous?.order?.length===items.length&&previous.order.every(id=>lookup.has(id)))items=previous.order.map(id=>lookup.get(id));
+  const state=S.quizV1[key]??={i:0,right:0,answer:null,order:ids};
+  function draw(){
+    queueProfileSave();
+    if(state.i>=items.length){
+      el.innerHTML='<div class="box"><b>Hoàn thành: '+state.right+'/'+items.length+' câu đúng.</b><div class="row" style="margin-top:10px"><button id="rq">Làm lại</button></div></div>';
+      el.querySelector("#rq").onclick=()=>{state.i=0;state.right=0;state.answer=null;if(big)items.sort(()=>Math.random()-.5);state.order=items.map(x=>x.u.id+":"+x.u.q.indexOf(x.q));draw()};return;
+    }
+    const {q,u}=items[state.i];
+    el.innerHTML='<div class="box"><div class="sm">'+(big?esc(u.t)+" · ":"")+'Câu '+(state.i+1)+'/'+items.length+'</div><p style="font-weight:600;font-size:18px;margin:8px 0">'+esc(q[0])+'</p>'+q[1].map((o,k)=>'<button class="opt" data-k="'+k+'">'+esc(o)+'</button>').join("")+'<div class="note" id="ex"></div><div class="row hide" id="nxr" style="margin-top:10px"><button class="pri" id="nq">Tiếp →</button></div></div>';
+    const showAnswer=()=>{
+      el.querySelectorAll(".opt").forEach((x,j)=>{x.disabled=true;if(j===q[2])x.classList.add("right");if(j===state.answer&&j!==q[2])x.classList.add("wrong")});
+      el.querySelector("#ex").textContent=(state.answer===q[2]?"Đúng. ":"Chưa đúng. ")+q[3];
+      el.querySelector("#nxr").classList.remove("hide");
+    };
+    el.querySelectorAll(".opt").forEach(button=>button.onclick=()=>{
+      if(state.answer!==null)return;
+      state.answer=+button.dataset.k;
+      if(state.answer===q[2]){state.right++;gain(5)}
+      showAnswer();queueProfileSave();
+    });
+    el.querySelector("#nq").onclick=()=>{state.i++;state.answer=null;draw()};
+    if(state.answer!==null)showAnswer();
+  }
+  draw();
+}
 function vQuiz(){
-  const os=UNITS.filter(u=>u.q);
-  app.innerHTML=`<h2>Bài tập tổng hợp</h2><p class="lead">Ngữ pháp và cách diễn đạt văn phòng, xáo trộn ngẫu nhiên.</p><select id="qs"><option value="">Tất cả các bài</option>${[1,2,3].map(l=>`<option value="lv${l}">Cấp ${LV[l]}</option>`).join("")}${os.map(u=>`<option value="${u.id}">${esc(u.t)}</option>`).join("")}</select><div id="qz" style="margin-top:12px"></div>`;
-  const run=()=>{const v=$("#qs").value;const it=[];os.forEach(u=>{if(!v||v===u.id||v==="lv"+u.lv)u.q.forEach(q=>it.push({q,u}))});it.sort(()=>Math.random()-.5);quizBlock($("#qz"),it,true)};
-  $("#qs").onchange=run;run()}
+  const os=UNITS.filter(u=>u.q);S.ui??={};
+  app.innerHTML='<h2>Bài tập tổng hợp</h2><p class="lead">Ngữ pháp và cách diễn đạt văn phòng. Bài đang làm được lưu để học tiếp sau khi tải lại trang.</p><select id="qs"><option value="">Tất cả các bài</option>'+[1,2,3].map(l=>'<option value="lv'+l+'">Cấp '+LV[l]+'</option>').join("")+os.map(u=>'<option value="'+u.id+'">'+esc(u.t)+'</option>').join("")+'</select><div id="qz" style="margin-top:12px"></div>';
+  $("#qs").value=S.ui.quizFilter||"";
+  const run=()=>{const v=$("#qs").value;S.ui.quizFilter=v;const items=[];os.forEach(u=>{if(!v||v===u.id||v==="lv"+u.lv)u.q.forEach(q=>items.push({q,u}))});items.sort(()=>Math.random()-.5);quizBlock($("#qz"),items,true)};
+  $("#qs").onchange=run;run();
+}
 
 /* ---------- AI: sửa lỗi và hội thoại ---------- */
 async function askJSON(prompt){if(!ai)throw{message:"no_ai"};
@@ -3230,6 +3390,7 @@ function vFix(){
   app.innerHTML=`<h2>Sửa lỗi câu</h2><p class="lead">Gõ hoặc nói một câu, email, tin nhắn công việc. AI chỉ lỗi sai, giải thích bằng tiếng Việt và gợi ý cách nói tự nhiên kiểu văn phòng.</p>
   ${ai?"":noAI()}<textarea id="tx" placeholder="Ví dụ: I want to discuss with you about the project timeline tomorrow"></textarea>
   <div class="row" style="margin-top:10px"><button class="pri" id="go" ${ai?"":"disabled"}>Sửa lỗi</button>${canRec()&&!phoneMode()?`<button id="vm">${I.mic} Nói thay vì gõ</button>`:""}</div><div id="out"></div>`;
+  $("#tx").value=S.ui?.drafts?.["#fix"]?.tx||"";
   const vm=$("#vm");if(vm)vm.onclick=()=>{if(rec.on){stopRec();return}vm.classList.add("sec");const base=$("#tx").value;startRec(t=>$("#tx").value=(base+" "+t).trim(),r=>{vm.classList.remove("sec");if(r.text)$("#tx").value=(base+" "+r.text).trim()})};
   $("#go").onclick=async()=>{const t=$("#tx").value.trim();if(!t)return;const o=$("#out"),b=$("#go");b.disabled=true;o.innerHTML='<div class="box">Đang kiểm tra…</div>';
     try{const r=await askJSON(`Bạn là giáo viên tiếng Anh giao tiếp văn phòng cho người Việt. Người học làm công việc: ${roleText()||"nhân viên văn phòng"}. Kiểm tra đoạn sau của người học:\n"""${t}"""\nTrả về DUY NHẤT một JSON: {"score":số 0-100 cho độ chính xác,"corrected":"bản sửa đúng ngữ pháp, giữ nguyên ý","natural":"bản diễn đạt tự nhiên, chuyên nghiệp như người bản xứ ở văn phòng","errors":[{"wrong":"cụm sai","right":"cụm đúng","why":"giải thích ngắn bằng tiếng Việt"}]}. Không có lỗi thì errors là mảng rỗng.`);
@@ -3349,7 +3510,7 @@ function vChat(){
     working=true;
     controls();
     prepareVoiceContext();
-    if(u)chat.log.push({r:"me",t:u});
+    if(u){chat.log.push({r:"me",t:u});persistChat()}
     draw();
     status.textContent=blob?"Giáo viên AI đang nghe bạn nói…":"AI đang chuẩn bị trả lời…";
     const history=chat.log.slice(-16).map(m=>(m.r==="ai"?"AI: ":"Learner: ")+m.t).join("\n");
@@ -3380,6 +3541,7 @@ function vChat(){
       if((u||blob)&&last?.r==="me"&&r.fix){last.fix=r.fix;last.note=r.note}
       if(typeof r.reply!=="string"||!r.reply.trim())throw new Error("Empty chat reply");
       chat.log.push({r:"ai",t:r.reply});
+      persistChat();
       draw();
       status.textContent="";
       say(r.reply);
@@ -3411,6 +3573,7 @@ function vChat(){
       S.sessions=[rev,...(S.sessions||[])].slice(0,30);
       S.hw={given:today(),items:(Array.isArray(r.homework)?r.homework:[]).slice(0,3).map(h=>({type:HWT[h&&h.type]?h.type:"speaking",task:String(h&&h.task||""),en:String(h&&h.en||""),done:false})).filter(h=>h.task)};
       gain(10);save();
+      chat.review=rev;persistChat();archiveChat();
       rv.innerHTML=reviewHTML(rev);
       drawHw($("#hw"));
       status.textContent="";
@@ -3426,6 +3589,7 @@ function vChat(){
     const value=input.value.trim();
     if(!value||sendButton.disabled)return;
     input.value="";
+    if(S.ui?.drafts?.["#chat"])S.ui.drafts["#chat"].ci="";
     turn(value);
   }
   function finishMic(session,message,text){
@@ -3481,9 +3645,11 @@ function vChat(){
   }
   sendButton.onclick=send;
   input.onkeydown=e=>{if(e.key==="Enter"&&!e.isComposing)send()};
-  scenario.onchange=()=>{chat={s:+scenario.value,log:[]};status.textContent="";rv.innerHTML="";draw();controls()};
-  start.onclick=()=>{chat={s:chat.s,log:[]};rv.innerHTML="";start.textContent="Bắt đầu lại";turn()};
+  input.value=S.ui?.drafts?.["#chat"]?.ci||"";
+  scenario.onchange=()=>{archiveChat();chat={id:String(Date.now()),s:+scenario.value,log:[]};persistChat();status.textContent="";rv.innerHTML="";draw();controls()};
+  start.onclick=()=>{archiveChat();chat={id:String(Date.now()),s:chat.s,log:[]};persistChat();rv.innerHTML="";start.textContent="Bắt đầu lại";turn()};
   endBtn.onclick=endSession;
+  if(chat.review)rv.innerHTML=reviewHTML(chat.review);
   drawHw($("#hw"));
   if(cm)cm.onclick=useMic;
   draw();
@@ -3496,12 +3662,12 @@ function createCourse(rows){
   const levels=[...new Set(lessons.map(l=>l.level))];
   const gaps=Object.fromEntries(lessons.map((l,i)=>[l.id,[["___, please.",["water"],"Xin nước uống."],["Good ___, Sam.",["morning"],"Chào Sam vào buổi sáng."],["___ I have the soup, please?",["can","could","may"],"Dùng một động từ để đưa ra lời yêu cầu lịch sự."],["What ___ does it leave?",["time"],"Hỏi giờ khởi hành."],["A table ___ two, please.",["for"],"Cho biết số người."],["Could we move it ___ Friday?",["to"],"Đổi lịch sang thứ Sáu."],["I ___ tomato soup, but this is mushroom soup.",["ordered","requested"],"Dùng động từ quá khứ."],["The refund is still ___.",["pending","outstanding"],"Khoản hoàn tiền vẫn chờ xử lý."],["Would you be ___ to offer a refund?",["willing","able","prepared"],"Hỏi về khả năng hoặc thiện chí giải quyết."],["Among ___ who responded, most agreed.",["those","people","respondents","participants"],"Chỉ nhóm đã phản hồi."],["We would appreciate ___ on this charge.",["clarification","information","details"],"Yêu cầu giải thích về khoản phí."],["The findings are consistent ___ our hypothesis.",["with"],"Giới từ đi sau consistent."],["The soup was memorable only ___ its bowl.",["for"],"Vì chiếc bát, chứ không phải hương vị."],["Were it not ___ the cost, the plan might succeed.",["for"],"Hoàn thành cấu trúc giả định."]][i]]));
   const goals=["Giao tiếp","Du lịch","Công việc","Học thuật"];
-  const guest={};
+  const guest=storageRead(TRIAL_KEY)||{};
   const db=()=>{
     const owner=activeLearner?S:guest;
     return owner.courseV1??={level:"",goal:goals[0],minutes:10,current:"",work:{},notes:{},errors:{}};
   };
-  const write=()=>{if(activeLearner)save()};
+  const write=()=>{if(activeLearner)save();else storageWrite(TRIAL_KEY,guest)};
   const go=hash=>{if(location.hash==="#"+hash)route();else location.hash=hash};
   const unit=id=>lessons.find(l=>l.id===id);
   const url=l=>"#lesson-"+l.id;
@@ -3962,14 +4128,17 @@ function route(){
   document.querySelectorAll("#nav a").forEach(a=>{const t=a.getAttribute("href").slice(1);a.classList.toggle("on",t===h||(t==="course-path"&&h.startsWith("lesson-"))||(t==="path"&&/^[po]\d+$/.test(h))||(t==="today"&&(h==="test"||h==="profile")))});
   cancelChatMic();if(rec.on)stopRec();stopAudio();
   const u=uById(h);
-  if(course.render(h)){window.scrollTo(0,0);return}
-  if(u)vUnit(u);else if(h==="path")vPath();else if(h==="assessment")vAssessment();else if(h==="test")vTest();else if(h==="profile")vProfile();else if(h==="speak")vSpeak();else if(h==="review")vReview();else if(h==="listen")vListen();else if(h==="trans")vTrans();else if(h==="quiz")vQuiz();else if(h==="fix")vFix();else if(h==="chat")vChat();else vToday();
-  window.scrollTo(0,0)}
+  if(course.render(h)){rememberView();window.scrollTo(0,resumeScroll);resumeScroll=0;return}
+  if(u)vUnit(u);else if(h==="path")vPath();else if(h==="assessment")vAssessment();else if(h==="test")vTest();else if(h==="profile")vProfile();else if(h==="speak")vSpeak();else if(h==="review")vReview();else if(h==="listen")vListen();else if(h==="trans")vTrans();else if(h==="quiz")vQuiz();else if(h==="fix")vFix();else if(h==="chat")vChat();else if(h==="history")viewHistory();else vToday();
+  rememberView();
+  window.scrollTo(0,resumeScroll);resumeScroll=0;}
 window.addEventListener("hashchange",route);
-window.addEventListener("pageshow",event=>{if(event.persisted&&activeLearner)location.reload()});
+window.addEventListener("pageshow",event=>{if(event.persisted&&!activeLearner)restoreSession()});
+window.addEventListener("storage",event=>{if(event.key===SESSION_KEY&&!event.newValue&&activeLearner){activeLearner=null;profileDirty=false;clearTimeout(profileTimer);location.reload()}});
 window.__ot={finishPhones,splitPh,refOf,loadModel,recognize,toPCM};
 $("#lock-profile").onclick=lockProfile;
-route();
+restoreSession();
+if("serviceWorker" in navigator&&location.protocol==="https:")navigator.serviceWorker.register("/sw.js").catch(()=>{});
 }
 </script>
 </body>
