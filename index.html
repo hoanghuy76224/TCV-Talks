@@ -4338,14 +4338,14 @@ function vChat(){
       });
       const r=await Promise.race([reply,deadline]);
       if(!app.contains(cl))return true;
+      if(typeof r.reply!=="string"||!r.reply.trim())throw new Error("Empty chat reply");
       if(blob){
         const heard=typeof r.heard==="string"?r.heard.trim():"";
-        if(!heard){status.textContent="Chưa nghe rõ, bạn nói lại gần mic hơn nhé.";return true}
+        if(!heard)throw new Error("Empty audio transcript");
         chat.log.push({r:"me",t:heard,aud:true,pron:String(r.pron||"")});
       }
       const last=chat.log[chat.log.length-1];
       if((u||blob)&&last?.r==="me"){Object.assign(last,groundedFeedback(r,last.t));if(r.fix){last.fix=String(r.fix);last.note=String(r.note||"")}}
-      if(typeof r.reply!=="string"||!r.reply.trim())throw new Error("Empty chat reply");
       chat.log.push({r:"ai",t:r.reply});
       persistChat();
       draw();
@@ -4434,16 +4434,14 @@ function vChat(){
         chatMicSession=null;recorder=null;
         controls();
         const sent=await turn(null,blob);
-        if(sent||!app.contains(cl))return;
-        const fb=new AbortController();
+        if(sent||session.signal.aborted||!app.contains(cl)||chatMicSession)return;
+        chatMicSession=session;
         status.textContent="Đang chuyển lời nói thành chữ…";
-        try{
-          const text=await transcriptFromAudio(blob,fb.signal);
-          if(text)input.value=text;
-          status.textContent=text?"Sửa lại câu nếu cần, rồi bấm Gửi.":"Chưa nghe rõ. Nói lại gần mic hơn nhé.";
-          if(text)input.focus();
-        }catch(e){status.textContent="Chưa nhận dạng được lời nói. Bạn có thể thử lại hoặc gõ câu trả lời."}
         controls();
+        try{
+          const text=await transcriptFromAudio(blob,session.signal);
+          finishMic(session,text?"Sửa lại câu nếu cần, rồi bấm Gửi.":"Chưa nghe rõ. Nói lại gần mic hơn nhé.",text);
+        }catch{finishMic(session,"Chưa nhận dạng được lời nói. Bạn có thể thử lại hoặc gõ câu trả lời.")}
       },session.signal);
       if(session.signal.aborted)return;
       status.textContent="Đang ghi âm. Bấm Dừng ghi khi nói xong.";

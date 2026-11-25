@@ -450,6 +450,20 @@ async function synthesizeGemini(env, text, speaker) {
   return null;
 }
 
+function groqTranscription(env, wav, signal) {
+  const form = new FormData();
+  form.set("file", new Blob([wav], { type: "audio/wav" }), "speech.wav");
+  form.set("model", "whisper-large-v3-turbo");
+  form.set("language", "en");
+  form.set("temperature", "0");
+  return fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + env.GROQ_API_KEY },
+    body: form,
+    signal
+  });
+}
+
 async function synthesizeGroqPassage(env, text, speaker) {
   if (!env.GROQ_API_KEY || text.length <= GROQ_TTS_LIMIT) return null;
   const signal = AbortSignal.timeout(27000);
@@ -464,17 +478,7 @@ async function synthesizeGroqPassage(env, text, speaker) {
     });
     if (!clips) return null;
     const body = pcmToWav(joinVoicePcm(clips));
-    const form = new FormData();
-    form.set("file", new Blob([body], { type: "audio/wav" }), "teacher.wav");
-    form.set("model", "whisper-large-v3-turbo");
-    form.set("language", "en");
-    form.set("temperature", "0");
-    const response = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-      method: "POST",
-      headers: { Authorization: "Bearer " + env.GROQ_API_KEY },
-      body: form,
-      signal
-    });
+    const response = await groqTranscription(env,body,signal);
     if (!response.ok) {
       await rememberUsage(env, "groq_tts", { snapshot: { error: response.status, at: Date.now() } });
       return null;
@@ -660,7 +664,7 @@ async function synthesize(req, env, headers, ctx) {
 
 async function transcribe(req, env, headers) {
   if (req.method !== "POST") return out({ error: "method" }, 405, headers);
-  if (!env.AI) return out({ error: "transcription_unavailable" }, 503, headers);
+  if (!env.AI && !(env.GROQ_API_KEY&&env.GROQ_RATE_LIMIT)) return out({ error: "transcription_unavailable" }, 503, headers);
   const limit = 650000;
   if (!req.body || +(req.headers.get("Content-Length") || 0) > limit) {
     return out({ error: "invalid_audio_size" }, 400, headers);
@@ -691,16 +695,44 @@ async function transcribe(req, env, headers) {
     return out({ error: "invalid_audio" }, 400, headers);
   }
 
+  let wav;
   try {
-    const result = await env.AI.run("@cf/openai/whisper-large-v3-turbo", {
-      audio, language: "en", task: "transcribe", vad_filter: true
-    });
-    await rememberUsage(env,"cloudflare_stt",{success:true});
-    return out({ text: result.text?.trim() || "" }, 200, { ...headers, "Cache-Control": "no-store" });
-  } catch (e) {
-    await rememberCloudflareError(env,e);
-    return out({ error: "transcription_unavailable" }, 503, headers);
+    wav=base64ToBytes(audio);
+    const format=readVoiceWave(wav);
+    if(!format?.length)throw Error("Missing audio");
+  }catch{
+    return out({error:"invalid_audio"},400,headers);
   }
+  const noCache={...headers,"Cache-Control":"no-store"};
+  let rateLimited=false;
+  if(env.GROQ_API_KEY&&env.GROQ_RATE_LIMIT){
+    try{
+      const client=req.headers.get("CF-Connecting-IP")||"unknown";
+      const {success}=await env.GROQ_RATE_LIMIT.limit({key:"stt:"+client});
+      if(!success)return out({error:"rate_limited"},429,noCache);
+      const response=await groqTranscription(env,wav,AbortSignal.timeout(9000));
+      rateLimited=response.status===429;
+      if(response.ok){
+        const result=await response.json();
+        if(typeof result.text==="string"){
+          await rememberUsage(env,"groq_stt",{success:true});
+          return out({text:result.text.trim()},200,{...noCache,"X-STT-Provider":"groq"});
+        }
+      }
+    }catch{}
+  }
+  if(env.AI&&Date.now()>=cfExhaustedUntil){
+    try {
+      const result = await env.AI.run("@cf/openai/whisper-large-v3-turbo", {
+        audio, language: "en", task: "transcribe", vad_filter: true
+      });
+      await rememberUsage(env,"cloudflare_stt",{success:true});
+      return out({text:result.text?.trim()||""},200,{...noCache,"X-STT-Provider":"cloudflare"});
+    } catch (e) {
+      await rememberCloudflareError(env,e);
+    }
+  }
+  return out({error:rateLimited?"rate_limited":"transcription_unavailable"},rateLimited?429:503,noCache);
 }
 
 /* ---------- hồ sơ học viên: tên + mã PIN 4 số, lưu trong D1 ---------- */
