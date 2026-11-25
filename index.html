@@ -3011,8 +3011,9 @@ function mobileVoice(text,rate,vk,signal){
     player.onplaying=()=>{info.textContent="Đang phát bản nghe."};
     player.onerror=()=>{if(url&&panel.isConnected){info.textContent="Thiết bị chưa phát được bản nghe. Bạn có thể thử lại hoặc dùng giọng thiết bị.";retryVoice.hidden=false}};
     (async()=>{
+      const strictVoice=exactVoiceRequired();
       try{
-        const choice=voiceChoice(),strictVoice=exactVoiceRequired(),speaker=["auto","browser"].includes(choice)?(VOICE_SPEAKERS[vk]||"luna"):choice;
+        const choice=voiceChoice(),speaker=["auto","browser"].includes(choice)?(VOICE_SPEAKERS[vk]||"luna"):choice;
         let blob=null;
         const cached=await readTtsCache(speaker,text,strictVoice);
         if(cached)blob=await cached.blob();
@@ -4468,7 +4469,7 @@ if(fbForm)fbForm.onsubmit=async event=>{
       method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({
         kind:$("#fb-kind").value,message:msg,contact:$("#fb-contact").value.trim(),website:$("#fb-hp").value,
-        meta:{page:location.hash||"#today",learner:activeLearner?.id||"",voice:voiceChoice(),ai:selectedAI(),ua:navigator.userAgent.slice(0,180)}
+        meta:{page:location.hash||"#today",learner:activeLearner?.id||"",voice:voiceChoice(),ai:"auto",ua:navigator.userAgent.slice(0,180)}
       })
     });
     const out=await res.json().catch(()=>({}));
