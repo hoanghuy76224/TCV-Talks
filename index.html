@@ -120,6 +120,9 @@ a.study-tile:hover{border-color:var(--study-accent)}
 .study-page form .pri{width:fit-content}
 .study-page form.box label{max-width:620px;margin-bottom:9px}
 .study-page [hidden]{display:none}
+.ielts-scores{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:12px}
+#ielts-form input[type="file"]{width:100%}
+@media(max-width:520px){.ielts-scores{grid-template-columns:minmax(0,1fr)}}
 @media(min-width:1140px){
   header:has(nav a.on){display:grid;grid-template-columns:auto minmax(0,1fr) auto;column-gap:12px;align-items:center;padding:9px max(3vw,16px);border-bottom:1px solid var(--line)}
   header:has(nav a.on) .top{display:contents}
@@ -2293,6 +2296,8 @@ table{border-collapse:collapse;width:100%;background:var(--card);border-radius:1
 
 </script>
 <script src="./study-content.js"></script>
+<script src="./study-grammar-bank.js"></script>
+<script src="./study-vocabulary-bank.js"></script>
 <script src="./study-library.js"></script>
 <script>
 {
@@ -3522,7 +3527,7 @@ function vToday(){
       <a class="today-shortcut" href="#path"><b>Luyện phát âm <span aria-hidden="true">→</span></b><span class="sm">Nghe mẫu và luyện nói theo</span></a>
       <a class="today-shortcut" href="#chat"><b>Hội thoại với AI <span aria-hidden="true">→</span></b><span class="sm">Thực hành tình huống công sở</span></a>
       <a class="today-shortcut" href="#review"><b>Ôn lại câu đã học <span aria-hidden="true">→</span></b><span class="sm">${due?due+" câu đến lúc ôn":"Mở bộ thẻ ôn tập"}</span></a>
-      <a class="today-shortcut" href="#study-tools"><b>Công cụ học <span aria-hidden="true">→</span></b><span class="sm">Luyện viết, tra từ và luyện hội thoại</span></a>
+      <a class="today-shortcut" href="#study-tools"><b>Công cụ học <span aria-hidden="true">→</span></b><span class="sm">Chấm IELTS Writing Task 1 và Task 2</span></a>
     </div></section>`+
     (S.hw?.items?.some(h=>!h.done)?'<section class="box"><h3>Bài từ buổi hội thoại trước</h3><p>Còn '+S.hw.items.filter(h=>!h.done).length+' bài để luyện thêm.</p><a class="btn" href="#chat">Xem bài luyện thêm</a></section>':"")+
     '<details class="box" id="more-tools"><summary>Tiến độ và công cụ luyện thêm</summary><div class="row" style="margin-top:12px"><a class="btn" href="#assessment">Nhận xét học tập</a><a class="btn" href="#history">Lịch sử</a><a class="btn" href="#practice">Luyện tự chọn</a><a class="btn" href="#start">Đổi mục tiêu</a></div>'+assessmentSummary(S.lastAssessment)+`
@@ -4893,6 +4898,20 @@ function route(){
   window.scrollTo(0,resumeScroll);resumeScroll=0;}
 const STUDY_TRIAL_KEY="tcv.study-trial.v1";
 const guestStudy=storageRead(STUDY_TRIAL_KEY)||{stars:{},cards:{}};
+async function submitIelts({task,question,essay,chart,file}){
+  const learner=activeLearner;
+  if(!learner?.token||learner.expires<=Date.now())throw Error("session_expired");
+  const image=file?{mime:file.type,data:await b64(file)}:undefined;
+  if(activeLearner!==learner)throw Error("session_expired");
+  const response=await fetch(new URL("/writing/ielts",CFG.aiUrl),{
+    method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({id:learner.id,token:learner.token,task,question,essay,chart,image}),
+    signal:AbortSignal.timeout(47000)
+  });
+  const result=await response.json();
+  if(!response.ok)throw Error(result.error||"ielts_unavailable");
+  return result;
+}
 const dinoStudy=window.DINO_STUDY_CONTENT&&window.createStudyLibrary?.({
   app,
   state:()=>activeLearner?(S.studyLibrary??={stars:{},cards:{}}):guestStudy,
@@ -4902,6 +4921,7 @@ const dinoStudy=window.DINO_STUDY_CONTENT&&window.createStudyLibrary?.({
   say,
   schedule:(card,rating)=>scheduleStudyCard(card,F.Rating[rating]),
   grade:gradeAssessmentWriting,
+  gradeIelts:submitIelts,
   feedback:writingFeedbackHTML,
   signedIn:()=>Boolean(activeLearner)
 });
