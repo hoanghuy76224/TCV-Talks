@@ -17,7 +17,7 @@ self.addEventListener("fetch",event=>{
         return response;
       }catch{
         const saved=await cache.match("/");
-        return saved||new Response("Bạn đang mất mạng. Mở TCV Talks một lần khi có mạng để lưu bài học trên thiết bị.",{status:503,headers:{"Content-Type":"text/plain; charset=utf-8"}});
+        return saved||new Response("Bạn đang mất mạng. Mở English with Dino một lần khi có mạng để lưu bài học trên thiết bị.",{status:503,headers:{"Content-Type":"text/plain; charset=utf-8"}});
       }
     })());
   }
