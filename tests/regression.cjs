@@ -234,7 +234,7 @@ async function qualityTests(){
 async function geminiVoiceTests(){
   const worker = fs.readFileSync(require('node:path').join(__dirname,'../ai-worker/worker.js'),'utf8');
   const source = worker.slice(worker.indexOf('const GEMINI_TTS_MODEL'),worker.indexOf('async function synthesizeGroq('))+
-    worker.slice(worker.indexOf('function geminiSegments'),worker.indexOf('async function synthesize(req'));
+    worker.slice(worker.indexOf('function voiceSegments'),worker.indexOf('async function synthesize(req'));
   const text = 'Please bring the printed agenda. We will meet at three. Final reminder: take the blue folder.';
   const finalSentence = 'Final reminder: take the blue folder.';
   const pcm = Buffer.alloc(12000);
@@ -276,10 +276,59 @@ async function geminiVoiceTests(){
   assert.deepEqual(Buffer.from(first.body),verified[1]);
   assert.equal(await vm.runInContext("synthesizeGemini({GEMINI_KEY:'test'},text,'luna')",context),null);
   assert.equal(verified.length,4);
-  assert.equal(vm.runInContext("geminiSegments('One. One.').join('|')",context),'One.|One.');
-  assert.equal(vm.runInContext("geminiSegments('First sentence. An intact sentence. One last note.',25).join('|')",context),
+  assert.equal(vm.runInContext("voiceSegments('One. One.',360,true).join('|')",context),'One.|One.');
+  assert.equal(vm.runInContext("voiceSegments('First sentence. An intact sentence. One last note.',25,true).join('|')",context),
     'First sentence.|An intact sentence.|One last note.');
   assert.equal(vm.runInContext("transcriptIsComplete('First sentence. One last note.','First sentence.')",context),false);
   console.log('PASS: Gemini keeps all audio parts, reads the final sentence separately, retries omitted text and rejects incomplete speech.');
 }
-Promise.all([audioTests(),micTests(),wavTests(),mp3Tests(),qualityTests(),geminiVoiceTests()]).catch(error=>{console.error(error);process.exitCode=1});
+
+async function geminiQuotaTests(){
+  const script = fs.readFileSync(require('node:path').join(__dirname,'../ai-worker/worker.js'),'utf8');
+  const text = 'Thank you for sending the draft report. I have checked the figures in the first section and marked the charts that need a clearer title. Tomorrow we will review the remaining pages with the project team and make a list of any questions. Once the final copy is ready, please send it to the person at reception so they can print a set for the morning meeting. Final reminder: bring the green folder.';
+  const submitted = [], clips = [];
+  let geminiCalls = 0, addEnding = true;
+  const context = vm.createContext({
+    Blob, Request, Response, AbortSignal, FormData, Uint8Array, URL,
+    async fetch(url, {body}){
+      if(url.startsWith('https://generativelanguage.googleapis.com/')){
+        geminiCalls++;
+        return new Response(null,{status:429,headers:{'Retry-After':'60'}});
+      }
+      if(url.endsWith('/audio/speech')){
+        const segment=JSON.parse(body).input;
+        assert.ok(segment.length<=200);
+        submitted.push(segment);
+        const pcm=Buffer.alloc(12000), frequency=0.15+0.02*submitted.length;
+        for(let i=0;i<pcm.length/2;i++)pcm.writeInt16LE(Math.round(7000*Math.sin(i*frequency)),i*2);
+        clips.push(pcm);
+        context.pcm=pcm;
+        return new Response(vm.runInContext('pcmToWav(pcm)',context),{headers:{'Content-Type':'audio/wav'}});
+      }
+      assert.equal(url,'https://api.groq.com/openai/v1/audio/transcriptions');
+      assert.equal(body.get('model'),'whisper-large-v3-turbo');
+      assert.equal(submitted.join(' '),text);
+      const audio=Buffer.from(await body.get('file').arrayBuffer());
+      assert.deepEqual(audio.subarray(44),Buffer.concat(clips));
+      return Response.json({text:addEnding?text:text.replace(/ Final reminder:.*/,'')});
+    }
+  });
+  vm.runInContext(script.replace('export default {','globalThis.router = {'),context);
+  const submit=()=>context.router.fetch(new Request('https://example.test/tts',{
+    method:'POST',headers:{Origin:'https://tcv-talks.pages.dev','Content-Type':'application/json'},
+    body:JSON.stringify({text,speaker:'luna'})
+  }),{GEMINI_KEY:'test',GROQ_API_KEY:'test'},{});
+  const accepted = await submit();
+  assert.equal(accepted.status,200);
+  assert.equal(accepted.headers.get('X-TTS-Provider'),'groq');
+  assert.deepEqual(Buffer.from(await accepted.arrayBuffer()).subarray(44),Buffer.concat(clips));
+  assert.ok(geminiCalls>0 && submitted.length>1);
+  const before = geminiCalls;
+  addEnding=false;
+  submitted.length=0;
+  clips.length=0;
+  assert.equal((await submit()).status,503);
+  assert.equal(geminiCalls,before,'Gemini should not be retried while its quota cooldown is active');
+  console.log('PASS: Gemini 429 activates a cooldown, long speech falls back to verified Groq WAV, and incomplete fallback is rejected.');
+}
+Promise.all([audioTests(),micTests(),wavTests(),mp3Tests(),qualityTests(),geminiVoiceTests(),geminiQuotaTests()]).catch(error=>{console.error(error);process.exitCode=1});
