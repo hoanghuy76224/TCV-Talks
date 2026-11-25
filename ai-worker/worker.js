@@ -688,7 +688,7 @@ async function feedbackApi(req, env, headers) {
     } catch (e) { console.error("Feedback DB insert failed", String(e?.message || e)); }
   }
   let emailed = false;
-  if (env.FEEDBACK_EMAIL) {
+  if (env.FEEDBACK_EMAIL || env.RESEND_API_KEY) {
     const label = FEEDBACK_KINDS[kind];
     const to = env.FEEDBACK_TO || "ntd031096@gmail.com";
     const from = env.FEEDBACK_FROM || "feedback@khunglongcon.com";
@@ -718,7 +718,17 @@ async function feedbackApi(req, env, headers) {
       `<tr><td style="padding:3px 10px 3px 0"><b>Thiết bị:</b></td><td>${escHtml(meta.ua || "-")}</td></tr>` +
       `</table></div>`;
     try {
-      await env.FEEDBACK_EMAIL.send({
+      const mailer = env.RESEND_API_KEY ? {
+        send: async (m) => {
+          const r = await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: { "Authorization": "Bearer " + env.RESEND_API_KEY, "Content-Type": "application/json" },
+            body: JSON.stringify({ from: "TCV Talks <" + m.from.email + ">", to: [m.to], subject: m.subject, text: m.text, html: m.html })
+          });
+          if (!r.ok) throw new Error("resend " + r.status);
+        }
+      } : env.FEEDBACK_EMAIL;
+      await mailer.send({
         to,
         from: { email: from, name: "TCV Talks" },
         subject,
