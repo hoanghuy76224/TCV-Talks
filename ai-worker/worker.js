@@ -431,8 +431,11 @@ async function profileApi(req, env, headers, path) {
         "INSERT OR IGNORE INTO profiles (id, salt, hash, data, ver, created, updated) VALUES (?, ?, ?, ?, 1, ?, ?)"
       ).bind(id, salt, await pinHash(salt, id, pin), data, now, now).run();
       if (!r.meta.changes) return out({ error: "name_taken" }, 409, no);
+      const recoveryCode = hex(crypto.getRandomValues(new Uint8Array(16)));
+      const recoveryHash = await pinHash("recovery",id,recoveryCode);
+      await env.DB.prepare("INSERT INTO recovery_codes (id, hash) VALUES (?, ?)").bind(id,recoveryHash).run();
       const session = await issueSession(env,id,now);
-      return out({ ok: true, ver: 1, session }, 200, no);
+      return out({ ok: true, ver: 1, session, recoveryCode }, 200, no);
     }
 
     const row = await env.DB.prepare("SELECT salt, hash, data, ver, fails, locked_until FROM profiles WHERE id = ?").bind(id).first();
@@ -474,7 +477,8 @@ async function profileApi(req, env, headers, path) {
       let data = {};
       try { data = JSON.parse(row.data) } catch (e) {}
       const session = token ? undefined : await issueSession(env,id,now);
-      return out({ ok: true, data, ver: row.ver, session }, 200, no);
+      const recovery = await env.DB.prepare("SELECT id FROM recovery_codes WHERE id = ?").bind(id).first();
+      return out({ ok: true, data, ver: row.ver, session, recoveryAvailable: !!recovery }, 200, no);
     }
 
     if (path === "/profile/save") {
