@@ -239,22 +239,27 @@ async function geminiVoiceTests(){
   const finalSentence = 'Final reminder: take the blue folder.';
   const pcm = Buffer.alloc(12000);
   for(let i=0;i<pcm.length/2;i++)pcm.writeInt16LE(Math.round(8000*Math.sin(i*0.11)),i*2);
+  const finalPcm=Buffer.alloc(pcm.length);
+  for(let i=0;i<finalPcm.length/2;i++)finalPcm.writeInt16LE(Math.round(8000*Math.sin(i*0.18)),i*2);
   const media = (data,key='inlineData')=>({[key]:{mimeType:'audio/L16;rate=24000;channels=1',data:data.toString('base64')}});
   const generated=[], verified=[];
+  let rejectFirstRequest=true;
   const context=vm.createContext({
     AbortSignal, Response, atob, btoa, Uint8Array, DataView, text, expected:text,
     async fetch(url, options){
       const parts=JSON.parse(options.body).contents[0].parts;
       if(url.includes('preview-tts')){
+        if(rejectFirstRequest){rejectFirstRequest=false;return new Response(null,{status:502})}
         const script=parts[0].text.split('[BEGIN TRANSCRIPT]\n')[1].split('\n[END TRANSCRIPT]')[0];
         generated.push(script);
+        const clip=script===finalSentence?finalPcm:pcm;
         return Response.json({candidates:[{finishReason:'STOP',content:{parts:[
-          media(pcm.subarray(0,6000)),media(pcm.subarray(6000),'inline_data')
+          media(clip.subarray(0,6000)),media(clip.subarray(6000),'inline_data')
         ]}}]});
       }
       const audio=Buffer.from(parts[1].inlineData.data,'base64');
       assert.doesNotMatch(parts[0].text,/blue folder/);
-      assert.deepEqual(audio.subarray(44),Buffer.concat([pcm,pcm]));
+      assert.deepEqual(audio.subarray(44),Buffer.concat([pcm,finalPcm]));
       verified.push(audio);
       return Response.json({candidates:[{finishReason:'STOP',content:{parts:[
         {text:verified.length===2?'Please bring the printed agenda. We will meet at 3. '+finalSentence:'Please bring the printed agenda. We will meet at 3.'}
@@ -266,11 +271,14 @@ async function geminiVoiceTests(){
   const first=await vm.runInContext("synthesizeGemini({GEMINI_KEY:'test'},text,'luna')",context);
   assert.equal(first.provider,'gemini');
   assert.equal(verified.length,2);
-  assert.deepEqual(generated,[text.slice(0,-finalSentence.length).trim(),finalSentence,text.slice(0,-finalSentence.length).trim(),finalSentence]);
+  const mainText=text.slice(0,-finalSentence.length).trim();
+  assert.deepEqual(generated.slice().sort(),[mainText,finalSentence,mainText,finalSentence].sort());
   assert.deepEqual(Buffer.from(first.body),verified[1]);
   assert.equal(await vm.runInContext("synthesizeGemini({GEMINI_KEY:'test'},text,'luna')",context),null);
   assert.equal(verified.length,4);
   assert.equal(vm.runInContext("geminiSegments('One. One.').join('|')",context),'One.|One.');
+  assert.equal(vm.runInContext("geminiSegments('First sentence. An intact sentence. One last note.',25).join('|')",context),
+    'First sentence.|An intact sentence.|One last note.');
   assert.equal(vm.runInContext("transcriptIsComplete('First sentence. One last note.','First sentence.')",context),false);
   console.log('PASS: Gemini keeps all audio parts, reads the final sentence separately, retries omitted text and rejects incomplete speech.');
 }
