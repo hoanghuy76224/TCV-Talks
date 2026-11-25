@@ -1,4 +1,4 @@
-window.createStudyLibrary = function createStudyLibrary({ app, state, save, award, escape, say, schedule, grade, feedback, signedIn }) {
+window.createStudyLibrary = function createStudyLibrary({ app, state, save, award, escape, say, schedule, grade, feedback, signedIn, gradeIelts }) {
   const { grammar, vocabulary } = window.DINO_STUDY_CONTENT;
   const levels = ["A1","A2","B1","B2","C1","C2"];
   const difficulty = ["Nhận biết","Điền từ","Vận dụng"];
@@ -6,7 +6,14 @@ window.createStudyLibrary = function createStudyLibrary({ app, state, save, awar
     id: lesson.id + ":" + index, word, meaning, example
   })));
   const words = new Map(wordList.map(card => [card.id, card]));
+  const topics = new Map();
+  for (const lesson of vocabulary) {
+    const id=lesson.topicId||lesson.id;
+    if(!topics.has(id))topics.set(id,{title:lesson.topic||lesson.title,lessons:[]});
+    topics.get(id).lessons.push(lesson);
+  }
   const filters = { level:"", kind:"", query:"" };
+  let visibleLessons=24;
   const writingTasks = [
     { title:"Xin đổi lịch họp", context:"Một cuộc họp trùng với lịch tiếp khách.", instruction:"Viết 3–4 câu xin đổi giờ. Nêu lý do, đề xuất giờ mới và nhờ người nhận xác nhận." },
     { title:"Cập nhật tiến độ", context:"Báo cáo tuần đã gần xong nhưng đang chờ số liệu bán hàng.", instruction:"Viết 3–4 câu cho quản lý. Nêu phần đã hoàn thành, việc còn chờ và thời điểm bạn sẽ cập nhật." },
@@ -46,12 +53,13 @@ window.createStudyLibrary = function createStudyLibrary({ app, state, save, awar
     </a>`;
   }
 
-  function pathway(mode, level){
+  function pathway(mode, level, topicId){
     const isGrammar=mode==="grammar", data=isGrammar?grammar:vocabulary, saved=state();
     const [,title,description]=pathways.find(([id])=>id===mode);
-    const heading=level?title+" "+level:title;
+    const selectedTopic=topics.get(topicId);
+    const heading=selectedTopic?.title||(level?title+" "+level:title);
     const completed=lesson=>Boolean(isGrammar?saved.stars[lesson.id]:saved.vocabDone?.[lesson.id]);
-    const lessons=level?data.filter(lesson=>lesson.level===level):data;
+    const lessons=selectedTopic?.lessons||(level?data.filter(lesson=>lesson.level===level):data);
     const next=level&&lessons.find(lesson=>!completed(lesson));
     const levelTiles=levels.map(cefr=>{
       const list=data.filter(lesson=>lesson.level===cefr), done=list.filter(completed).length;
@@ -60,12 +68,17 @@ window.createStudyLibrary = function createStudyLibrary({ app, state, save, awar
         <progress aria-label="Tiến độ ${cefr}" value="${done}" max="${list.length}"></progress>
       </a>`;
     }).join("");
+    const topicTiles=[...topics].map(([id,topic])=>{
+      const done=topic.lessons.filter(completed).length;
+      return `<a class="study-tile" href="#study-topic-${id}"><strong>${escape(topic.title)}</strong>
+        <span>${done}/${topic.lessons.length} bài đã hoàn thành</span></a>`;
+    }).join("");
     app.innerHTML=`<div class="study-page">${link}${modeLinks(mode)}
       <section class="study-intro"><div><h1>${heading}</h1><p>${description}</p></div>
         ${isGrammar&&!level?'<a class="btn" href="#placement">Kiểm tra trình độ</a>':""}
-        ${level?`<a class="btn" href="#study-${mode}">Đổi cấp</a>`:""}</section>
+        ${level?`<a class="btn" href="#study-${mode}">Đổi cấp</a>`:""}${selectedTopic?'<a class="btn" href="#study-topics">Đổi chủ đề</a>':""}</section>
       ${next?`<a class="btn pri study-continue" href="#study-lesson-${next.id}">Học tiếp · ${escape(next.title)}</a>`:""}
-      <div class="study-grid">${mode!=="topics"&&!level?levelTiles:lessons.map(lesson=>lessonTile(lesson,mode)).join("")}</div>
+      <div class="study-grid">${mode==="topics"&&!selectedTopic?topicTiles:mode!=="topics"&&!level?levelTiles:lessons.map(lesson=>lessonTile(lesson,mode)).join("")}</div>
     </div>`;
   }
 
@@ -74,13 +87,14 @@ window.createStudyLibrary = function createStudyLibrary({ app, state, save, awar
     const search=filters.query.toLocaleLowerCase("vi");
     const matches=lesson=>(!filters.level||lesson.level===filters.level)&&
       (!search||lesson.title.toLocaleLowerCase("vi").includes(search)||
+        (lesson.topic||"").toLocaleLowerCase("vi").includes(search)||
         (lesson.cards||[]).some(card=>card.slice(0,2).some(text=>text.toLocaleLowerCase("vi").includes(search))));
     const rows=[
       ...grammar.filter(matches).filter(()=>filters.kind!=="vocabulary").map(lesson=>[lesson,"Ngữ pháp",saved.stars[lesson.id]?`${saved.stars[lesson.id]}/3 sao`:"Ví dụ và 3 mức luyện"]),
-      ...vocabulary.filter(matches).filter(()=>filters.kind!=="grammar").map(lesson=>[lesson,"Từ vựng",`${lesson.cards.length} thẻ có ví dụ`])
+      ...vocabulary.filter(matches).filter(()=>filters.kind!=="grammar").map(lesson=>[lesson,"Từ vựng",`${lesson.cards.length} thẻ từ`])
     ];
     app.innerHTML=`<div class="study-page">${modeLinks("")}
-      <section class="study-intro"><div><h1>Kho bài học</h1><p>Ngữ pháp và từ vựng tiếng Anh trong tình huống công sở, từ A1 đến C2.</p></div>
+      <section class="study-intro"><div><h1>Kho bài học</h1><p>${grammar.length} bài ngữ pháp và ${vocabulary.length} bài từ vựng từ A1 đến C2.</p></div>
       <div class="study-actions"><a class="btn" href="#study-review">Ôn từ${due().length?` · ${due().length}`:""}</a><a class="btn" href="#study-tools">Công cụ</a></div></section>
       <form id="study-filters" class="study-filters">
         <label>Nội dung<select name="kind">${selectOptions([["","Tất cả"],["grammar","Ngữ pháp"],["vocabulary","Từ vựng"]],filters.kind)}</select></label>
@@ -88,25 +102,35 @@ window.createStudyLibrary = function createStudyLibrary({ app, state, save, awar
         <label>Tìm bài hoặc từ vựng<input name="query" type="search" value="${escape(filters.query)}" placeholder="Ví dụ: lịch hẹn"></label>
         <button class="pri" type="submit">Tìm bài</button>
       </form>
-      <div class="study-grid">${rows.map(([lesson,kind,meta])=>`<a class="study-tile" href="#study-lesson-${lesson.id}">
+      <p class="sm">Hiển thị ${Math.min(rows.length,visibleLessons)} / ${rows.length} bài.</p>
+      <div class="study-grid">${rows.slice(0,visibleLessons).map(([lesson,kind,meta])=>`<a class="study-tile" href="#study-lesson-${lesson.id}">
         <span class="study-tile-type">${lesson.level} · ${kind}</span><strong>${escape(lesson.title)}</strong><span>${meta}</span>
       </a>`).join("")}</div>
       ${rows.length?"":'<p class="box">Chưa tìm thấy bài phù hợp. Thử đổi bộ lọc hoặc từ khóa.</p>'}
+      ${rows.length>visibleLessons?'<button id="study-more" type="button">Xem thêm bài</button>':""}
     </div>`;
     const form=app.querySelector("#study-filters");
     form.onsubmit=event=>{
       event.preventDefault();
       for(const key of Object.keys(filters))filters[key]=form.elements[key].value.trim().slice(0,100);
+      visibleLessons=24;
       catalog();
       app.querySelector("[name=query]").focus();
+    };
+    const more=app.querySelector("#study-more");
+    if(more)more.onclick=()=>{
+      const firstNew=visibleLessons;
+      visibleLessons+=24;
+      catalog();
+      app.querySelectorAll(".study-grid a")[firstNew]?.focus();
     };
   }
 
   function grammarLesson(lesson){
     app.innerHTML=`<div class="study-page">${link}<section class="study-intro"><div><p class="study-tile-type">${lesson.level} · Ngữ pháp</p><h1>${escape(lesson.title)}</h1></div></section>
       <section class="box"><h2>Cách dùng</h2><p>${escape(lesson.rule)}</p>
-        <ul class="study-examples">${lesson.examples.map(([en,vi])=>`<li><div><strong lang="en">${escape(en)}</strong><br><span class="sm">${escape(vi)}</span></div>${listen(en)}</li>`).join("")}</ul>
-        <p><strong>Lỗi thường gặp.</strong> ${escape(lesson.trap)}</p>
+        <ul class="study-examples">${lesson.examples.map(([en,vi])=>`<li><div><strong lang="en">${escape(en)}</strong>${vi?`<br><span class="sm">${escape(vi)}</span>`:""}</div>${listen(en)}</li>`).join("")}</ul>
+        ${lesson.trap?`<p><strong>Lỗi thường gặp.</strong> ${escape(lesson.trap)}</p>`:""}
       </section>
       <form id="study-start-quiz" class="box"><h2>Luyện tập</h2><p>${state().stars[lesson.id]? `Kết quả cao nhất: ${state().stars[lesson.id]}/3 sao.`:"Chọn dạng bài phù hợp để bắt đầu."}</p>
         <label>Mức luyện <select name="difficulty">${selectOptions(difficulty.map((label,i)=>[String(i),label]),"0")}</select></label>
@@ -165,7 +189,7 @@ window.createStudyLibrary = function createStudyLibrary({ app, state, save, awar
     app.innerHTML=`<div class="study-page">${link}<section class="study-intro"><div>
       <p class="study-tile-type">${lesson.level} · Từ vựng</p><h1>${escape(lesson.title)}</h1><p>${escape(lesson.details)}</p></div><a class="btn" href="#study-review">Mở bộ thẻ ôn</a></section>
       <div class="study-grid">${cards.map(card=>`<article class="study-tile"><h2 lang="en">${escape(card.word)}</h2>
-        <span>${escape(card.meaning)}</span><p lang="en">${escape(card.example)}</p>
+        <span>${escape(card.meaning)}</span>${card.example?`<p lang="en">${escape(card.example)}</p>`:""}
         <div class="study-actions">${listen(card.word)}<button type="button" data-study-add="${card.id}" ${state().cards[card.id]?"disabled":""}>${state().cards[card.id]?"Đã lưu":"Lưu để ôn"}</button></div></article>`).join("")}</div>
       <div class="study-actions"><button class="pri" id="study-vocabulary-quiz">Kiểm tra từ đã học</button>${state().vocabDone?.[lesson.id]?'<span class="sm">Đã hoàn thành bài từ vựng</span>':""}</div></div>`;
     wireAudio();
@@ -204,7 +228,7 @@ window.createStudyLibrary = function createStudyLibrary({ app, state, save, awar
     form.onsubmit=event=>{
       event.preventDefault();
       const passed=options[Number(form.elements.meaning.value)]===card;
-      app.querySelector("#study-vocab-feedback").textContent=(passed?"Đúng. ":"Đáp án: ")+card.meaning+". "+card.example;
+      app.querySelector("#study-vocab-feedback").textContent=(passed?"Đúng. ":"Đáp án: ")+card.meaning+"."+(card.example?" "+card.example:"");
       form.querySelector("fieldset").disabled=true;
       form.querySelector("[type=submit]").disabled=true;
       const next=app.querySelector("#study-vocab-next");
@@ -220,7 +244,7 @@ window.createStudyLibrary = function createStudyLibrary({ app, state, save, awar
     app.innerHTML=`<div class="study-page">${link}<section class="study-intro"><div><h1>Ôn từ vựng</h1>
       <p>${pending.length?`Còn ${pending.length} từ đến hạn.`:Object.keys(state().cards).length?"Bạn đã ôn hết số thẻ đến hạn.":"Chưa có thẻ. Mở một bài từ vựng và lưu từ muốn ôn."}</p></div></section>
       ${card?`<section class="box"><h2 lang="en">${escape(card.word)}</h2>${listen(card.word)}
-        <details id="study-reveal"><summary>Xem nghĩa và ví dụ</summary><p>${escape(card.meaning)}</p><p lang="en">${escape(card.example)}</p>
+        <details id="study-reveal"><summary>${card.example?"Xem nghĩa và ví dụ":"Xem nghĩa"}</summary><p>${escape(card.meaning)}</p>${card.example?`<p lang="en">${escape(card.example)}</p>`:""}
         <div class="study-actions"><button type="button" data-study-rating="Again">Chưa nhớ</button><button type="button" data-study-rating="Hard">Hơi khó</button><button type="button" data-study-rating="Good">Nhớ rồi</button></div></details></section>`:'<a class="btn pri" href="#study">Tìm bài từ vựng</a>'}</div>`;
     wireAudio();
     for(const button of app.querySelectorAll("[data-study-rating]"))button.onclick=()=>{
@@ -232,7 +256,9 @@ window.createStudyLibrary = function createStudyLibrary({ app, state, save, awar
 
   function tools(){
     app.innerHTML=`<div class="study-page">${link}<section class="study-intro"><div><h1>Công cụ luyện tập</h1><p>Áp dụng những gì đã học vào một tình huống thực tế.</p></div></section>
-      <div class="study-grid"><a class="study-tile" href="#study-writing"><strong>Luyện viết công sở</strong><span>Viết email hoặc tin nhắn và nhận góp ý theo câu.</span></a>
+      <div class="study-grid"><a class="study-tile" href="#study-ielts-1"><strong>IELTS Writing Task 1</strong><span>Đối chiếu bài mô tả với biểu đồ và nhận điểm theo bốn tiêu chí.</span></a>
+      <a class="study-tile" href="#study-ielts-2"><strong>IELTS Writing Task 2</strong><span>Nhận điểm ước lượng và góp ý lập luận cho bài luận.</span></a>
+      <a class="study-tile" href="#study-writing"><strong>Luyện viết công sở</strong><span>Viết email hoặc tin nhắn và nhận góp ý theo câu.</span></a>
       <a class="study-tile" href="#study"><strong>Tra từ trong kho bài</strong><span>Tìm từ, xem nghĩa, nghe phát âm và lưu để ôn.</span></a>
       <a class="study-tile" href="#${signedIn()?"chat":"access"}"><strong>Luyện hội thoại</strong><span>Đóng vai trong tình huống công việc.</span></a></div></div>`;
   }
@@ -277,9 +303,78 @@ window.createStudyLibrary = function createStudyLibrary({ app, state, save, awar
     };
   }
 
+  function ielts(task){
+    const minimum=task===1?150:250;
+    const saved=state();
+    const draft=saved.ielts?.[task]||{};
+    const title="IELTS Academic Writing Task "+task;
+    if(!signedIn()){
+      app.innerHTML=`<div class="study-page">${link}<section class="box"><h1>${title}</h1><p>Mở hồ sơ để nộp bài lấy nhận xét.</p><a class="btn pri" href="#access">Mở hồ sơ</a></section></div>`;
+      return;
+    }
+    app.innerHTML=`<div class="study-page"><a class="study-back" href="#study-tools">← Công cụ học</a>
+      <section class="study-intro"><div><h1>${title}</h1><p>Mục tiêu tối thiểu ${minimum} từ. Điểm AI dùng để luyện tập.</p></div>
+      <a class="btn" href="#study-ielts-${task===1?2:1}">Đổi sang Task ${task===1?2:1}</a></section>
+      <form class="box" id="ielts-form">
+        <label>Đề bài<textarea name="question" rows="3" maxlength="2000" required>${escape(draft.question||"")}</textarea></label>
+        ${task===1?`<label>Ảnh biểu đồ (PNG, JPG, WebP; tối đa 1,5 MB)<input name="image" type="file" accept="image/png,image/jpeg,image/webp"></label>
+        <label>Hoặc nhập dữ liệu biểu đồ<textarea name="chart" rows="3" maxlength="3000" placeholder="Ghi tên biểu đồ, đơn vị, năm và số liệu.">${escape(draft.chart||"")}</textarea></label>`:""}
+        <label>Bài viết<textarea name="essay" rows="9" maxlength="6000" required>${escape(draft.essay||"")}</textarea></label>
+        <p id="ielts-count" class="sm"></p>
+        <div class="study-actions"><button class="pri" type="submit">Chấm bài</button><button type="button" id="ielts-sample">Điền đề mẫu</button></div>
+      </form><div id="ielts-result" aria-live="polite"></div></div>`;
+    const form=app.querySelector("#ielts-form"), result=app.querySelector("#ielts-result");
+    const updateCount=()=>{
+      const count=(form.elements.essay.value.match(/\p{L}[\p{L}\p{N}'’-]*|\p{N}+/gu)||[]).length;
+      app.querySelector("#ielts-count").textContent=`${count} từ · Mục tiêu tối thiểu ${minimum}`;
+    };
+    updateCount();
+    form.elements.essay.oninput=updateCount;
+    app.querySelector("#ielts-sample").onclick=()=>{
+      form.elements.question.value=task===1?
+        "The table shows how employees at a company travelled to work in 2015 and 2025. Summarise the main features and make comparisons where relevant.":
+        "Some people think employees should work from home whenever possible. Others believe offices are essential for good teamwork. Discuss both views and give your own opinion.";
+      if(task===1)form.elements.chart.value="Share of employees by main travel mode (%): car 55 in 2015 and 40 in 2025; public transport 25 and 30; bicycle 10 and 20; walking 10 and 10.";
+    };
+    form.onsubmit=async event=>{
+      event.preventDefault();
+      const question=form.elements.question.value.trim(), essay=form.elements.essay.value.trim();
+      const chart=form.elements.chart?.value.trim()||"", file=form.elements.image?.files[0];
+      if(question.length<12||essay.length<30){result.textContent="Nhập đầy đủ đề và ít nhất vài câu trong bài viết.";return}
+      if(task===1&&!file&&chart.length<12){result.textContent="Đính kèm ảnh hoặc nhập dữ liệu biểu đồ.";return}
+      if(file&&(file.size>1500000||!["image/png","image/jpeg","image/webp"].includes(file.type))){
+        result.textContent="Chọn ảnh PNG, JPG hoặc WebP dưới 1,5 MB.";return;
+      }
+      (saved.ielts??={})[task]={question,essay,chart};
+      save();
+      const button=form.querySelector("[type=submit]");
+      button.disabled=true;
+      result.textContent="Đang nhận xét bài viết…";
+      try{
+        const report=await gradeIelts({task,question,essay,chart,file});
+        if(result.isConnected&&state()===saved)showIeltsResult(result,report,task);
+      }catch(error){
+        if(result.isConnected)result.textContent=error.message==="rate_limited"?"Dịch vụ đang bận. Bài đã được lưu, bạn thử lại sau ít phút.":
+          error.message==="session_expired"?"Phiên đăng nhập hết hạn. Hãy mở lại hồ sơ.":"Chưa chấm được bài. Bài đã được lưu để bạn thử lại.";
+      }finally{button.disabled=false}
+    };
+  }
+
+  function showIeltsResult(container,report,task){
+    const labels={task:task===1?"Task Achievement":"Task Response",coherence:"Coherence and Cohesion",lexical:"Lexical Resource",grammar:"Grammatical Range and Accuracy"};
+    container.innerHTML=`<section class="box"><h2>Band ước lượng ${report.band.toFixed(1)}</h2>
+      <div class="study-grid ielts-scores">${Object.entries(labels).map(([key,label])=>`<article class="study-tile">
+        <h3>${label} · ${report.scores[key]}</h3><p>${escape(report.comments[key])}</p></article>`).join("")}</div>
+      ${report.chartNotes?`<h3 class="sec-h">Đối chiếu với biểu đồ</h3><p>${escape(report.chartNotes)}</p>`:""}
+      ${report.corrections.length?`<h3 class="sec-h">Chỗ cần sửa</h3><ul>${report.corrections.map(item=>`<li><s>${escape(item.quote)}</s> → <strong>${escape(item.revision)}</strong><br>${escape(item.reason)}</li>`).join("")}</ul>`:""}
+      <h3 class="sec-h">Bài viết tham khảo</h3><p class="course-copy" lang="en">${escape(report.rewrite)}</p>
+      <a href="https://ielts.org/take-a-test/test-types/ielts-academic-test/ielts-academic-format-writing" target="_blank" rel="noopener">Tiêu chí IELTS Academic Writing</a></section>`;
+  }
+
   function render(route){
     if(route==="study")catalog();
     else if(route==="study-topics")pathway("topics");
+    else if(route.startsWith("study-topic-"))pathway("topics",null,route.slice("study-topic-".length));
     else if(/^study-(grammar|vocabulary)(-[abc][12])?$/.test(route)){
       const [,mode,level]=route.split("-");
       pathway(mode,level?.toUpperCase());
@@ -287,6 +382,7 @@ window.createStudyLibrary = function createStudyLibrary({ app, state, save, awar
     else if(route==="study-review")review();
     else if(route==="study-tools")tools();
     else if(route==="study-writing")writing();
+    else if(route==="study-ielts-1"||route==="study-ielts-2")ielts(Number(route.at(-1)));
     else if(route.startsWith("study-lesson-")){
       const id=route.slice("study-lesson-".length);
       const lesson=grammar.find(item=>item.id===id);
