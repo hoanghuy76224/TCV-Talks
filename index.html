@@ -113,7 +113,7 @@ textarea{min-height:110px;resize:vertical}
 .pair button{min-height:40px;padding:0 12px;background:var(--pale);box-shadow:none}
 .switch{display:flex;gap:12px;align-items:flex-start;background:var(--card);border-radius:18px;box-shadow:var(--shadow);padding:16px 18px;margin-top:16px}
 .switch input{width:22px;height:22px;margin-top:2px;flex:none;accent-color:var(--red)}
-.profile-locked .stats,.profile-locked nav,.profile-locked #voice-picker,.profile-locked #ai-picker{display:none}
+.profile-locked .stats,.profile-locked nav,.profile-locked #voice-picker,.profile-locked #ai-service-status{display:none}
 .preference-row{display:flex;gap:8px;flex-wrap:wrap;max-width:980px;margin:auto;padding:4px max(4vw,14px)}
 .preference-row .voice-picker{margin:0;padding:0}
 .preference-row .voice-panel{max-width:450px}
@@ -138,7 +138,7 @@ table{border-collapse:collapse;width:100%;background:var(--card);border-radius:1
     <div class="stats"><button type="button" id="lock-profile" hidden>Khóa hồ sơ</button><a class="mechip" href="#profile" id="me">Tạo hồ sơ</a><span class="s1">Cấp <b id="lvl">?</b></span><span class="s2">XP <b id="xp">0</b></span><span class="s3">Chuỗi <b id="streak">0</b> ngày</span></div>
   </div>
   <nav id="nav" aria-label="Các khu vực học">
-    <a href="#today">Hôm nay</a><a href="#course-path">Lộ trình</a><a href="#practice">Luyện tự chọn</a><a href="#notebook">Sổ tay</a><a href="#path">Phát âm &amp; công sở</a><a href="#review">Ôn tập<span class="dot hide" id="due"></span></a><a href="#speak">Luyện nói</a><a href="#listen">Luyện nghe</a><a href="#trans">Dịch câu</a><a href="#quiz">Bài tập</a><a href="#fix">Sửa lỗi</a><a href="#chat">Học 1-1 với AI</a><a href="#history">Lịch sử</a>
+    <a href="#today">Hôm nay</a><a href="#course-path">Lộ trình</a><a href="#practice">Luyện tập</a><a href="#chat">Hội thoại</a><a href="#notebook">Sổ tay</a><a href="#review">Ôn tập<span class="dot hide" id="due"></span></a>
   </nav>
 </header>
 <div class="preference-row"><details id="voice-picker" class="voice-picker" hidden>
@@ -152,21 +152,8 @@ table{border-collapse:collapse;width:100%;background:var(--card);border-radius:1
     <p class="sm">Giọng bạn chọn được dùng cho các bài học và hội thoại AI trên trình duyệt này.</p>
   </div>
 </details>
-<details id="ai-picker" class="voice-picker" hidden>
-  <summary id="ai-summary">Trợ lý AI</summary>
-  <div class="voice-panel">
-    <div class="row">
-      <label class="sm" for="ai-provider">Chọn trợ lý</label>
-      <select id="ai-provider">
-        <option value="cloudflare" disabled>Cloudflare</option>
-        <option value="gemini">Google Gemini</option>
-        <option value="groq" disabled>Groq</option>
-      </select>
-    </div>
-    <p class="sm" id="ai-provider-status" role="status"></p>
-    <details id="ai-usage-panel"><summary>Hạn mức sử dụng AI</summary><div id="ai-usage" aria-live="polite" style="margin-top:12px">Mở để xem hạn mức.</div><button type="button" id="ai-usage-refresh" class="sec" style="margin-top:8px">Cập nhật</button><p class="sm">Hạn mức dùng chung cho website, không phải số lượt riêng của bạn.</p></details>
-  </div>
-</details></div>
+</div>
+<p id="ai-service-status" class="sm" role="status" hidden style="max-width:960px;margin:8px auto;padding:0 16px"></p>
 <p id="voice-status" class="sm" role="status" hidden style="max-width:960px;margin:8px auto;padding:0 16px"></p>
 <p id="save-message" class="sm" role="status" hidden style="max-width:960px;margin:8px auto;padding:0 16px"></p>
 <main id="app"></main>
@@ -2336,7 +2323,7 @@ function initProfile(learner,progress){
   $("#save-message").hidden=true;
   profileSaveFailed=false;
   setupVoicePicker();
-  setupAIPicker();
+  setupAutomaticAI();
   stats();
   route();
 }
@@ -2527,118 +2514,88 @@ function ipaText(text){const r=refOf(text);if(!r)return"";return"/"+r.map(x=>x.p
 /* ---------- đọc mẫu ---------- */
 let tts=null,dict=null,ai=null;
 const AIWEB=!IN_CLAUDE&&/^https:/.test(CFG.aiUrl);
-const selectedAI=()=>["cloudflare","groq","gemini"].includes(S.aiProvider)?S.aiProvider:"gemini";
-const aiLabel=()=>({cloudflare:"Cloudflare",groq:"Groq",gemini:"Gemini"})[selectedAI()];
-
-
-let usageLoading=false, latestUsage=null, aiAvailability=null;
-const aiLastSuccess={};
-function usageResetLabel(timestamp, now=Date.now()){
-  const options={timeZone:"Asia/Ho_Chi_Minh"};
-  const day=t=>new Date(t).toLocaleDateString("en-CA",options);
-  const time=new Date(timestamp).toLocaleTimeString("vi-VN",{...options,hour:"2-digit",minute:"2-digit"});
-  if(day(timestamp)===day(now))return time+" hôm nay";
-  if(day(timestamp)===day(now+86400000))return time+" mai";
-  return time+" ngày "+new Date(timestamp).toLocaleDateString("vi-VN",options);
+// Automatic failover with temporary cooldowns; provider details stay out of the learner UI.
+const AI_ROUTE=["groq","cloudflare","gemini"], AI_COOLDOWN_KEY="tcv.ai-cooldown.v1";
+let aiAvailability=null, aiRouteReady=null;
+const aiCooldown=storageRead(AI_COOLDOWN_KEY)||{};
+function aiServiceStatus(text=""){
+  const el=$("#ai-service-status");
+  if(el){el.textContent=text;el.hidden=!text}
 }
-function learnerUsageRows(data, now=Date.now()){
-  const p=data.providers||{}, cf=p.cloudflare?.snapshot, g=p.groq?.snapshot;
-  const rows=[
-    {id:"cloudflare",name:"Cloudflare",text:"Chưa có thông tin hạn mức"},
-    {id:"groq",name:"Groq",text:"Chưa có thông tin hạn mức"},
-    {id:"gemini",name:"Gemini",text:"Chưa có thông tin hạn mức"}
-  ];
-  if(cf?.exhausted&&now<cf.resetAt)Object.assign(rows[0],{blocked:true,text:"Hết lượt hôm nay",detail:"Dùng lại lúc "+usageResetLabel(cf.resetAt,now)});
-  if(g?.requestsRemaining!=null&&now<g.requestsResetAt){
-    if(g.requestsRemaining===0)Object.assign(rows[1],{blocked:true,text:"Hết lượt hôm nay",detail:"Dùng lại lúc "+usageResetLabel(g.requestsResetAt,now)});
-    else rows[1].text="Còn "+Number(g.requestsRemaining).toLocaleString("vi-VN")+" lượt hôm nay";
+function pauseAI(provider,until){
+  if(Number.isFinite(until)&&until>Date.now()){
+    aiCooldown[provider]=Math.max(Number(aiCooldown[provider])||0,until);
+    storageWrite(AI_COOLDOWN_KEY,aiCooldown);
   }
-  if(!rows[1].blocked&&g?.tokensRemaining===0&&now<g.tokensResetAt)
-    Object.assign(rows[1],{blocked:true,text:"Tạm chạm giới hạn",detail:"Thử lại lúc "+usageResetLabel(g.tokensResetAt,now)});
-  const gemini=p.gemini?.snapshot;
-  if(gemini?.limited&&now-(gemini.capturedAt||0)<120000)
-    Object.assign(rows[2],{blocked:true,text:"Tạm chạm giới hạn",detail:"Bạn có thể đổi trợ lý hoặc thử lại sau."});
-  for(const row of rows){
-    if(aiAvailability&&aiAvailability[row.id]!==true)Object.assign(row,{blocked:false,unavailable:true,text:"Chưa khả dụng",detail:"Bạn hãy chọn trợ lý khác."});
-    else if(!row.blocked&&row.text==="Chưa có thông tin hạn mức"&&now-(aiLastSuccess[row.id]||0)<300000){
-      row.text="Đang sẵn sàng";row.detail="Chưa có số lượt còn lại.";
+}
+function absorbUsage(data,now=Date.now()){
+  const p=data.providers||{},cf=p.cloudflare?.snapshot,g=p.groq?.snapshot,gm=p.gemini?.snapshot;
+  if(cf?.exhausted&&now<cf.resetAt)pauseAI("cloudflare",cf.resetAt);
+  if(g?.requestsRemaining===0&&now<g.requestsResetAt)pauseAI("groq",g.requestsResetAt);
+  if(g?.tokensRemaining===0&&now<g.tokensResetAt)pauseAI("groq",g.tokensResetAt);
+  if(gm?.limited&&now<(gm.capturedAt||0)+120000)pauseAI("gemini",gm.capturedAt+120000);
+}
+function setupAutomaticAI(){
+  if(!AIWEB)return Promise.resolve();
+  return aiRouteReady??=(async()=>{
+    await Promise.allSettled([
+      (async()=>{
+        const r=await fetch(CFG.aiUrl,{cache:"no-store",signal:AbortSignal.timeout(4000)});
+        if(r.ok){const config=await r.json();aiAvailability=config.providers||null}
+      })(),
+      (async()=>{
+        const r=await fetch(new URL("/usage",CFG.aiUrl),{cache:"no-store",signal:AbortSignal.timeout(4000)});
+        if(r.ok)absorbUsage(await r.json());
+      })()
+    ]);
+  })();
+}
+function aiCandidates(audio=false,now=Date.now()){
+  return (audio?["gemini"]:AI_ROUTE).filter(p=>(!aiAvailability||aiAvailability[p]===true)&&!(Number(aiCooldown[p])>now));
+}
+async function gem(body,signal){
+  if(signal?.aborted)throw{code:"cancelled"};
+  await setupAutomaticAI();
+  if(signal?.aborted)throw{code:"cancelled"};
+  const candidates=aiCandidates(Boolean(body.audio));
+  let lastCode="rate_limited";
+  for(const provider of candidates){
+    if(signal?.aborted)throw{code:"cancelled"};
+    const controller=new AbortController(),cancel=()=>controller.abort();
+    signal?.addEventListener("abort",cancel,{once:true});
+    if(signal?.aborted)cancel();
+    const timer=setTimeout(cancel,body.audio?32000:14000);
+    try{
+      const r=await fetch(CFG.aiUrl,{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({...body,provider}),signal:controller.signal
+      });
+      const j=await r.json().catch(()=>({}));
+      if(r.ok&&typeof j.text==="string"&&j.text.trim()){
+        let valid=true;
+        if(body.json){try{const value=jparse(j.text);valid=value!==null&&typeof value==="object"}catch{valid=false}}
+        if(valid){delete aiCooldown[provider];storageWrite(AI_COOLDOWN_KEY,aiCooldown);aiServiceStatus();return j}
+      }
+      if(r.status>=400&&r.status<500&&r.status!==429&&r.status!==401&&r.status!==403){
+        throw{code:j.error||"invalid_request",stop:true};
+      }
+      lastCode=r.status===429?"rate_limited":(j.error||"upstream");
+      const now=Date.now(), reset=j.error==="cloudflare_quota"?
+        Math.floor(now/86400000)*86400000+86400000:
+        now+(r.status===429?60000:r.status===401||r.status===403||r.status===503?300000:30000);
+      pauseAI(provider,reset);
+    }catch(e){
+      if(signal?.aborted)throw{code:"cancelled"};
+      if(e?.stop)throw{code:e.code};
+      lastCode="network";pauseAI(provider,Date.now()+30000);
+    }finally{
+      clearTimeout(timer);signal?.removeEventListener("abort",cancel);
     }
+    aiServiceStatus("Đang kết nối lại để bạn học tiếp…");
   }
-  return rows;
+  aiServiceStatus("Trợ lý học tập đang tạm bận. Bạn vẫn có thể học bài và ôn tập, rồi thử lại sau ít phút.");
+  throw{code:lastCode==="rate_limited"?"rate_limited":"upstream"};
 }
-function renderUsage(data, now=Date.now()){
-  const rows=learnerUsageRows(data,now), current=selectedAI();
-  const switchNeeded=rows.some(row=>row.id===current&&(row.blocked||row.unavailable));
-  return '<div style="display:grid;gap:0">'+rows.map(row=>
-    '<div style="padding:12px 0;border-bottom:1px solid #e7ebf2;display:flex;justify-content:space-between;gap:12px;align-items:baseline;flex-wrap:wrap">'+
-    '<span style="font-weight:600">'+esc(row.name)+(row.id===current?' <span class="sm" style="font-weight:400">· Đang chọn</span>':'')+'</span>'+
-    '<span style="flex:1 1 210px;text-align:right">'+esc(row.text)+(row.detail?'<span class="sm" style="display:block;margin-top:4px">'+esc(row.detail)+'</span>':'')+'</span></div>'
-  ).join("")+'</div>'+
-  (switchNeeded?'<button type="button" id="ai-switch-helper" class="pri" style="margin-top:12px">Đổi trợ lý để học tiếp</button>':'')+
-  '<p class="sm" style="margin-top:10px">Cập nhật lúc '+esc(new Date(now).toLocaleTimeString("vi-VN",{timeZone:"Asia/Ho_Chi_Minh",hour:"2-digit",minute:"2-digit"}))+'.</p>';
-}
-function drawUsage(){
-  const panel=$("#ai-usage");
-  if(!panel||!latestUsage)return;
-  panel.innerHTML=renderUsage(latestUsage);
-  const change=$("#ai-switch-helper");
-  if(change)change.onclick=()=>{
-    const picker=$("#ai-provider"),rows=learnerUsageRows(latestUsage);
-    const next=rows.find(row=>row.id!==selectedAI()&&!row.blocked&&!row.unavailable&&picker.querySelector('option[value="'+row.id+'"]')?.disabled===false);
-    if(next){picker.value=next.id;picker.onchange();$("#ai-provider-status").textContent="Đã chuyển sang "+aiLabel()+". Bạn có thể tiếp tục học."}
-    else{$("#ai-provider-status").textContent="Chưa có trợ lý khác khả dụng. Bạn hãy thử lại sau.";picker.focus()}
-  };
-}
-async function refreshUsage(){
-  const panel=$("#ai-usage");
-  if(!AIWEB||!panel||usageLoading)return;
-  usageLoading=true;
-  const button=$("#ai-usage-refresh");if(button)button.disabled=true;
-  try{
-    const response=await fetch(new URL("/usage",CFG.aiUrl),{cache:"no-store",signal:AbortSignal.timeout(8000)});
-    const data=await response.json();
-    if(!response.ok)throw new Error("usage");
-    latestUsage=data;drawUsage();
-  }catch{panel.textContent="Chưa kiểm tra được hạn mức. Bấm Cập nhật để thử lại."}
-  finally{usageLoading=false;if(button)button.disabled=false}
-}
-
-function updateAIPicker(){
-  const picker=$("#ai-provider");
-  picker.value=selectedAI();
-  $("#ai-summary").textContent="Trợ lý AI · "+aiLabel();
-  drawUsage();
-}
-
-async function setupAIPicker(){
-  if(!AIWEB)return;
-  $("#ai-picker").hidden=false;
-  $("#ai-usage-panel").ontoggle=()=>{if($("#ai-usage-panel").open)refreshUsage()};
-  $("#ai-usage-refresh").onclick=refreshUsage;
-  const picker=$("#ai-provider"),groq=picker.querySelector('[value="groq"]'),cloudflare=picker.querySelector('[value="cloudflare"]'),status=$("#ai-provider-status");
-  const help="Áp dụng cho hội thoại, sửa câu và chấm bài viết. Chấm phát âm bằng bản thu dùng Gemini.";
-  updateAIPicker();
-  picker.onchange=()=>{
-    S.aiProvider=picker.value;
-    save();
-    updateAIPicker();
-  };
-  status.textContent="Đang kiểm tra trợ lý AI… "+help;
-  try{
-    const response=await fetch(CFG.aiUrl,{cache:"no-store",signal:AbortSignal.timeout(5000)});
-    const config=await response.json();
-    if(!response.ok)throw new Error("AI status");
-    aiAvailability=config.providers||{};
-    picker.querySelector('[value="gemini"]').disabled=config.providers?.gemini!==true;
-    groq.disabled=config.providers?.groq!==true;
-    cloudflare.disabled=config.providers?.cloudflare!==true;
-    if(selectedAI()==="cloudflare"&&cloudflare.disabled){S.aiProvider="gemini";save();}
-    updateAIPicker();
-    status.textContent=help;
-  }catch(e){status.textContent="Chưa kiểm tra được trạng thái trợ lý AI. "+help}
-}
-async function gem(body,signal){let r;try{r=await fetch(CFG.aiUrl,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...body,provider:body.audio?"gemini":selectedAI()}),signal})}catch(e){throw{code:"network"}}
-  const j=await r.json().catch(()=>({}));if(r.ok)aiLastSuccess[body.audio?"gemini":selectedAI()]=Date.now();if($("#ai-usage-panel")?.open)refreshUsage();if(j.error==="cloudflare_quota"){$("#ai-provider-status").textContent="Cloudflare AI đã hết hạn mức miễn phí hôm nay. Bạn có thể chọn Gemini/Groq để học tiếp.";throw{code:"rate_limited"}}if(!r.ok)throw{code:j.error==="rate_limited"?"rate_limited":(j.error||"upstream")};return j}
 function jparse(t){const m=String(t).match(/\{[\s\S]*\}/);return JSON.parse(m?m[0]:t)}
 if(AIWEB){ai=async(prompt,o)=>{const j=await gem({prompt});o&&o.onText&&o.onText({text:j.text});return{text:j.text}};
   ai.json=async prompt=>jparse((await gem({prompt,json:true})).text)}
@@ -2700,8 +2657,6 @@ const VOICE_OPTIONS=[
   ["apollo","Apollo · Nam · Mỹ"],
   ["pandora","Pandora · Nữ · Anh"],
   ["draco","Draco · Nam · Anh"],
-  ["theia","Theia · Nữ · Úc"],
-  ["hyperion","Hyperion · Nam · Úc"],
   ["browser","Giọng trình duyệt"]
 ];
 const voiceChoice=()=>{
@@ -2790,7 +2745,7 @@ async function voiceBuffer(text,speaker,ctx,signal){
   const cancel=()=>controller.abort();
   signal.addEventListener("abort",cancel,{once:true});
   if(signal.aborted)cancel();
-  const timer=setTimeout(cancel,18000);
+  const timer=setTimeout(cancel,45000);
   try{
     const response=await fetch(new URL("/tts",CFG.aiUrl),{
       method:"POST",headers:{"Content-Type":"application/json"},
@@ -2859,7 +2814,7 @@ function mobileVoice(text,rate,vk,signal){
   if(focused?.tagName==="BUTTON"&&focused.closest("main"))focused.parentElement.after(panel);else status.after(panel);
   return new Promise(resolve=>{
     const controller=new AbortController();
-    const timer=setTimeout(()=>controller.abort(),20000);
+    const timer=setTimeout(()=>controller.abort(),45000);
     let url="",usingDevice=false;
     function finish(){clearTimeout(timer);controller.abort();player.pause();player.removeAttribute("src");player.load();panel.remove();if(url)URL.revokeObjectURL(url);signal.removeEventListener("abort",finish);resolve()}
     signal.addEventListener("abort",finish,{once:true});
@@ -3032,7 +2987,7 @@ function speakCard(el,item,opt={}){
     <div class="heard" data-k="heard"></div>
     <div class="hide" data-k="res"><div class="score" data-k="sc"></div><div class="sm" data-k="scm"></div><div class="phs hide" data-k="wd"></div><div class="box hide" data-k="fb"></div>
       ${IN_CLAUDE||AIWEB?'<div class="row center" style="margin-top:12px"><button class="sec hide" data-a="ai">Nhận xét chi tiết từ AI</button></div><div class="box hide" data-k="aio"></div>':""}</div>
-    ${AIWEB&&canMedia?`<div class="row center" style="margin-top:12px"><button data-a="gem">${I.mic} Gemini nghe và chấm</button></div><div class="sm center" data-k="gh">Gemini nghe giọng thật của bạn, chấm từng từ, độ trôi chảy và ngữ điệu.</div>`:""}
+    ${AIWEB&&canMedia?`<div class="row center" style="margin-top:12px"><button data-a="gem">${I.mic} Nghe và chấm phát âm</button></div><div class="sm center" data-k="gh">Giáo viên nghe bản thu, góp ý từng từ, độ trôi chảy và ngữ điệu.</div>`:""}
   </div>`;
   const q=k=>el.querySelector(`[data-k="${k}"]`),b=a=>el.querySelector(`[data-a="${a}"]`);let last=null;
   b("say").onclick=()=>say(item.en);b("slow").onclick=()=>say(item.en,.72);
@@ -3053,16 +3008,16 @@ function speakCard(el,item,opt={}){
     q("res").classList.remove("hide");const aib=b("ai");if(aib&&ai)aib.classList.remove("hide");
     tg.querySelectorAll(".wd").forEach(sp=>sp.onclick=()=>{tg.querySelectorAll(".wd").forEach(x=>x.classList.remove("sel"));sp.classList.add("sel");const w=R.words[+sp.dataset.w],box=q("wd");say(w.w.replace(/[^\w' ]/g,""),.85);
       if(w.ps){box.innerHTML=w.ps.map(p=>`<span class="ipa ${p.sc===1?"g":p.sc?"y":"r"}" title="${p.h?"nghe thành /"+esc(p.h)+"/":"thiếu"}">${esc(p.d)}</span>`).join("");box.classList.remove("hide")}else if(w.note){box.textContent=w.note;box.classList.remove("hide")}else box.classList.add("hide")})}
-  function res2heard(R){return (R.gem?"Gemini nghe được: ":"Máy nghe được: ")+R.heard}
+  function res2heard(R){return (R.gem?"Nghe được: ":"Máy nghe được: ")+R.heard}
   const gb=b("gem");if(gb)gb.onclick=async()=>{if(rec.on)return;
     if(grec){try{grec.mr.stop()}catch(e){}return}
-    const gh=q("gh");const ok=await gemRecord(async blob=>{gb.classList.remove("sec");gb.disabled=true;gh.textContent="Gemini đang nghe và chấm…";
+    const gh=q("gh");const ok=await gemRecord(async blob=>{gb.classList.remove("sec");gb.disabled=true;gh.textContent="Đang nghe và chấm phát âm…";
       try{const R=await gemScore(item.en,blob);gb.disabled=false;gh.textContent="Bấm để ghi âm lại.";
-        if(!R.heard&&!R.sc){q("heard").textContent="Gemini chưa nghe thấy câu nào, bạn thử nói to và rõ hơn.";return}
+        if(!R.heard&&!R.sc){q("heard").textContent="Chưa nghe rõ, bạn thử nói to và rõ hơn.";return}
         last={...R,said:R.heard};show(R);opt.onScore&&opt.onScore(R.sc,R)}
-      catch(e){gb.disabled=false;gh.textContent=e&&e.code==="rate_limited"?"Gemini hết lượt miễn phí tạm thời, thử lại sau ít phút.":"Không chấm được lúc này, thử lại sau."}});
+      catch(e){gb.disabled=false;gh.textContent=e&&e.code==="rate_limited"?"Chấm bản thu đang tạm bận, bạn thử lại sau ít phút.":"Không chấm được lúc này, thử lại sau."}});
     if(!ok){gh.textContent="Chưa có quyền dùng micro. Cho phép micro trong trình duyệt rồi thử lại.";return}
-    gb.classList.add("sec");gh.textContent="Đang ghi âm… đọc câu trên rồi bấm lần nữa để gửi Gemini chấm (tối đa 15 giây).";q("res").classList.add("hide")};
+    gb.classList.add("sec");gh.textContent="Đang ghi âm… đọc câu trên rồi bấm lần nữa để gửi chấm (tối đa 15 giây).";q("res").classList.add("hide")};
   const aib=b("ai");if(aib)aib.onclick=async()=>{const o=q("aio");o.classList.remove("hide");o.textContent="Đang phân tích…";aib.disabled=true;
     try{const r=await ai(`Bạn là giáo viên phát âm tiếng Anh cho người Việt. Câu mẫu: "${item.en}". Công cụ nhận giọng nói nghe được người học nói: "${last.said}". Các lỗi máy phát hiện: ${last.fb.join("; ")||"không có"}. Hãy chỉ ra những từ người học có thể phát âm sai, giải thích vì sao người Việt hay mắc (âm cuối, trọng âm, nối âm, nguyên âm), cách sửa cụ thể kèm IPA. Tiếng Việt, tối đa 6 câu, không markdown.`,{modelTier:"quick",onText:({text})=>o.textContent=text});o.textContent=r.text}
     catch(e){o.textContent=e&&e.code==="rate_limited"?"AI đang bận, thử lại sau ít phút.":"Không lấy được nhận xét lúc này."}aib.disabled=false};
@@ -3072,24 +3027,18 @@ function recordScore(en,sc,stat){const k=en;const prev=S.best[k]||0;if(sc>prev){
 /* ---------- màn hình: Hôm nay ---------- */
 const HERO=`<svg viewBox="0 0 320 220" aria-hidden="true"><ellipse cx="160" cy="205" rx="130" ry="10" fill="#0b1a33" opacity=".35"/><rect x="40" y="150" width="240" height="14" rx="7" fill="#2d64b8"/><rect x="70" y="164" width="10" height="38" fill="#2d64b8"/><rect x="240" y="164" width="10" height="38" fill="#2d64b8"/><rect x="110" y="104" width="100" height="58" rx="8" fill="#e9eef8"/><rect x="118" y="112" width="84" height="42" rx="4" fill="#4f8cff"/><path d="M126 140l14-12 12 8 16-16 22 20" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><rect x="150" y="162" width="20" height="8" fill="#e9eef8"/><g class="bub"><rect x="14" y="24" width="124" height="62" rx="20" fill="#ff6b5a"/><path d="M50 86l-8 18 24-18z" fill="#ff6b5a"/><text x="76" y="62" text-anchor="middle" font-family="Be Vietnam Pro,sans-serif" font-weight="800" font-size="22" fill="#fff">Hello!</text></g><g class="bub b2"><rect x="186" y="8" width="120" height="76" rx="22" fill="#ffc845"/><path d="M262 84l12 18-30-18z" fill="#ffc845"/><g stroke="#13294b" stroke-width="6" stroke-linecap="round"><path d="M214 46v0"/><path d="M230 34v24"/><path d="M246 26v40"/><path d="M262 36v20"/><path d="M278 42v8"/></g></g><circle cx="300" cy="120" r="10" fill="#19b39b"/><circle cx="22" cy="130" r="7" fill="#4f8cff"/><circle cx="290" cy="160" r="5" fill="#ff6b5a"/></svg>`;
 function vToday(){
-  const goal=goalXP(),t=S.days[today()]||0,due=dueCards().length,mast=Object.values(S.best).filter(v=>v>=80).length;
-  const rc=recs(3),next=rc[0],nm=P().name?esc(P().name):"bạn";
-  const weak=Object.entries(S.ph).filter(([p,v])=>v[1]>=4).map(([p,v])=>[p,Math.round(v[0]/v[1]*100)]).sort((a,b)=>a[1]-b[1]).slice(0,6);
-  app.innerHTML=course.hero()
-  +`
-  ${t>=goal?`<div class="tip" role="status"><strong>Giỏi lắm ${nm}! Bạn đã đạt mục tiêu hôm nay. Mỗi ngày một chút, bạn đang tiến bộ rồi.</strong></div>`:""}
-  <div class="kpi"><div class="k1"><span class="sm">Mục tiêu hôm nay</span><b>${t}/${goal} XP</b><div class="goal"><i style="width:${Math.min(100,t/goal*100)}%"></i></div></div><div class="k2"><span class="sm">Câu cần ôn</span><b>${due}</b></div><div class="k3"><span class="sm">Câu đã đạt</span><b>${mast}/${SENT.length}</b></div><div class="k4"><span class="sm">Chuỗi ngày</span><b>${streak()}</b></div></div>
-  <div class="row">${due?`<a class="btn pri" href="#review">Ôn ${due} câu đến hạn</a>`:""}${next?`<a class="btn ${due?"":"pri"}" href="#${next.id}">Luyện thêm: ${esc(next.t)}</a>`:""}${S.lv?'<a class="btn" href="#test">Làm lại bài kiểm tra</a>':""}</div>
-  ${S.hw&&S.hw.items&&S.hw.items.some(h=>!h.done)?`<div class="box"><b>Bài về nhà</b><p class="sm">Còn ${S.hw.items.filter(h=>!h.done).length} bài chưa làm từ buổi học ngày ${esc(S.hw.given)}.</p><a class="btn pri" href="#chat">Làm bài về nhà</a></div>`:""}
-  ${S.prof&&rc.length?`<h3 class="sec-h">Gợi ý riêng cho ${nm}</h3><div class="grid">${rc.map(unitCard).join("")}</div>`:""}
-  <h3 class="sec-h">Cách học hiệu quả với web này</h3>
-  <div class="tip"><p>Mỗi ngày 15 đến 20 phút đều đặn tốt hơn học dồn. Thứ tự gợi ý: ôn câu đến hạn, học một bài mới, rồi luyện nghe.</p><p>Với mỗi câu: nghe mẫu, bấm Nghe rồi nhại để bắt chước ngay ngữ điệu (kỹ thuật shadowing), xem từ nào đỏ, bấm vào từ đó để nghe lại và sửa. Câu nào đã luyện sẽ tự quay lại đúng lúc sắp quên.</p></div>
+  const t=S.days[today()]||0,due=dueCards().length,nm=P().name?esc(P().name):"bạn";
+  app.innerHTML=course.hero()+
+    '<p class="sm">'+(t>=goalXP()?"Bạn đã đạt mục tiêu hôm nay. Hẹn bạn ở buổi tiếp theo!":"Chào "+nm+". Học một bài ngắn là đủ để bắt đầu hôm nay.")+'</p>'+
+    '<section class="box"><h3>Buổi học của bạn</h3><p>Nghe hoặc đọc một tình huống, luyện câu cần dùng, rồi viết câu trả lời của chính bạn. Cuối bài, xem kết quả và lưu điều cần ôn.</p><p class="sm">Bài đang làm và câu trả lời được lưu để lần sau học tiếp.</p></section>'+
+    (due?'<section class="box"><h3>Ôn lại để nhớ lâu</h3><p>Có '+due+' câu đến lúc ôn.</p><a class="btn" href="#review">Ôn câu đã học</a></section>':"")+
+    (S.hw?.items?.some(h=>!h.done)?'<section class="box"><h3>Bài từ buổi hội thoại trước</h3><p>Còn '+S.hw.items.filter(h=>!h.done).length+' bài để luyện thêm.</p><a class="btn" href="#chat">Xem bài luyện thêm</a></section>':"")+
+    '<details class="box"><summary>Tiến độ và công cụ luyện thêm</summary><div style="margin-top:12px"><p>Chuỗi học: '+streak()+' ngày · Hôm nay: '+t+' XP</p><div class="row"><a class="btn" href="#assessment">Nhận xét học tập</a><a class="btn" href="#history">Lịch sử</a><a class="btn" href="#practice">Luyện tự chọn</a><a class="btn" href="#start">Đổi mục tiêu</a></div>'+assessmentSummary(S.lastAssessment)+`
   ${!IN_CLAUDE?`<label class="switch"><input type="checkbox" id="pm" ${S.phone?"checked":""} ${canMedia?"":"disabled"}><span><b>Chấm chi tiết từng âm như Elsa</b><br><span class="sm">Dùng mô hình nhận dạng âm vị chạy ngay trên máy bạn, không gửi giọng nói đi đâu. Lần đầu tải khoảng 355 MB, các lần sau dùng lại bản đã lưu. Nên bật trên máy tính hoặc điện thoại mạnh, dùng wifi.</span></span></label>`:`<p class="note">Bản này chạy trong Claude nên có AI sửa lỗi và hội thoại, chấm phát âm theo từ.${CFG.webUrl.startsWith("http")?` Muốn chấm chi tiết từng âm, mở <a href="${esc(CFG.webUrl)}">bản web TCV Talks</a> bằng Chrome.`:""}</p>`}
-  ${assessmentSummary(S.lastAssessment)}
-  ${weak.length?`<h3 class="sec-h">Âm bạn hay sai nhất</h3><table>${weak.map(([p,v])=>`<tr><td class="ipa" style="font-size:18px">/${esc(p)}/</td><td><div class="bar"><i style="width:${v}%;background:${v>=80?"var(--ok)":v>=50?"var(--mid)":"var(--red)"}"></i></div></td><td class="n">${v}%</td></tr>`).join("")}</table>`:""}`;
-  app.querySelectorAll(".unit").forEach(b=>b.onclick=()=>location.hash=b.dataset.u);
+    </div></details>`;
   wireAssessment(app,S.lastAssessment,vToday);
-  const pm=$("#pm");if(pm)pm.onchange=()=>{S.phone=pm.checked;save();if(S.phone)loadModel().catch(()=>{})}}
+  const pm=$("#pm");if(pm)pm.onchange=()=>{S.phone=pm.checked;save();if(S.phone)loadModel().catch(()=>{})};
+}
 
 /* ---------- màn hình: hồ sơ cá nhân ---------- */
 function vProfile(){
@@ -3560,8 +3509,8 @@ function vChat(){
   <div class="row"><input type="text" id="ci" placeholder="Trả lời bằng tiếng Anh" autocomplete="off" style="flex:1 1 220px">
     ${canUseMic?`<button id="cm" type="button" aria-pressed="false">${I.mic}<span id="cm-label">Bật mic</span></button>`:""}<button class="pri" id="cg">Gửi</button></div>
   <p class="sm" id="chat-status" role="status"></p>
-  ${cloudMic?'<p class="sm">Bấm Bật mic, nói tối đa 15 giây, bấm Dừng ghi: bản thu được gửi cho Gemini nghe và trả lời ngay. Nếu Gemini bận, web chuyển giọng thành chữ để bạn sửa rồi bấm Gửi.</p>':!canUseMic?'<p class="sm">Mic chưa dùng được trong trình duyệt này. Bạn có thể gõ câu trả lời.</p>':""}
-  <div class="row"><button id="cr" class="sec">${chat.log.length?"Bắt đầu lại":"Bắt đầu"}</button><button id="ce" class="pri">Kết thúc buổi học và nhận xét</button></div>`;
+  ${cloudMic?'<p class="sm">Bấm Bật mic, nói tối đa 15 giây, bấm Dừng ghi: giáo viên sẽ nghe và phản hồi. Nếu chưa xử lý được bản thu, web thử nhận diện lời nói theo cách khác.</p>':!canUseMic?'<p class="sm">Mic chưa dùng được trong trình duyệt này. Bạn có thể gõ câu trả lời.</p>':""}
+  <div class="row"><button id="cr" class="sec">${chat.log.length?"Bắt đầu lại":"Bắt đầu"}</button><button id="ce" class="pri">Kết thúc và xem kết quả</button></div>`;
   const input=$("#ci"),cm=$("#cm"),status=$("#chat-status"),start=$("#cr"),sendButton=$("#cg"),scenario=$("#cs"),cl=$("#cl"),endBtn=$("#ce"),rv=$("#rv");
   let recorder,working=false;
   function draw(){
@@ -3604,7 +3553,7 @@ function vChat(){
       const body=blob?{prompt,json:true,audio:{mime:(blob.type||"audio/webm").split(";")[0],data:await b64(blob)}}:{prompt,json:true};
       const reply=AIWEB?gem(body,request.signal).then(v=>jparse(v.text)):askJSON(prompt);
       const deadline=new Promise((_,reject)=>{
-        timer=setTimeout(()=>{reject({code:"timeout"});request.abort()},blob?35000:25000);
+        timer=setTimeout(()=>{reject({code:"timeout"});request.abort()},blob?40000:48000);
       });
       const r=await Promise.race([reply,deadline]);
       if(!app.contains(cl))return true;
@@ -3624,7 +3573,7 @@ function vChat(){
       if(u||blob)gain(blob?3:2);
     }catch(e){
       ok=!blob;
-      if(app.contains(cl))status.textContent=blob?"Gemini chưa nghe được, chuyển sang chuyển giọng thành chữ…":(e?.code==="rate_limited"||e?.code==="timeout"?"AI phản hồi chậm. Bạn có thể thử lại.":"Chưa kết nối được với AI. Thử lại nhé.");
+      if(app.contains(cl))status.textContent=blob?"Chưa nghe được bản thu, đang thử cách nhận diện khác…":(e?.code==="rate_limited"||e?.code==="timeout"?"AI phản hồi chậm. Bạn có thể thử lại.":"Chưa kết nối được với AI. Thử lại nhé.");
     }finally{
       clearTimeout(timer);
       working=false;
@@ -3759,12 +3708,13 @@ function createCourse(rows){
     return pool.find(l=>!d.work[l.id]?.finished);
   }
   function hero(){
-    const d=db(),l=next(),other=lessons.find(x=>!d.work[x.id]?.finished),w=l&&d.work[l.id];
-    return `<section class="hero"><div><span>${d.level?esc(d.level)+" · "+esc(d.goal)+" · "+d.minutes+" phút mỗi ngày":"Tiếng Anh từ Pre-A1 đến C2"}</span><h2>${l?esc(l.title):d.level?"Bạn đã xong các bài ở cấp này":"Bắt đầu từ trình độ của bạn"}</h2><p>${l?"Học xong, bạn có thể "+esc(l.outcome.charAt(0).toLowerCase()+l.outcome.slice(1)):d.level?"Mở lộ trình để chọn bài ở cấp khác hoặc luyện lại.":"Chọn mục tiêu và cấp học để nhận bài đầu tiên."}</p><div class="row">${l?link(url(l),w?"Học tiếp · "+steps[w.step]:"Học bài này",true):link(d.level?"#course-path":"#start",d.level?"Xem lộ trình":"Chọn cấp học",true)} ${link("#notebook","Sổ tay · "+Object.values(d.errors).filter(e=>e.due<=Date.now()).length+" câu đến hạn")} ${l?link("#start","Đổi mục tiêu"):""}</div></div></section>`;
+    const d=db(),l=next(),w=l&&d.work[l.id];
+    return '<section class="hero"><div><span>Buổi học hôm nay · '+(d.minutes||10)+' phút</span><h2>'+(l?esc(l.title):d.level?"Bạn đã hoàn thành cấp "+esc(d.level):"Mỗi ngày, dùng tiếng Anh tự tin hơn")+'</h2><p>'+(l?"Học xong, bạn có thể "+esc(l.outcome.charAt(0).toLowerCase()+l.outcome.slice(1)):d.level?"Bạn có thể ôn lại hoặc khám phá cấp học tiếp theo.":"Chọn cấp học một lần, lần sau chỉ cần bấm Học tiếp.")+'</p><div class="row">'+(l?link(url(l),w?"Học tiếp":"Bắt đầu buổi học",true):link(d.level?"#course-path":"#start",d.level?"Chọn bài tiếp":"Bắt đầu buổi học",true))+'</div><p class="sm" style="margin-top:14px">Hiểu tình huống → Luyện mẫu câu → Tự vận dụng → Xem kết quả</p></div></section>';
   }
   function welcome(){
     const old=document.getElementById("course-welcome");if(old)old.remove();
-    app.insertAdjacentHTML("afterbegin",`<section id="course-welcome" class="hero"><div><span>TCV Talks · Pre-A1 đến C2</span><h2>Hôm nay bạn muốn dùng tiếng Anh để làm gì?</h2><p>Thử một bài theo trình độ của bạn. Mở hồ sơ bên dưới để lưu tiến độ và học tiếp trên thiết bị khác.</p><div class="row">${link("#course-path","Chọn bài học thử",true)} ${link("#lesson-appointment","Thử bài đổi giờ hẹn")}</div></div></section>`);
+    const d=db(),current=unit(d.current),resume=current&&!d.work[current.id]?.finished;
+    app.insertAdjacentHTML("afterbegin",'<section id="course-welcome" class="hero"><div><span>TCV Talks · Tiếng Anh cho mỗi ngày</span><h2>Học một chút. Dùng được ngay.</h2><p>Thử một tình huống ngắn: hiểu câu nói, luyện mẫu câu rồi tự trả lời. Bạn sẽ thấy kết quả trước khi cần tạo hồ sơ.</p><div class="row">'+link(resume?url(current):"#lesson-appointment",resume?"Học tiếp bài thử":"Học thử 5 phút",true)+link("#course-path","Chọn bài theo trình độ")+'</div><p class="sm" style="margin-top:14px">Không cần đăng ký để học thử. Kết quả được giữ trên trình duyệt này.</p></div></section>');
   }
   function start(){
     const d=db(), opts=(items,value)=>items.map(x=>`<option ${x===value?"selected":""}>${esc(x)}</option>`).join("");
@@ -3782,7 +3732,7 @@ function createCourse(rows){
     const head=`<div class="row">${link("#course-path","← Lộ trình")}<span>${l.level} · ${w.finished?"Đã hoàn thành":"Bước "+(w.step+1)+"/3"}</span></div><h2>${esc(l.title)}</h2><p class="lead">${esc(l.outcome)}</p>`;
     if(w.finished){
       const following=next();
-      app.innerHTML=head+`<section class="box">${activeLearner&&(S.days[today()]||0)>=goalXP()?"<p><strong>Giỏi lắm! Bạn đã đạt mục tiêu hôm nay. Cảm ơn bạn đã dành thời gian học tiếng Anh!</strong></p>":"<p><strong>Hoàn thành bài rồi, bạn làm tốt lắm!</strong></p>"}<h3>Bài làm của bạn</h3><p class="course-copy">${esc(w.draft)}</p><p>${w.first===l.key?"Bạn trả lời đúng câu hiểu tình huống ngay lần đầu.":"Bạn đã sửa câu hiểu tình huống sau khi xem gợi ý."}</p>${w.feedback?"<p>"+esc(w.feedback)+"</p>":""}<div class="row">${following?link(url(following),"Bài tiếp theo",true):link("#course-path","Chọn bài tiếp",true)}<button id="revise">Sửa bài viết</button>${link("#notebook","Sổ tay và ôn tập")}${!activeLearner?link("#access","Mở hồ sơ"):""}</div></section>`;
+      app.innerHTML=head+`<section class="box">${activeLearner&&(S.days[today()]||0)>=goalXP()?"<p><strong>Giỏi lắm! Bạn đã đạt mục tiêu hôm nay. Cảm ơn bạn đã dành thời gian học tiếng Anh!</strong></p>":"<p><strong>Hoàn thành bài rồi, bạn làm tốt lắm!</strong></p>"}<h3>Hôm nay bạn đã làm được</h3><p>${esc(l.outcome)}</p><p class="sm">Hiểu tình huống · ${w.first===l.key?"Đúng ngay lần đầu":"Đã sửa sau gợi ý"}<br>Mẫu câu · ${esc(l.phrase)}<br>Tự vận dụng · Đã viết câu trả lời</p><h3>Bài làm của bạn</h3><p class="course-copy">${esc(w.draft)}</p><p>${w.first===l.key?"Bạn trả lời đúng câu hiểu tình huống ngay lần đầu.":"Bạn đã sửa câu hiểu tình huống sau khi xem gợi ý."}</p>${w.feedback?"<p>"+esc(w.feedback)+"</p>":""}<p class="sm">${activeLearner?"Tiến độ đã được lưu vào hồ sơ.":"Bài thử đã được giữ trên trình duyệt này. Tạo hồ sơ để mang kết quả sang thiết bị khác."}${following?" Lần tới: "+esc(following.title)+".":""}</p><div class="row">${activeLearner?link("#today","Về hôm nay",true):link("#access","Lưu kết quả và học tiếp",true)}${following?link(url(following),"Học thêm một bài"):link("#course-path","Chọn bài tiếp")}<button id="revise">Sửa bài viết</button>${link("#notebook","Sổ tay và ôn tập")}</div></section>`;
       $("#revise").onclick=()=>{w.finished=false;w.step=2;lesson(l)};return;
     }
     const parts=l.source.split(" | ");
@@ -3819,7 +3769,7 @@ function createCourse(rows){
         }catch{if(out.isConnected)out.textContent="AI chưa phản hồi. Bạn có thể thử lại hoặc xem cách diễn đạt tham khảo."}finally{button.disabled=false}
       };
     }
-    advance.onclick=()=>{if(w.step===2){w.finished=true;w.date=today();if(activeLearner&&!w.awarded){w.awarded=true;gain(25)}}else w.step++;lesson(l)};
+    advance.onclick=()=>{if(w.step===2){w.finished=true;w.date=today();d.notes[l.id]=true;if(activeLearner&&!w.awarded){w.awarded=true;gain(25)}}else w.step++;lesson(l)};
   }
   function notebook(){
     const d=db(),finished=Object.values(d.work).filter(w=>w.finished),attempted=Object.values(d.work).filter(w=>w.first!=null);
@@ -3853,7 +3803,7 @@ function placement(){
   function practice(){
     const attrs=l=>({topic:({water:"Ăn uống",menu:"Ăn uống",booking:"Ăn uống",order:"Ăn uống",remedy:"Ăn uống",letter:"Dịch vụ",critic:"Văn hóa",hello:"Đời sống",train:"Du lịch",appointment:"Đời sống",handover:"Công việc",evidence:"Học thuật",research:"Học thuật",policy:"Xã hội"})[l.id],skill:["water","hello","booking","appointment","order","handover","remedy"].includes(l.id)?"Nghe":"Đọc",minutes:["Pre-A1","A1"].includes(l.level)?5:10});
     const field=(id,label,options)=>'<label>'+label+' <select id="'+id+'"><option value="">Tất cả</option>'+options.map(x=>'<option>'+esc(x)+'</option>').join("")+'</select></label>';
-    app.innerHTML='<h2>Luyện tập tự chọn</h2><div class="box row">'+field("filter-level","Cấp",levels)+field("filter-topic","Chủ đề",[...new Set(lessons.map(l=>attrs(l).topic))])+field("filter-skill","Kỹ năng",["Nghe","Đọc","Viết","Từ vựng"])+field("filter-time","Phút",[5,10])+'</div><div class="grid" id="filtered"></div>'+(activeLearner?'<h3 class="sec-h">Phòng luyện chuyên sâu</h3><div class="row">'+link("#speak","Nói và phát âm")+link("#quiz","Ngữ pháp")+link("#chat","Hội thoại theo vai")+'</div>':"");
+    app.innerHTML='<h2>Luyện tập tự chọn</h2><div class="box row">'+field("filter-level","Cấp",levels)+field("filter-topic","Chủ đề",[...new Set(lessons.map(l=>attrs(l).topic))])+field("filter-skill","Kỹ năng",["Nghe","Đọc","Viết","Từ vựng"])+field("filter-time","Phút",[5,10])+'</div><div class="grid" id="filtered"></div>'+(activeLearner?'<h3 class="sec-h">Phòng luyện chuyên sâu</h3><div class="row">'+link("#speak","Nói và phát âm")+link("#quiz","Ngữ pháp")+link("#chat","Hội thoại theo vai")+link("#listen","Luyện nghe")+link("#trans","Dịch câu")+link("#fix","Sửa câu")+link("#path","Phát âm và công sở")+link("#history","Lịch sử học")+'</div>':"");
     function list(){const val=id=>$("#filter-"+id).value;
       const filtered=lessons.filter(l=>{const a=attrs(l);return (!val("level")||l.level===val("level"))&&(!val("topic")||a.topic===val("topic"))&&(!val("time")||a.minutes===+val("time"))&&(!val("skill")||[a.skill,"Viết","Từ vựng"].includes(val("skill")))});
       $("#filtered").innerHTML=filtered.map(l=>'<a class="box course-link" href="'+url(l)+'"><small>'+l.level+' · '+attrs(l).topic+' · '+attrs(l).minutes+' phút</small><h3>'+esc(l.title)+'</h3><p>'+esc(l.outcome)+'</p></a>').join("")||"<p>Chưa có bài khớp các bộ lọc này.</p>";
@@ -4201,7 +4151,7 @@ function route(){
     window.scrollTo(0,0);
     return;
   }
-  document.querySelectorAll("#nav a").forEach(a=>{const t=a.getAttribute("href").slice(1);a.classList.toggle("on",t===h||(t==="course-path"&&h.startsWith("lesson-"))||(t==="path"&&/^[po]\d+$/.test(h))||(t==="today"&&(h==="test"||h==="profile")))});
+  document.querySelectorAll("#nav a").forEach(a=>{const t=a.getAttribute("href").slice(1);a.classList.toggle("on",t===h||(t==="course-path"&&h.startsWith("lesson-"))||(t==="path"&&/^[po]\d+$/.test(h))||(t==="practice"&&["path","speak","listen","trans","quiz","fix"].includes(h))||(t==="notebook"&&h==="history")||(t==="today"&&(h==="test"||h==="profile")))});
   cancelChatMic();if(rec.on)stopRec();stopAudio();
   const u=uById(h);
   if(course.render(h)){rememberView();window.scrollTo(0,resumeScroll);resumeScroll=0;return}
