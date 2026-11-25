@@ -3269,6 +3269,191 @@ const TEST_LISTENING=[[1,"Please leave the documents on my desk.","Để tài li
 const TEST_WRITING=[["update","Bạn phụ trách một báo cáo và sẽ nộp trễ.","Viết tin nhắn cho quản lý. Nêu tình trạng hiện tại, lý do và thời điểm dự kiến gửi.","o5"],["request","Một đồng nghiệp có dữ liệu bạn cần để hoàn tất công việc.","Viết tin nhắn nhờ họ gửi dữ liệu. Nêu dữ liệu nào, bạn cần lúc nào và vì sao.","o5"],["reschedule","Hai người trong nhóm không thể dự họp vào giờ đã chốt.","Viết tin nhắn đổi lịch. Giải thích ngắn, đề xuất giờ mới và nhờ mọi người xác nhận.","o3"],["customer","Khách báo bị tính phí hai lần cho cùng một đơn.","Viết phản hồi đầu tiên. Thừa nhận vấn đề, nói bạn sẽ kiểm tra gì và hẹn lúc cập nhật.","o7"],["coaching","Một nhân viên gửi báo cáo đúng giờ nhưng thiếu dữ liệu quan trọng.","Viết lời góp ý. Ghi nhận điểm tốt, chỉ ra điều cần sửa và chốt một bước tiếp theo.","o8"],["incident","Công cụ nội bộ đang lỗi và một số đồng nghiệp không xử lý được yêu cầu.","Viết cập nhật cho nhóm. Nêu sự cố, ảnh hưởng và việc mọi người nên làm trong lúc chờ.","o9"],["handover","Bạn nghỉ ngày mai và một việc đang chờ khách phản hồi.","Viết tin nhắn bàn giao. Nêu việc đang ở bước nào, ai tiếp nhận và cần làm gì khi khách trả lời.","o5"],["followup","Bạn vừa họp xong và nhóm đã thống nhất hai việc cần làm.","Viết tin nhắn tổng kết. Nêu hai đầu việc, người phụ trách và thời hạn.","o3"],["agenda","Bạn sẽ dẫn một cuộc họp 15 phút để giải quyết điểm nghẽn của nhóm.","Viết lời mời họp. Nêu mục đích, nội dung cần chuẩn bị và kết quả mong đợi.","o3"]];
 const WRITING_SKILLS={task:"Hoàn thành yêu cầu",grammar:"Ngữ pháp",clarity:"Rõ ý và mạch lạc",tone:"Giọng điệu công sở"};
 const TEST_SKILLS={grammar:"Ngữ pháp và từ vựng",listening:"Nghe hiểu",writing:"Viết công sở"};
+
+/* ---------- phát giọng cho bài kiểm tra (iPhone an toàn) ---------- */
+const SILENT_WAV="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+let sharedAudio=null;
+function unlockAudio(){
+  if(sharedAudio)return;
+  try{sharedAudio=new Audio();sharedAudio.src=SILENT_WAV;const p=sharedAudio.play();if(p&&p.catch)p.catch(()=>{})}catch{sharedAudio=null}
+}
+["pointerdown","touchend","click"].forEach(type=>document.addEventListener(type,unlockAudio,{capture:true,once:true}));
+function deviceSpeak(text,signal){
+  return new Promise(resolve=>{
+    const synth=window.speechSynthesis;
+    if(!synth||!window.SpeechSynthesisUtterance){resolve(false);return}
+    let started=false,done=false,timer=0;
+    const u=new SpeechSynthesisUtterance(text);
+    u.lang="en-US";u.rate=.9;
+    if(voice&&voice.lang.toLowerCase().startsWith("en"))u.voice=voice;
+    const fin=ok=>{if(done)return;done=true;clearTimeout(timer);signal.removeEventListener("abort",ab);resolve(ok)};
+    const ab=()=>{synth.cancel();fin(false)};
+    timer=setTimeout(()=>{if(!started){synth.cancel();fin(false)}},3500);
+    u.onstart=()=>{started=true};
+    u.onend=()=>fin(started);
+    u.onerror=()=>fin(false);
+    signal.addEventListener("abort",ab,{once:true});
+    try{synth.cancel();synth.speak(u)}catch{fin(false)}
+  });
+}
+async function fetchTtsBlob(text,signal){
+  const choice=voiceChoice(),strict=exactVoiceRequired(),speaker=["auto","browser"].includes(choice)?VOICE_SPEAKERS.f:choice;
+  const cached=await readTtsCache(speaker,text,strict);
+  if(cached){const b=await cached.blob();if(b.size)return b}
+  const c=new AbortController(),abort=()=>c.abort(),timer=setTimeout(abort,25000);
+  signal?.addEventListener("abort",abort,{once:true});
+  try{
+    const r=await fetch(new URL("/tts",CFG.aiUrl),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text,speaker,strictVoice:strict}),signal:c.signal});
+    if(!r.ok)return null;
+    const b=await r.blob();
+    if(!b.size)return null;
+    writeTtsCache(speaker,text,b,strict);
+    return b;
+  }finally{clearTimeout(timer);signal?.removeEventListener("abort",abort)}
+}
+async function prefetchTts(texts){
+  if(IN_CLAUDE||!cloudVoiceOn())return;
+  for(const text of texts){try{await fetchTtsBlob(text)}catch{}}
+}
+async function testSay(text,statusEl){
+  if(IN_CLAUDE){say(text);return}
+  stopAudio();
+  const request=new AbortController();voiceRequest=request;
+  const {signal}=request;
+  const set=m=>{if(statusEl&&statusEl.isConnected)statusEl.textContent=m};
+  unlockAudio();
+  const player=sharedAudio;
+  let url="";
+  const cleanup=()=>{if(url){URL.revokeObjectURL(url);url=""}};
+  signal.addEventListener("abort",()=>{try{player&&player.pause()}catch{}cleanup();set("")},{once:true});
+  let blob=null;
+  if(cloudVoiceOn()){
+    set("Đang tải âm thanh…");
+    try{blob=await fetchTtsBlob(text,signal)}catch{}
+  }
+  if(signal.aborted)return;
+  if(blob&&player){
+    try{
+      url=URL.createObjectURL(new Blob([blob],{type:blob.type||"audio/mpeg"}));
+      player.onended=()=>{cleanup();set("")};
+      player.src=url;
+      await player.play();
+      set("Đang phát…");
+      return;
+    }catch{cleanup()}
+  }
+  if(signal.aborted)return;
+  set("Đang dùng giọng của thiết bị…");
+  const ok=await deviceSpeak(text,signal);
+  if(signal.aborted)return;
+  set(ok?"":"Chưa phát được tiếng. Kiểm tra điện thoại có đang tắt chuông hoặc âm lượng thấp không, rồi bấm Nghe lại.");
+}
+function listenButton(){return '<button class="ico" id="pl" type="button" aria-label="Nghe">'+I.spk+'</button><span class="sm" id="pl-status" role="status" style="display:block;min-height:1.3em"></span>'}
+
+/* ---------- trình độ, gợi ý bài học và bài test sau học ---------- */
+const LEVEL_INFO={1:["A2","Cơ bản","Hiểu và nói được câu quen thuộc trong công việc hằng ngày."],2:["B1","Trung cấp","Xử lý được họp, email và cuộc gọi quen thuộc, còn lúng túng khi tình huống phức tạp."],3:["B2","Khá","Trao đổi khá tự tin ở công sở, cần trau chuốt cách diễn đạt."]};
+const SKILL_LABEL={listening:"Nghe",speaking:"Nói",reading:"Đọc",writing:"Viết"};
+function levelCardHTML(result){
+  const lv=result.lv||S.lv;
+  const info=LEVEL_INFO[lv];
+  if(!info)return "";
+  const sk=Object.keys(TEST_SKILLS).filter(k=>Number.isFinite(result.scores[k]));
+  return '<section class="box assessment-card level-card"><h3>Trình độ của bạn: '+info[0]+' · '+info[1]+'</h3><p>'+info[2]+'</p>'+
+    '<p class="sm">'+sk.map(k=>TEST_SKILLS[k]+" "+result.scores[k]+"/100").join(" · ")+'</p>'+
+    '<p class="sm">Đây là ước lượng từ bài kiểm tra ngắn, không phải chứng chỉ. Làm lại sau vài tuần để cập nhật.</p></section>';
+}
+function learningPlan(result){
+  const lv=result?.lv||S.lv||1,sc=result?.scores||{};
+  const open=UNITS.filter(u=>!S.done[u.id]);
+  const near=list=>list.filter(u=>u.lv===lv)[0]||list.filter(u=>u.lv<=lv)[0]||list[0];
+  const rec=new Set(recs(12).map(u=>u.id));
+  const ranked=list=>[...list].sort((a,b)=>(rec.has(b.id)-rec.has(a.id))||UNITS.indexOf(a)-UNITS.indexOf(b));
+  const writingUnit=result?.writing?.unit&&uById(result.writing.unit);
+  return [
+    {skill:"listening",unit:near(ranked(open.filter(u=>u.pairs||u.d))),weak:sc.listening<75,why:"Nghe cặp âm và hội thoại mẫu"},
+    {skill:"speaking",unit:near(ranked(open.filter(u=>u.kind==="o"))),weak:false,why:"Luyện nói từng câu và chấm phát âm"},
+    {skill:"reading",unit:near(ranked(open.filter(u=>u.q))),weak:sc.grammar<75,why:"Đọc hiểu mẹo và làm bài tập nhanh"},
+    {skill:"writing",unit:(writingUnit&&!S.done[writingUnit.id]?writingUnit:null)||near(ranked(open.filter(u=>u.kind==="o"))),weak:sc.writing<75,why:"Học câu mẫu rồi tự đặt câu"}
+  ].filter(x=>x.unit);
+}
+function planHTML(result){
+  if(!result)return "";
+  const plan=learningPlan(result);
+  if(!plan.length)return "";
+  return '<section class="box assessment-card"><h3>Bài học gợi ý theo trình độ của bạn</h3><p class="sm">Học xong mỗi bài sẽ có bài test ngắn để kiểm tra bạn đã nắm chưa.</p>'+
+    plan.map(({skill,unit,weak,why})=>{
+      const pt=(S.postTests||{})[unit.id];
+      return '<div class="ph"><div class="t"><div class="en">'+SKILL_LABEL[skill]+(weak?' · ưu tiên':'')+'</div><div class="vi">'+esc(unit.t)+' · '+esc(why)+(pt?' · test sau học '+pt.score+'%':'')+'</div></div><a class="btn" href="#'+unit.id+'">Học</a></div>';
+    }).join("")+'</section>';
+}
+
+function vPostTest(u){
+  const sents=u.p.map(p=>({en:p[0],vi:p[1]}));
+  const others=shuffled(SENT.filter(x=>x.uid!==u.id).map(x=>x.vi));
+  const listenSrc=shuffled(sents).slice(0,Math.min(3,sents.length));
+  const items=[];
+  listenSrc.forEach(x=>{
+    const wrong=shuffled(sents.filter(y=>y.vi!==x.vi).map(y=>y.vi)).concat(others).filter((v,i,a)=>a.indexOf(v)===i).slice(0,2);
+    items.push({skill:"listening",en:x.en,q:"Nghe và chọn nghĩa đúng",o:shuffled([x.vi,...wrong]),a:x.vi});
+  });
+  (u.q||[]).slice(0,2).forEach(q=>items.push({skill:"reading",q:q[0],o:q[1],a:q[1][q[2]],ex:q[3]}));
+  const dict=[...sents].filter(x=>x.en.split(/\s+/).length<=10).sort((a,b)=>b.en.length-a.en.length)[0]||sents[0];
+  if(dict)items.push({skill:"writing",en:dict.en,q:"Nghe và gõ lại câu bạn nghe được",type:"type"});
+  const got={listening:[0,0],reading:[0,0],writing:[0,0]};
+  let i=0;
+  const words=t=>String(t).toLowerCase().replace(/[’‘]/g,"'").replace(/[^a-z0-9' ]+/g," ").split(/\s+/).filter(Boolean);
+  function mark(item,ok){got[item.skill][1]++;if(ok)got[item.skill][0]++;i++;draw()}
+  function finish(){
+    const right=Object.values(got).reduce((n,x)=>n+x[0],0),total=Object.values(got).reduce((n,x)=>n+x[1],0);
+    const score=total?Math.round(right/total*100):0;
+    const passed=score>=70;
+    const spoken=sents.filter(x=>(S.best[x.en]||0)>=80).length;
+    S.postTests??={};
+    const first=!S.postTests[u.id]?.passed&&passed;
+    S.postTests[u.id]={score:Math.max(score,S.postTests[u.id]?.score||0),passed:passed||!!S.postTests[u.id]?.passed,date:new Date().toISOString()};
+    if(passed&&!S.done[u.id]){S.done[u.id]=1;sents.forEach(s=>{if(!S.cards[s.en])rateCard(s.en,70)})}
+    if(first)gain(20);else save();
+    const next=recs(1)[0];
+    app.innerHTML='<h2>Kết quả test sau bài học</h2><div class="box"><p style="font-size:20px;font-weight:700">'+score+'% · '+(passed?"Đạt":"Chưa đạt")+'</p>'+
+      '<p>'+Object.entries(got).filter(([,v])=>v[1]).map(([k,v])=>SKILL_LABEL[k]+" "+v[0]+"/"+v[1]).join(" · ")+' · Nói '+spoken+'/'+sents.length+' câu đạt từ 80 điểm</p>'+
+      '<p class="sm">'+(passed?"Bạn đã nắm bài này.":"Cần từ 70% để đạt. Ôn lại bài rồi làm lại nhé.")+(spoken<sents.length?" Phần Nói tính theo điểm luyện nói của từng câu trong bài.":"")+'</p>'+
+      '<div class="row"><a class="btn" href="#'+u.id+'">Ôn lại bài</a><a class="btn" href="#posttest-'+u.id+'">Làm lại test</a>'+(passed&&next?'<a class="btn pri" href="#'+next.id+'">Bài tiếp theo: '+esc(next.t)+'</a>':'')+'</div></div>';
+  }
+  function draw(){
+    if(i>=items.length){finish();return}
+    const it=items[i];
+    const head='<h2>Test sau bài học</h2><p class="sm">'+esc(u.t)+' · Câu '+(i+1)+'/'+items.length+' · '+SKILL_LABEL[it.skill]+'</p><div class="prog"><i style="width:'+Math.round(i/items.length*100)+'%"></i></div>';
+    if(it.type==="type"){
+      app.innerHTML=head+'<div class="box"><p style="font-weight:600;font-size:18px">'+esc(it.q)+' '+listenButton()+'</p><input type="text" id="pt-in" autocomplete="off" autocapitalize="off" spellcheck="false" style="width:100%"><div class="row" style="margin-top:10px"><button class="pri" id="pt-ok">Kiểm tra</button><button id="pt-skip">Bỏ qua</button></div><p class="note" id="pt-out"></p></div>';
+      $("#pl").onclick=()=>testSay(it.en,$("#pl-status"));
+      $("#pt-skip").onclick=()=>{stopAudio();mark(it,false)};
+      $("#pt-ok").onclick=()=>{
+        stopAudio();
+        const a=words(it.en),b=words($("#pt-in").value);
+        const hit=a.filter((w,k)=>b[k]===w).length;
+        const ok=a.length>0&&hit/a.length>=.8&&b.length<=a.length+2;
+        $("#pt-ok").disabled=true;$("#pt-skip").disabled=true;
+        $("#pt-out").innerHTML=(ok?"Đúng. ":"Chưa đúng. ")+"Câu gốc: <b>"+esc(it.en)+"</b>";
+        setTimeout(()=>mark(it,ok),1600);
+      };
+      return;
+    }
+    app.innerHTML=head+'<div class="box"><p style="font-weight:600;font-size:18px">'+(it.skill==="listening"?esc(it.q)+' '+listenButton():esc(it.q))+'</p>'+
+      it.o.map((label,k)=>'<button class="opt" data-k="'+k+'">'+esc(label)+'</button>').join("")+'<p class="note" id="pt-out"></p></div>';
+    if(it.skill==="listening")$("#pl").onclick=()=>testSay(it.en,$("#pl-status"));
+    app.querySelectorAll(".opt").forEach(b=>b.onclick=()=>{
+      stopAudio();
+      const ok=it.o[Number(b.dataset.k)]===it.a;
+      app.querySelectorAll(".opt").forEach((x,k)=>{x.disabled=true;if(it.o[k]===it.a)x.classList.add("right")});
+      if(!ok)b.classList.add("wrong");
+      $("#pt-out").textContent=(ok?"Đúng. ":"Chưa đúng. ")+(it.ex||"");
+      setTimeout(()=>mark(it,ok),it.ex?2200:900);
+    });
+  }
+  if(!IN_CLAUDE)prefetchTts(items.filter(x=>x.en).map(x=>x.en));
+  draw();
+}
+
 const ASSESSMENT_LINKS={grammar:["#quiz","Luyện ngữ pháp"],listening:["#listen","Luyện nghe"],writing:["#trans","Luyện đặt câu"]};
 
 function shuffled(list){
@@ -3370,7 +3555,7 @@ function assessmentSummary(result,full=false,archived=false){
   const links=weak.map(key=>ASSESSMENT_LINKS[key]);
   const review=report?'<p><strong>Điểm mạnh khi viết</strong> '+esc(report.strength)+'</p><p><strong>Điểm cần luyện</strong> '+esc(report.weakness)+'</p>':'';
   const graded=report?Object.entries(WRITING_SKILLS).map(([key,label])=>esc(label)+" "+report.scores[key]+"/5").join(" · "):"";
-  return '<section class="box assessment-card"><h3>'+(archived?"Kết quả bài kiểm tra":"Kết quả gần nhất")+'</h3><p class="sm">'+esc(new Date(result.date).toLocaleDateString("vi-VN"))+'</p>'+
+  return (archived?"":levelCardHTML(result))+'<section class="box assessment-card"><h3>'+(archived?"Kết quả bài kiểm tra":"Kết quả gần nhất")+'</h3><p class="sm">'+esc(new Date(result.date).toLocaleDateString("vi-VN"))+'</p>'+
     '<p>'+skills.map(key=>TEST_SKILLS[key]+" "+result.scores[key]+"/100").join(" · ")+'</p>'+
     (strong.length?'<p><strong>Điểm mạnh</strong> '+strong.map(key=>TEST_SKILLS[key]).join(", ")+'</p>':'')+
     (weak.length?'<p><strong>Ưu tiên ôn</strong> '+weak.map(key=>TEST_SKILLS[key]).join(", ")+'</p>':'')+
@@ -3440,7 +3625,7 @@ function wireAssessment(root,result,refresh){
 function vAssessment(){
   const past=S.assessmentHistory||[];
   app.innerHTML='<h2>Nhận xét học tập</h2>'+
-    (S.lastAssessment?assessmentSummary(S.lastAssessment,true):'<p class="lead">Làm bài kiểm tra để xem nhận xét và bài gợi ý.</p>')+
+    (S.lastAssessment?assessmentSummary(S.lastAssessment,true)+planHTML(S.lastAssessment):'<p class="lead">Làm bài kiểm tra để xem nhận xét và bài gợi ý.</p>')+
     '<a class="btn pri" href="#test">'+(S.lastAssessment?"Làm đề mới":"Làm bài kiểm tra")+'</a>'+
     (past.length?'<h3 class="sec-h">Các lần trước</h3>'+past.map(previous=>{
       const date=esc(new Date(previous.date).toLocaleString("vi-VN"));
@@ -3460,11 +3645,13 @@ function vTest(){
   const result={date:new Date().toISOString(),itemIds:items.map(it=>it.id),scores:{},writing};
   const byLevel={1:[0,0],2:[0,0],3:[0,0]}, totals={grammar:[0,0],listening:[0,0]};
   let i=0;
+  prefetchTts(items.filter(it=>it.type==="listening").map(it=>it.en));
 
   function finish(){
     if(activeLearner!==cap)return;
     const pct=n=>byLevel[n][0]/byLevel[n][1];
     S.lv=pct(1)<.6||pct(2)<.6?1:pct(3)<.5?2:3;
+    result.lv=S.lv;
     for(const [skill,[correct,count]] of Object.entries(totals))result.scores[skill]=Math.round(correct/count*100);
     if(S.lastAssessment)S.assessmentHistory=[S.lastAssessment,...(S.assessmentHistory||[])].slice(0,9);
     S.lastAssessment=result;
@@ -3476,16 +3663,18 @@ function vTest(){
   function write(){
     app.innerHTML='<h2>Bài viết công sở</h2><p class="lead">'+esc(context)+'</p>'+
       '<section class="box assessment-card"><p>'+esc(instruction)+'</p>'+
-      '<label for="test-writing"><strong>Câu trả lời tiếng Anh</strong> · Khoảng 30–70 từ</label>'+
+      '<label for="test-writing"><strong>Câu trả lời tiếng Anh</strong> · Khoảng 25–60 từ · <span id="wc">0</span> từ</label>'+
       '<textarea id="test-writing" maxlength="1600" rows="6"></textarea>'+
       '<p class="sm">Khi bấm Chấm bài viết, nội dung được gửi cho trợ lý AI đang chọn. Dùng chi tiết giả định nếu đề có thông tin công việc.</p>'+
       '<div class="row"><button class="pri" id="submit-writing">Chấm bài viết</button><button id="skip-writing">Kết thúc và lưu</button></div>'+
       '<p id="test-writing-status" class="sm" role="status"></p></section>';
     const input=$("#test-writing"),grade=$("#submit-writing"),skip=$("#skip-writing"),status=$("#test-writing-status");
+    const count=()=>input.value.split(/\s+/).filter(Boolean).length;
+    input.oninput=()=>{$("#wc").textContent=count()};
     skip.onclick=()=>{writing.text=input.value.trim();finish()};
     grade.onclick=async()=>{
       writing.text=input.value.trim();
-      if(writing.text.split(/\s+/).filter(Boolean).length<12){status.textContent="Viết ít nhất 12 từ để AI có đủ nội dung nhận xét.";input.focus();return}
+      if(count()<20){status.textContent="Bạn mới viết "+count()+" từ. Viết ít nhất 20 từ (gợi ý 25 đến 60 từ) để AI đủ nội dung nhận xét. Nếu chưa viết được, bấm Kết thúc và lưu.";input.focus();return}
       grade.disabled=true;
       skip.disabled=true;
       input.readOnly=true;
@@ -3510,13 +3699,13 @@ function vTest(){
     if(i===items.length){write();return}
     const it=items[i];
     const options=shuffled(it.o.map((label,key)=>({label,key})));
-    const prompt=it.type==="listening"?'Nghe đoạn tiếng Anh và chọn ý đúng <button class="ico" id="pl" aria-label="Nghe">'+I.spk+"</button>":esc(it.q);
+    const prompt=it.type==="listening"?'Nghe đoạn tiếng Anh và chọn ý đúng '+listenButton():esc(it.q);
     app.innerHTML='<h2>Kiểm tra đầu vào</h2><p class="sm">Câu '+(i+1)+'/'+items.length+' · '+TEST_SKILLS[it.type]+'</p>'+
       '<div class="prog"><i style="width:'+Math.round(i/items.length*100)+'%"></i></div>'+
       '<div class="box"><p style="font-weight:600;font-size:18px">'+prompt+'</p>'+
       options.map(({label,key})=>'<button class="opt" data-k="'+key+'">'+esc(label)+'</button>').join("")+
       '<button class="opt" data-k="-1">Tôi không biết</button></div>';
-    if(it.type==="listening")$("#pl").onclick=()=>say(it.en);
+    if(it.type==="listening")$("#pl").onclick=()=>testSay(it.en,$("#pl-status"));
     app.querySelectorAll(".opt").forEach(button=>button.onclick=()=>{
       stopAudio();
       const correct=Number(button.dataset.k)===it.a;
@@ -3555,7 +3744,7 @@ function vUnit(u){
   ${sents.map((p,pi)=>{const b=S.best[p.en];return`<div class="ph"><button class="ico" data-say="${esc(p.en)}" aria-label="Nghe">${I.spk}</button><div class="t"><div class="en">${esc(p.en)}</div><div class="ipa">${esc(ipaText(p.en))}</div><div class="vi">${esc(p.vi)}</div></div>${b!=null?`<span class="badge ${cls(b)}">${b}</span>`:""}<button class="sec" data-pr="${pi}">${I.mic} Luyện</button></div>`}).join("")}
   ${u.d?`<h3 class="sec-h">Hội thoại mẫu</h3><div class="row" style="margin-bottom:12px"><button class="pri" id="playD">${I.spk} Nghe cả đoạn</button></div><div class="dl">${u.d.map(l=>`<span class="sp">${esc(l[0])}</span><span>${esc(l[1])} <button class="ico" style="min-height:32px;width:32px;vertical-align:middle;border:0" data-say="${esc(l[1])}" aria-label="Nghe">${I.spk}</button></span>`).join("")}</div>`:""}
   ${u.q?`<h3 class="sec-h">Bài tập nhanh</h3><div id="uq"></div>`:""}
-  <div class="row" style="margin-top:24px"><button class="pri" id="doneU">${S.done[u.id]?"Đã học xong":"Đánh dấu đã học"}</button>${prev?`<a class="btn" href="#${prev.id}">← Bài trước</a>`:""}${nxt?`<a class="btn" href="#${nxt.id}">Bài sau →</a>`:""}</div>`;
+  <div class="row" style="margin-top:24px"><button class="pri" id="doneU">${S.done[u.id]?"Đã học xong":"Đánh dấu đã học"}</button><a class="btn" href="#posttest-${u.id}">Test sau bài học${(S.postTests||{})[u.id]?" · "+S.postTests[u.id].score+"%":""}</a>${prev?`<a class="btn" href="#${prev.id}">← Bài trước</a>`:""}${nxt?`<a class="btn" href="#${nxt.id}">Bài sau →</a>`:""}</div>`;
   app.querySelectorAll("[data-say]").forEach(b=>b.onclick=()=>say(b.dataset.say));
   app.querySelectorAll("[data-pr]").forEach(b=>b.onclick=()=>{curList=sents.map(s=>({...s,uid:u.id}));cur=+b.dataset.pr;location.hash="speak"});
   $("#doneU").onclick=()=>{if(!S.done[u.id]){S.done[u.id]=1;gain(15);sents.forEach(s=>{if(!S.cards[s.en])rateCard(s.en,70)});save()}$("#doneU").textContent="Đã học xong"};
@@ -4448,6 +4637,7 @@ function route(){
   if(pendingRecoveryCode){vRecoverySetup();return}
   if(h==="recovery-setup"){vProfile();$("#recovery-output").textContent="Nếu chưa lưu được mã ở bước trước, hãy bấm Tạo mã khôi phục và lưu mã mới.";return}
   const u=uById(h);
+  if(h.startsWith("posttest-")&&uById(h.slice(9))){vPostTest(uById(h.slice(9)));rememberView();window.scrollTo(0,0);return}
   if(course.render(h)){rememberView();window.scrollTo(0,resumeScroll);resumeScroll=0;return}
   if(u)vUnit(u);else if(h==="path")vPath();else if(h==="assessment")vAssessment();else if(h==="test")vTest();else if(h==="profile")vProfile();else if(h==="speak")vSpeak();else if(h==="review")vReview();else if(h==="listen")vListen();else if(h==="trans")vTrans();else if(h==="quiz")vQuiz();else if(h==="fix")vFix();else if(h==="chat")vChat();else if(h==="history")viewHistory();else vToday();
   rememberView();
