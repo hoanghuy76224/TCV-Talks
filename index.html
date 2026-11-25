@@ -2903,9 +2903,9 @@ function stopAudio(){
   voiceStatus();
 }
 
-const TTS_CACHE="tcv-tts-v6-pcm";
+const TTS_CACHE="tcv-tts-v7-complete";
 const exactVoiceRequired=()=>!["auto","browser"].includes(voiceChoice());
-function ttsCacheUrl(speaker,text,strictVoice){return new URL("/__tts_cache/v6-pcm/"+(strictVoice?"exact":"auto")+"/"+encodeURIComponent(speaker)+"/"+encodeURIComponent(text),location.origin).href}
+function ttsCacheUrl(speaker,text,strictVoice){return new URL("/__tts_cache/v7-complete/"+(strictVoice?"exact":"auto")+"/"+encodeURIComponent(speaker)+"/"+encodeURIComponent(text),location.origin).href}
 function healthyPcmVoice(input, requireWav = false) {
   try {
     const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
@@ -3096,7 +3096,7 @@ async function voiceBuffer(text,speaker,ctx,signal){
   const cancel=()=>controller.abort();
   signal.addEventListener("abort",cancel,{once:true});
   if(signal.aborted)cancel();
-  const timer=setTimeout(cancel,45000);
+  const timer=setTimeout(cancel,55000);
   try{
     const response=await fetch(new URL("/tts",CFG.aiUrl),{
       method:"POST",headers:{"Content-Type":"application/json"},
@@ -3214,7 +3214,7 @@ function mobileVoice(text,rate,vk,signal){
     async function loadPart(){
       clearTimeout(timer);controller?.abort();controller=new AbortController();const current=controller;
       release();player.hidden=true;retryVoice.hidden=true;retry.disabled=false;info.textContent="Đang tải bản nghe…";
-      timer=setTimeout(()=>{current.abort();unavailable()},20000);
+      timer=setTimeout(()=>{current.abort();unavailable()},55000);
       try{
         const content=chunks[part];let blob=null;
         const cached=await readTtsCache(speaker,content,strictVoice);
