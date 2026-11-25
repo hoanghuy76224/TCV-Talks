@@ -28,6 +28,8 @@ vm.runInContext(`
   },get(){return this.html}});
   const WRITING_SKILLS={task:'',grammar:'',clarity:'',tone:''};
   const writingFeedbackHTML = () => '';
+  const I={mic:''};
+  const wireTextMic=()=>{};
 `, context);
 vm.runInContext(between('const FEEDBACK_RULES=', 'function teachingDetailsHTML'), context);
 vm.runInContext(between('function explanationNeedsVietnamese(', 'function assessmentSummary'), context);
@@ -37,6 +39,7 @@ vm.runInContext(`
   S.courseV1={level:'A2',minutes:10,goal:'Giao ti?p',current:'appointment',notes:{},errors:{},work:{appointment:{step:2,draft:'abc',choice:0,first:0}}};
   S.days={};
   course.render('lesson-appointment');
+  if(!$('#course-mic')||!$('#course-mic-status'))throw Error('Lesson microphone missing');
   if(!$('#advance').disabled)throw Error('Unsubmitted restored draft unlocked completion');
   $('#advance').onclick();
   if(awards || S.courseV1.work.appointment.finished)throw Error('Unsubmitted work awarded XP');
@@ -99,4 +102,39 @@ async function audioTests(){
   assert.equal(vm.runInContext('timers.size',audio),0);
   console.log('PASS: syntax, restored completion gate, edited draft invalidation, XP, evidence, dialect variants, minimal rewrites, chunking, opt-in import, TTS failure recovery, autoplay controls, audio cancellation.');
 }
-audioTests().catch(error=>{console.error(error);process.exitCode=1});
+async function micTests(){
+  const mic=vm.createContext({console,AbortController,Event,Blob});
+  vm.runInContext(`
+    const window={addEventListener(){}};let activeLearner={id:'mic'};
+    let canMedia=true,dict=null,WSR=null,rec={on:false};
+    const I={mic:'mic'};const stopAudio=()=>{};const stopRec=()=>{};
+    let count=0,deny=false,complete;
+    const recordAudio=async(callback,signal)=>{
+      count++;if(deny)throw Object.assign(Error('denied'),{name:'NotAllowedError'});
+      const recorder={state:'recording',stop(){this.state='inactive';complete=callback(new Blob(['sample']))}};
+      signal.addEventListener('abort',()=>{recorder.state='inactive'});
+      return recorder;
+    };
+    const transcriptFromAudio=async()=> 'Water, please.';
+    const button={isConnected:true,disabled:false,classList:{add(){},remove(){}},setAttribute(){}};
+    const input={isConnected:true,value:'Hello.',maxLength:1800,events:[],dispatchEvent(event){this.events.push(event.type)}};
+    const status={textContent:''};
+  `,mic);
+  vm.runInContext(between('let textMicSession=', 'const HWT='),mic);
+  await vm.runInContext('wireTextMic(button,input,status);button.onclick()',mic);
+  assert.match(vm.runInContext('button.innerHTML',mic),/D?ng ghi/);
+  vm.runInContext('button.onclick()',mic);
+  await vm.runInContext('complete',mic);
+  assert.equal(vm.runInContext('input.value',mic),'Hello. Water, please.');
+  assert.equal(vm.runInContext('input.events.join(",")',mic),'input,change');
+  await vm.runInContext('button.onclick()',mic);
+  assert.equal(vm.runInContext('count',mic),2);
+  vm.runInContext('cancelTextMic()',mic);
+  assert.match(vm.runInContext('status.textContent',mic),/Da h?y/);
+  await vm.runInContext('deny=true;button.onclick()',mic);
+  assert.match(vm.runInContext('status.textContent',mic),/dang b? ch?n/);
+  await vm.runInContext('deny=false;canMedia=false;button.onclick()',mic);
+  assert.match(vm.runInContext('status.textContent',mic),/Safari/);
+  console.log('PASS: lesson mic rendering, start/stop, append transcript, input events, repeat recording, cancellation, denied permission and unsupported browser guidance.');
+}
+Promise.all([audioTests(),micTests()]).catch(error=>{console.error(error);process.exitCode=1});

@@ -102,6 +102,7 @@ textarea{min-height:110px;resize:vertical}
 .box{background:var(--card);padding:18px;margin-top:14px;border-radius:20px;box-shadow:var(--shadow);text-align:left}
 .err{padding:8px 0;border-top:1px solid var(--line)}
 .strike{color:var(--red);text-decoration:line-through}.good{color:var(--ok);font-weight:700}
+.chat-composer{position:sticky;bottom:0;z-index:4;background:var(--bg);padding:12px 0;padding-bottom:max(12px,env(safe-area-inset-bottom));border-top:1px solid var(--line)}.chat-mic{min-height:52px;min-width:180px;font-size:17px}.chat-composer .row+.row{margin-top:10px}.chat-mic[aria-pressed="true"]{background:#b42318}.chat-composer input{min-width:0}@media(max-width:600px){.chat-mic{width:100%}.chat-composer{bottom:0}.chat{max-height:38vh}}
 .chat{display:flex;flex-direction:column;gap:10px;margin:14px 0;max-height:52vh;overflow-y:auto;padding:14px;background:var(--card);border-radius:20px;box-shadow:var(--shadow)}
 .msg{max-width:85%;padding:10px 14px;border-radius:18px;line-height:1.45}
 .msg.ai{background:var(--pale);align-self:flex-start;border-bottom-left-radius:4px}.msg.me{background:var(--sl);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
@@ -3823,12 +3824,78 @@ async function transcriptFromAudio(blob,signal){
 }
 
 
+let textMicSession=null;
+function cancelTextMic(){textMicSession?.abort();textMicSession=null}
+window.addEventListener("pagehide",cancelTextMic);
+function wireTextMic(button,input,status){
+  button.onclick=async()=>{
+    if(textMicSession){cancelTextMic();return}
+    stopAudio();
+    if(!canMedia&&!dict&&!WSR){
+      status.textContent="Trình duyệt này chưa hỗ trợ thu âm. Mở trang bằng Safari trên iPhone hoặc Chrome trên Android/máy tính, rồi cho phép dùng micro.";
+      return;
+    }
+    const session=new AbortController(),learner=activeLearner;
+    textMicSession=session;let recorder=null;
+    const connected=()=>input.isConnected&&button.isConnected&&activeLearner===learner;
+    const reset=()=>{
+      if(textMicSession===session)textMicSession=null;
+      button.classList.remove("live");button.setAttribute("aria-pressed","false");
+      button.innerHTML=I.mic+"<span>Nói câu trả lời</span>";
+      wireTextMic(button,input,status);
+    };
+    session.signal.addEventListener("abort",()=>{
+      if(!canMedia&&rec.on)stopRec();
+      reset();if(connected())status.textContent="Đã hủy ghi âm.";
+    },{once:true});
+    const apply=text=>{
+      if(session.signal.aborted||!connected())return;
+      text=String(text||"").trim();
+      if(text){
+        const answer=(input.value.trim()+" "+text).trim();
+        input.value=input.maxLength>0?answer.slice(0,input.maxLength):answer;
+        input.dispatchEvent(new Event("input",{bubbles:true}));
+        input.dispatchEvent(new Event("change",{bubbles:true}));
+        status.textContent="Đã ghi lại lời bạn nói. Kiểm tra câu rồi bấm nộp bài.";
+      }else status.textContent="Chưa nghe rõ. Bạn thử nói lại gần mic hơn nhé.";
+      reset();
+    };
+    button.classList.add("live");button.setAttribute("aria-pressed","true");
+    button.innerHTML=I.mic+"<span>Hủy mở mic</span>";status.textContent="Đang xin quyền dùng micro…";
+    if(!canMedia){
+      startRec(()=>{},result=>apply(result.text),false);
+      if(textMicSession===session){button.innerHTML=I.mic+"<span>Dừng ghi</span>";status.textContent="Đang nghe. Bấm Dừng ghi khi nói xong.";button.onclick=()=>{if(rec.on)stopRec()}}
+      return;
+    }
+    try{
+      recorder=await recordAudio(async blob=>{
+        if(session.signal.aborted)return;
+        if(!connected()){cancelTextMic();return}
+        button.disabled=true;status.textContent="Đang chuyển lời nói thành chữ…";
+        try{apply(blob?.size?await transcriptFromAudio(blob,session.signal):"")}
+        catch(error){if(!session.signal.aborted&&connected())status.textContent="Chưa chuyển được bản thu thành chữ. Bạn có thể ghi lại hoặc gõ câu trả lời.";reset()}
+        finally{button.disabled=false}
+      },session.signal);
+      if(session.signal.aborted)return;
+      button.innerHTML=I.mic+"<span>Dừng ghi</span>";
+      status.textContent="Đang ghi âm, tối đa 15 giây. Bấm Dừng ghi khi nói xong.";
+      button.onclick=()=>{if(recorder.state==="recording")recorder.stop()};
+    }catch(error){
+      if(!session.signal.aborted&&connected())status.textContent=error?.name==="NotAllowedError"||error?.name==="SecurityError"?
+        "Micro đang bị chặn. Cho phép micro trong cài đặt trang web rồi bấm mic lần nữa.":
+        error?.name==="NotFoundError"?"Không tìm thấy micro. Kết nối micro rồi thử lại.":"Chưa mở được micro. Kiểm tra thiết bị rồi thử lại.";
+      reset();
+    }
+  };
+}
+
 const HWT={speaking:"Nói",writing:"Viết",reading:"Đọc",listening:"Nghe"};
 const fbHTML=f=>writingFeedbackHTML(f);
 function drawHw(box){
   const hw=S.hw;
   if(!hw||!hw.items||!hw.items.length){box.innerHTML="";return}
-  box.innerHTML=`<div class="box"><b>Bài về nhà</b> <span class="sm">giao ngày ${esc(hw.given)}</span><p class="sm">Tự làm rồi nộp bài để nhận nhận xét. Không có gợi ý hoặc đáp án mẫu trước khi nộp.</p>`+hw.items.map((h,i)=>`<div style="margin-top:14px"><label><input type="checkbox" data-done="${i}" ${h.done?"checked":""}> <b>${HWT[h.type]||"Bài tập"}:</b> ${esc(homeworkTaskOnly(h.task))}</label><textarea data-ans="${i}" rows="2" style="min-height:70px" placeholder="Tự viết câu trả lời hoặc ghi lại phần bạn đã nói">${esc(h.ans||"")}</textarea><div class="row"><button class="sec" data-sub="${i}">Nộp bài, AI nhận xét</button></div><div class="box ${h.fb?"":"hide"}" data-fb="${i}">${h.fb?fbHTML(h.fb):""}</div></div>`).join("")+`</div>`;
+  box.innerHTML=`<div class="box"><b>Bài về nhà</b> <span class="sm">giao ngày ${esc(hw.given)}</span><p class="sm">Tự làm rồi nộp bài để nhận nhận xét. Không có gợi ý hoặc đáp án mẫu trước khi nộp.</p>`+hw.items.map((h,i)=>`<div style="margin-top:14px"><label><input type="checkbox" data-done="${i}" ${h.done?"checked":""}> <b>${HWT[h.type]||"Bài tập"}:</b> ${esc(homeworkTaskOnly(h.task))}</label><textarea data-ans="${i}" rows="2" style="min-height:70px" placeholder="Tự viết câu trả lời hoặc ghi lại phần bạn đã nói">${esc(h.ans||"")}</textarea>${h.type==="speaking"?`<button type="button" class="sec" data-hw-mic="${i}" aria-pressed="false">${I.mic}<span>Nói câu trả lời</span></button><p class="sm" data-hw-mic-status="${i}" role="status">Mỗi lượt tối đa 15 giây; có thể ghi nhiều lượt để thêm vào bài.</p>`:""}<div class="row"><button class="sec" data-sub="${i}">Nộp bài, AI nhận xét</button></div><div class="box ${h.fb?"":"hide"}" data-fb="${i}">${h.fb?fbHTML(h.fb):""}</div></div>`).join("")+`</div>`;
+  box.querySelectorAll("[data-hw-mic]").forEach(button=>{const i=button.dataset.hwMic;wireTextMic(button,box.querySelector(`[data-ans="${i}"]`),box.querySelector(`[data-hw-mic-status="${i}"]`))});
   box.querySelectorAll("[data-say]").forEach(b=>b.onclick=()=>say(b.dataset.say));
   box.querySelectorAll("[data-done]").forEach(c=>c.onchange=()=>{S.hw.items[+c.dataset.done].done=c.checked;save()});
   box.querySelectorAll("[data-ans]").forEach(t=>t.onchange=()=>{S.hw.items[+t.dataset.ans].ans=t.value;save()});
@@ -3858,13 +3925,12 @@ function vChat(){
   <label class="sm" for="cs">Tình huống</label>
   <select id="cs">${SCN.map((s,i)=>`<option value="${i}" ${i===chat.s?"selected":""}>${esc(s[0])}</option>`).join("")}</select>
   <div class="chat" id="cl"></div>
-  <div id="rv"></div>
-  <div id="hw"></div>
+  <section class="chat-composer" aria-label="Trả lời giáo viên"><div class="row"><button id="cm" class="pri chat-mic" type="button" aria-pressed="false" aria-describedby="chat-mic-help">${I.mic}<span id="cm-label">Bấm để nói</span></button></div>
   <div class="row"><input type="text" id="ci" placeholder="Trả lời bằng tiếng Anh" autocomplete="off" style="flex:1 1 220px">
-    ${canUseMic?`<button id="cm" type="button" aria-pressed="false">${I.mic}<span id="cm-label">Bật mic</span></button>`:""}<button class="pri" id="cg">Gửi</button></div>
+    <button class="pri" id="cg">Gửi</button></div>
   <p class="sm" id="chat-status" role="status"></p>
-  ${cloudMic?'<p class="sm">Bấm Bật mic, nói tối đa 15 giây, bấm Dừng ghi: giáo viên sẽ nghe và phản hồi. Nếu chưa xử lý được bản thu, web thử nhận diện lời nói theo cách khác.</p>':!canUseMic?'<p class="sm">Mic chưa dùng được trong trình duyệt này. Bạn có thể gõ câu trả lời.</p>':""}
-  <div class="row"><button id="cr" class="sec">${chat.log.length?"Bắt đầu lại":"Bắt đầu"}</button><button id="ce" class="pri">Kết thúc và xem kết quả</button></div>`;
+  <p class="sm" id="chat-mic-help">${canUseMic?"Bấm mic, cho phép dùng micro, nói rồi bấm Dừng ghi. Mỗi lượt tối đa 15 giây.":"Trình duyệt này chưa hỗ trợ ghi âm. Mở trang bằng Safari trên iPhone hoặc Chrome trên Android/máy tính để dùng micro; bạn vẫn có thể gõ câu trả lời."}</p></section>
+  <div class="row"><button id="cr" class="sec">${chat.log.length?"Bắt đầu lại":"Bắt đầu"}</button><button id="ce" class="pri">Kết thúc và xem kết quả</button></div><div id="rv"></div><div id="hw"></div>`;
   const input=$("#ci"),cm=$("#cm"),status=$("#chat-status"),start=$("#cr"),sendButton=$("#cg"),scenario=$("#cs"),cl=$("#cl"),endBtn=$("#ce"),rv=$("#rv");
   let recorder,working=false;
   function draw(){
@@ -3882,7 +3948,7 @@ function vChat(){
       cm.disabled=working||(!!chatMicSession&&!recording);
       cm.classList.toggle("sec",!!recording);
       cm.setAttribute("aria-pressed",String(!!recording));
-      $("#cm-label").textContent=recording?"Dừng ghi":"Bật mic";
+      $("#cm-label").textContent=recording?"Dừng ghi":"Bấm để nói";
     }
   }
   async function turn(u,blob){
@@ -3987,6 +4053,7 @@ function vChat(){
     if(text)input.focus();
   }
   async function useMic(){
+    if(!canUseMic){status.textContent="Không mở được micro trong trình duyệt này. Hãy mở trang bằng Safari hoặc Chrome và cho phép dùng micro.";return}
     if(recorder?.state==="recording"){recorder.stop();controls();return}
     if(!cloudMic&&rec.on){stopRec();return}
     if(working||chatMicSession)return;
@@ -4105,7 +4172,7 @@ function createCourse(rows){
     let body;
     if(w.step===0)body=common+`<h3>${esc(l.question)}</h3><div class="row">${buttons(l.choices,"choice")}</div><p role="status">${esc(recall)}</p>`;
     if(w.step===1)body=`<p class="target">${esc(l.phrase)}</p><div class="row"><button data-audio="-1">Nghe mẫu câu</button><button id="note">${d.notes[l.id]?"Đã lưu vào sổ tay":"Lưu cụm từ"}</button></div><label>Điền từ vào chỗ trống · ${esc(gaps[l.id][2])}<p lang="en">${esc(gaps[l.id][0])}</p><input id="gap-word" value="${esc(w.word||"")}" autocomplete="off"></label><button id="gap-check">Kiểm tra từ</button><p role="status" id="gap-result">${w.gapOK?"Đúng rồi.":""}</p><details><summary>Xem lại ngữ cảnh</summary>${source}</details>`;
-    if(w.step===2)body=`<p>${esc(l.task)}</p><label>Câu trả lời của bạn<textarea id="course-draft" rows="4" maxlength="1800">${esc(w.draft)}</textarea></label><p class="sm">Tự viết câu trả lời rồi nộp để nhận giải thích chi tiết.</p><button id="feedback">Nộp bài và nhận xét</button><div id="course-feedback" role="status">${w.report?writingFeedbackHTML(w.report):esc(w.feedback||"")}</div>`;
+    if(w.step===2)body=`<p>${esc(l.task)}</p><label>Câu trả lời của bạn<textarea id="course-draft" rows="4" maxlength="1800">${esc(w.draft)}</textarea></label><div class="row"><button type="button" class="sec" id="course-mic" aria-pressed="false">${I.mic}<span>Nói câu trả lời</span></button><span class="sm">Nói tối đa 15 giây mỗi lượt; lời nói sẽ được chuyển thành chữ.</span></div><p class="sm" id="course-mic-status" role="status"></p><p class="sm">Tự viết hoặc bấm mic để trả lời, rồi nộp để nhận giải thích chi tiết.</p><button id="feedback">Nộp bài và nhận xét</button><div id="course-feedback" role="status">${w.report?writingFeedbackHTML(w.report):esc(w.feedback||"")}</div>`;
     app.innerHTML=head+`<section class="box course-room"><h3>${steps[w.step]}</h3>${body}<div class="row">${w.step?'<button id="back">Quay lại</button>':""}<button class="pri" id="advance">${w.step===2?"Hoàn thành bài":"Tiếp tục"}</button></div></section>`;
     wire("audio",i=>say(i===-1?l.phrase:parts[i],+($("#course-rate")?.value||1)));
     wire("choice",i=>{w.first??=i;w.choice=i;if(i!==l.key&&!d.errors[l.id])d.errors[l.id]={original:l.choices[i],due:Date.now()+86400000};lesson(l)});
@@ -4119,6 +4186,7 @@ function createCourse(rows){
     if($("#note"))$("#note").onclick=e=>{d.notes[l.id]=true;write();e.currentTarget.textContent="Đã lưu vào sổ tay"};
     if(w.step===2){
       const out=$("#course-feedback"),area=$("#course-draft");
+      wireTextMic($("#course-mic"),area,$("#course-mic-status"));
       area.oninput=()=>{w.draft=area.value;delete w.feedback;delete w.report;delete w.gradedDraft;out.textContent="";advance.disabled=true;write()};
       $("#feedback").onclick=async e=>{
         const button=e.currentTarget,submission=w.draft.trim();if(!submission){area.focus();return}
@@ -4514,6 +4582,7 @@ const course=createCourse([
  ]
 ]);
 function route(){
+  cancelTextMic();
   const h=(location.hash||"#today").slice(1);
   if(!activeLearner){
     document.body.classList.add("profile-locked");
