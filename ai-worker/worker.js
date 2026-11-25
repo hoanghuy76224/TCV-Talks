@@ -167,9 +167,11 @@ const SPEAKERS = new Set(["luna","orion","thalia","apollo","pandora","draco","th
 const GROQ_TTS_MODEL = "canopylabs/orpheus-v1-english";
 const GROQ_TTS_VOICES = { luna:"autumn", orion:"troy", thalia:"diana", apollo:"austin", pandora:"hannah", draco:"daniel", theia:"autumn", hyperion:"troy" };
 const GEMINI_TTS_MODEL = "gemini-2.5-flash-preview-tts";
+const GEMINI_TRANSCRIPT_MODEL = "gemini-flash-lite-latest";
 const GEMINI_TTS_VOICES = { luna:"Kore", orion:"Charon", thalia:"Aoede", apollo:"Puck", pandora:"Leda", draco:"Fenrir", theia:"Zephyr", hyperion:"Orus" };
 
 function base64ToBytes(b64) {
+  if (Uint8Array.fromBase64) return Uint8Array.fromBase64(b64);
   const bin = atob(b64);
   const outBytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) outBytes[i] = bin.charCodeAt(i);
@@ -277,45 +279,141 @@ async function synthesizeAzure(env, text, speaker) {
   }
 }
 
+function geminiSegments(text, limit = 200) {
+  const sentences = [...new Intl.Segmenter("en", { granularity: "sentence" }).segment(text)]
+    .map(({ segment }) => segment.trim()).filter(Boolean);
+  const chunks = [];
+  let current = "";
+  for (const [index, sentence] of sentences.entries()) {
+    // Give the final sentence its own request so it cannot be dropped from a multi-sentence generation.
+    if (index === sentences.length - 1 && current) { chunks.push(current); current = ""; }
+    for (const word of sentence.split(/\s+/u)) {
+      if (current && current.length + 1 + word.length > limit) { chunks.push(current); current = ""; }
+      current = current ? current + " " + word : word;
+    }
+  }
+  if (current) chunks.push(current);
+  return chunks;
+}
+
+async function geminiCandidate(env, model, parts, generationConfig, signal) {
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_KEY },
+    body: JSON.stringify({ contents: [{ role: "user", parts }], generationConfig }),
+    signal
+  });
+  if (!response.ok) throw Object.assign(Error("Gemini request failed"), { status: response.status });
+  const candidate = (await response.json())?.candidates?.[0];
+  return candidate?.finishReason === "STOP" ? candidate.content?.parts || [] : [];
+}
+
+function geminiPcm(parts) {
+  const buffers = [];
+  for (const part of parts) {
+    const media = part.inlineData || part.inline_data;
+    if (!media?.data) continue;
+    const bytes = base64ToBytes(media.data);
+    const mime = String(media.mimeType || media.mime_type || "");
+    const wave = readVoiceWave(bytes);
+    if (wave) {
+      if (wave.rate !== 24000 || wave.channels !== 1 || wave.bits !== 16) return null;
+      buffers.push(bytes.subarray(wave.offset, wave.offset + wave.length));
+    } else {
+      const rate = Number(mime.match(/rate=(\d+)/i)?.[1] || 24000);
+      const channels = Number(mime.match(/channels=(\d+)/i)?.[1] || 1);
+      if (!/^audio\/(?:l16|pcm)(?:;|$)/i.test(mime) || rate !== 24000 || channels !== 1 || bytes.length % 2) return null;
+      buffers.push(bytes);
+    }
+  }
+  return buffers.length ? joinGeminiPcm(buffers) : null;
+}
+
+function joinGeminiPcm(buffers) {
+  const pcm = new Uint8Array(buffers.reduce((total, buffer) => total + buffer.length, 0));
+  let offset = 0;
+  for (const buffer of buffers) { pcm.set(buffer, offset); offset += buffer.length; }
+  return pcm;
+}
+
+function transcriptWords(text) {
+  const small = ["zero","one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen"];
+  const tens = ["","","twenty","thirty","forty","fifty","sixty","seventy","eighty","ninety"];
+  return text.toLowerCase().normalize("NFKD").replace(/\p{M}/gu,"").replace(/[’']/g,"").replace(/&/g," and ")
+    .replace(/\b\d{1,2}\b/g, digits => {
+      const n = Number(digits);
+      return small[n] || tens[Math.floor(n / 10)] + (n % 10 ? " " + small[n % 10] : "");
+    }).match(/[\p{L}\p{N}]+/gu) || [];
+}
+
+function transcriptIsComplete(text, transcript) {
+  const expected = transcriptWords(text), actual = transcriptWords(transcript);
+  if (!expected.length || !actual.length) return false;
+  // Allow occasional transcription variants in the middle, but require both edges to be present.
+  const edge = Math.min(3, expected.length);
+  if (expected.slice(0, edge).join(" ") !== actual.slice(0, edge).join(" ") ||
+      expected.slice(-edge).join(" ") !== actual.slice(-edge).join(" ")) return false;
+  const tolerance = Math.floor(expected.length / 20);
+  if (Math.abs(expected.length - actual.length) > tolerance) return false;
+  let previous = Array.from({ length: actual.length + 1 }, (_, i) => i);
+  for (let i = 0; i < expected.length; i++) {
+    const current = [i + 1];
+    for (let j = 0; j < actual.length; j++) {
+      current.push(Math.min(previous[j] + (expected[i] === actual[j] ? 0 : 1), previous[j + 1] + 1, current[j] + 1));
+    }
+    previous = current;
+  }
+  return previous[actual.length] <= tolerance;
+}
+
 async function synthesizeGemini(env, text, speaker) {
   if (!env.GEMINI_KEY) return null;
+  const signal = AbortSignal.timeout(38000);
   try {
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_TTS_MODEL}:generateContent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_KEY },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: "Read aloud naturally in English, without adding extra words:\n" + text }] }],
-        generationConfig: {
-          responseModalities: ["AUDIO"],
-          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: GEMINI_TTS_VOICES[speaker] || "Kore" } } }
+    const segments = geminiSegments(text);
+    const generation = {
+      responseModalities: ["AUDIO"],
+      speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: GEMINI_TTS_VOICES[speaker] || "Kore" } } }
+    };
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const clips = [];
+      for (let i = 0; i < segments.length; i += 3) {
+        const batch = await Promise.all(segments.slice(i, i + 3).map(async segment => {
+          const parts = await geminiCandidate(env, GEMINI_TTS_MODEL, [{
+            text: "Speak the transcript verbatim in natural English from the first word to the last. Speak every sentence, including labels, notes and reminders. Do not speak the markers.\n[BEGIN TRANSCRIPT]\n" + segment + "\n[END TRANSCRIPT]"
+          }], generation, signal);
+          const pcm = geminiPcm(parts);
+          return pcm && healthyPcmVoice(pcmToWav(pcm), true) ? pcm : null;
+        }));
+        if (batch.some(clip => !clip)) break;
+        clips.push(...batch);
+      }
+      if (clips.length !== segments.length) continue;
+      const body = pcmToWav(joinGeminiPcm(clips));
+      const bytes = new Uint8Array(body);
+      let data = "";
+      if (bytes.toBase64) data = bytes.toBase64();
+      else {
+        // A multiple of three keeps each encoded slice joinable without intermediate padding.
+        for (let i = 0; i < bytes.length; i += 24576) {
+          data += btoa(String.fromCharCode(...bytes.subarray(i, i + 24576)));
         }
-      }),
-      signal: AbortSignal.timeout(15000)
-    });
-    if (!r.ok) { await rememberUsage(env, "gemini_tts", { snapshot: { error: r.status, at: Date.now() } }); return null; }
-    const j = await r.json().catch(() => null);
-    const parts = j?.candidates?.[0]?.content?.parts || [];
-    const inline = parts.find(p => (p.inlineData || p.inline_data)?.data);
-    const media = inline?.inlineData || inline?.inline_data;
-    if (!media?.data) return null;
-    const bytes = base64ToBytes(media.data);
-    if (!bytes.byteLength) return null;
-    const mime = String(media.mimeType || media.mime_type || "");
-    const isRiff = bytes.length > 4 && bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46;
-    let body;
-    if (isRiff || /^audio\/(?:x-)?wav(?:;|$)/i.test(mime)) {
-      body = bytes.buffer;
-    } else {
-      if (!/^audio\/(?:l16|pcm)(?:;|$)/i.test(mime) || bytes.byteLength % 2) return null;
-      const rateMatch = mime.match(/rate=(\d+)/i);
-      body = pcmToWav(bytes, rateMatch ? Number(rateMatch[1]) : 24000);
+      }
+      // Transcribe only the audio, without giving the verifier the expected words.
+      const parts = await geminiCandidate(env, GEMINI_TRANSCRIPT_MODEL, [
+        { text: "Transcribe the English words actually spoken in this recording, from its first word to its last. Return only the verbatim transcript. Do not infer missing words." },
+        { inlineData: { mimeType: "audio/wav", data } }
+      ], { temperature: 0, maxOutputTokens: 1024 }, signal);
+      const transcript = parts.filter(part => !part.thought).map(part => part.text || "").join(" ");
+      if (!transcriptIsComplete(text, transcript)) continue;
+      await rememberUsage(env, "gemini_tts", { success: true, chars: text.length });
+      return { body, provider: "gemini" };
     }
-    await rememberUsage(env, "gemini_tts", { success: true, chars: text.length });
-    return { body, provider: "gemini" };
-  } catch {
-    await rememberUsage(env, "gemini_tts", { snapshot: { error: "network", at: Date.now() } });
-    return null;
+    await rememberUsage(env, "gemini_tts", { snapshot: { error: "incomplete_audio", at: Date.now() } });
+  } catch (error) {
+    await rememberUsage(env, "gemini_tts", { snapshot: { error: error.status || "network", at: Date.now() } });
   }
+  return null;
 }
 
 function healthyPcmVoice(input, requireWav = false) {
@@ -432,7 +530,7 @@ async function synthesize(req, env, headers, ctx) {
   if (cache) {
     try {
       const hash = hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode((strictVoice ? "exact" : "auto") + "\n" + input.speaker + "\n" + text)));
-      cacheReq = new Request("https://tcv-tts-cache.internal/v4-pcm/" + hash);
+      cacheReq = new Request("https://tcv-tts-cache.internal/v5-complete/" + hash);
       const hit = await cache.match(cacheReq);
       if (hit && healthyPcmVoice(await hit.clone().arrayBuffer(), true)) {
         return new Response(hit.body, {
