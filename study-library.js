@@ -13,6 +13,11 @@ window.createStudyLibrary = function createStudyLibrary({ app, state, save, awar
     { title:"Phản hồi khiếu nại", context:"Khách báo bị tính phí hai lần.", instruction:"Viết 3–4 câu xác nhận vấn đề, nêu bước kiểm tra và hẹn thời điểm phản hồi." }
   ];
   const link = '<a class="study-back" href="#study">← Kho bài học</a>';
+  const pathways = [
+    ["grammar","Ngữ pháp theo cấp","Xem quy tắc, ví dụ và luyện tập qua ba mức."],
+    ["vocabulary","Từ vựng theo cấp","Chọn nhóm từ phù hợp với trình độ A1–C2."],
+    ["topics","Từ vựng theo chủ đề","Học từ theo tình huống bạn muốn sử dụng."]
+  ];
   const selectOptions = (items, selected) => items.map(([value,label]) =>
     `<option value="${escape(value)}"${value===selected?" selected":""}>${escape(label)}</option>`).join("");
   const normalize = value => value.trim().toLowerCase().replace(/[’‘]/g,"'").replace(/[.?!]+$/,"").replace(/\s+/g," ");
@@ -20,6 +25,48 @@ window.createStudyLibrary = function createStudyLibrary({ app, state, save, awar
   const listen = value => `<button class="study-listen" type="button" aria-label="Nghe ${escape(value)}" data-study-listen="${escape(value)}">Nghe</button>`;
   function wireAudio(){
     for(const button of app.querySelectorAll("[data-study-listen]"))button.onclick=()=>say(button.dataset.studyListen);
+  }
+
+  function modeLinks(active){
+    return `<nav class="study-modes" aria-label="Cách học">${pathways.map(([mode,title])=>
+      `<a href="#study-${mode}"${mode===active?' aria-current="page"':""}>${title}</a>`).join("")}</nav>`;
+  }
+
+  function lessonTile(lesson, mode){
+    const saved=state();
+    const isGrammar=mode==="grammar";
+    const savedCards=isGrammar?0:lesson.cards.filter((_,index)=>saved.cards[lesson.id+":"+index]).length;
+    const stars=saved.stars[lesson.id]||0;
+    const done=isGrammar?stars>0:Boolean(saved.vocabDone?.[lesson.id]);
+    const detail=isGrammar?(stars?`${stars}/3 sao`:"Ví dụ và ba mức luyện"):
+      `${savedCards}/${lesson.cards.length} thẻ đã lưu`;
+    return `<a class="study-tile" href="#study-lesson-${lesson.id}">
+      <span class="study-tile-type">${lesson.level} · ${isGrammar?"Ngữ pháp":"Từ vựng"}</span>
+      <strong>${escape(lesson.title)}</strong><span>${detail}${done?" · Đã hoàn thành":""}</span>
+    </a>`;
+  }
+
+  function pathway(mode, level){
+    const isGrammar=mode==="grammar", data=isGrammar?grammar:vocabulary, saved=state();
+    const [,title,description]=pathways.find(([id])=>id===mode);
+    const heading=level?title+" "+level:title;
+    const completed=lesson=>Boolean(isGrammar?saved.stars[lesson.id]:saved.vocabDone?.[lesson.id]);
+    const lessons=level?data.filter(lesson=>lesson.level===level):data;
+    const next=level&&lessons.find(lesson=>!completed(lesson));
+    const levelTiles=levels.map(cefr=>{
+      const list=data.filter(lesson=>lesson.level===cefr), done=list.filter(completed).length;
+      return `<a class="study-tile study-level-tile" href="#study-${mode}-${cefr.toLowerCase()}">
+        <strong>${cefr}</strong><span>${done}/${list.length} bài đã hoàn thành</span>
+        <progress aria-label="Tiến độ ${cefr}" value="${done}" max="${list.length}"></progress>
+      </a>`;
+    }).join("");
+    app.innerHTML=`<div class="study-page">${link}${modeLinks(mode)}
+      <section class="study-intro"><div><h1>${heading}</h1><p>${description}</p></div>
+        ${isGrammar&&!level?'<a class="btn" href="#placement">Kiểm tra trình độ</a>':""}
+        ${level?`<a class="btn" href="#study-${mode}">Đổi cấp</a>`:""}</section>
+      ${next?`<a class="btn pri study-continue" href="#study-lesson-${next.id}">Học tiếp · ${escape(next.title)}</a>`:""}
+      <div class="study-grid">${mode!=="topics"&&!level?levelTiles:lessons.map(lesson=>lessonTile(lesson,mode)).join("")}</div>
+    </div>`;
   }
 
   function catalog(){
@@ -32,7 +79,7 @@ window.createStudyLibrary = function createStudyLibrary({ app, state, save, awar
       ...grammar.filter(matches).filter(()=>filters.kind!=="vocabulary").map(lesson=>[lesson,"Ngữ pháp",saved.stars[lesson.id]?`${saved.stars[lesson.id]}/3 sao`:"Ví dụ và 3 mức luyện"]),
       ...vocabulary.filter(matches).filter(()=>filters.kind!=="grammar").map(lesson=>[lesson,"Từ vựng",`${lesson.cards.length} thẻ có ví dụ`])
     ];
-    app.innerHTML=`<div class="study-page">
+    app.innerHTML=`<div class="study-page">${modeLinks("")}
       <section class="study-intro"><div><h1>Kho bài học</h1><p>Ngữ pháp và từ vựng tiếng Anh trong tình huống công sở, từ A1 đến C2.</p></div>
       <div class="study-actions"><a class="btn" href="#study-review">Ôn từ${due().length?` · ${due().length}`:""}</a><a class="btn" href="#study-tools">Công cụ</a></div></section>
       <form id="study-filters" class="study-filters">
@@ -119,13 +166,51 @@ window.createStudyLibrary = function createStudyLibrary({ app, state, save, awar
       <p class="study-tile-type">${lesson.level} · Từ vựng</p><h1>${escape(lesson.title)}</h1><p>${escape(lesson.details)}</p></div><a class="btn" href="#study-review">Mở bộ thẻ ôn</a></section>
       <div class="study-grid">${cards.map(card=>`<article class="study-tile"><h2 lang="en">${escape(card.word)}</h2>
         <span>${escape(card.meaning)}</span><p lang="en">${escape(card.example)}</p>
-        <div class="study-actions">${listen(card.word)}<button type="button" data-study-add="${card.id}" ${state().cards[card.id]?"disabled":""}>${state().cards[card.id]?"Đã lưu":"Lưu để ôn"}</button></div></article>`).join("")}</div></div>`;
+        <div class="study-actions">${listen(card.word)}<button type="button" data-study-add="${card.id}" ${state().cards[card.id]?"disabled":""}>${state().cards[card.id]?"Đã lưu":"Lưu để ôn"}</button></div></article>`).join("")}</div>
+      <div class="study-actions"><button class="pri" id="study-vocabulary-quiz">Kiểm tra từ đã học</button>${state().vocabDone?.[lesson.id]?'<span class="sm">Đã hoàn thành bài từ vựng</span>':""}</div></div>`;
     wireAudio();
+    app.querySelector("#study-vocabulary-quiz").onclick=()=>vocabularyQuiz(lesson,cards,0,0);
     for(const button of app.querySelectorAll("[data-study-add]"))button.onclick=()=>{
       state().cards[button.dataset.studyAdd]??={due:new Date().toISOString()};
       save();
       button.disabled=true;
       button.textContent="Đã lưu";
+    };
+  }
+
+  function vocabularyQuiz(lesson,cards,index,correct){
+    if(index===cards.length){
+      const saved=state(), completed=correct>=Math.ceil(cards.length*.8);
+      if(completed&&!saved.vocabDone?.[lesson.id]){
+        (saved.vocabDone??={})[lesson.id]=true;
+        award(10);
+      }
+      app.innerHTML=`<div class="study-page">${link}<section class="box">
+        <h1>Kết quả từ vựng</h1><p><strong>${correct}/${cards.length} câu đúng</strong>${completed?" · Đã hoàn thành bài":" · Ôn lại các từ rồi thử tiếp."}</p>
+        <div class="study-actions"><button id="study-quiz-return" type="button">Về bộ từ</button><a class="btn" href="#study-review">Ôn thẻ đã lưu</a></div>
+      </section></div>`;
+      app.querySelector("#study-quiz-return").onclick=()=>vocabularyLesson(lesson);
+      return;
+    }
+    const card=cards[index], options=cards.filter(item=>item!==card).slice(0,2);
+    options.splice(index%3,0,card);
+    app.innerHTML=`<div class="study-page">${link}<section class="box"><p class="study-tile-type">${escape(lesson.title)} · Câu ${index+1}/${cards.length}</p><h1>Chọn nghĩa của từ</h1>
+      <form id="study-vocab-question"><fieldset><legend lang="en">${escape(card.word)}</legend>
+        ${options.map((item,i)=>`<label><input type="radio" name="meaning" value="${i}" required> ${escape(item.meaning)}</label>`).join("")}
+      </fieldset><button class="pri" type="submit">Kiểm tra</button><p role="status" id="study-vocab-feedback"></p>
+      <button type="button" id="study-vocab-next" hidden>${index+1===cards.length?"Xem kết quả":"Câu tiếp theo"}</button></form>
+    </section></div>`;
+    const form=app.querySelector("#study-vocab-question");
+    form.onsubmit=event=>{
+      event.preventDefault();
+      const passed=options[Number(form.elements.meaning.value)]===card;
+      app.querySelector("#study-vocab-feedback").textContent=(passed?"Đúng. ":"Đáp án: ")+card.meaning+". "+card.example;
+      form.querySelector("fieldset").disabled=true;
+      form.querySelector("[type=submit]").disabled=true;
+      const next=app.querySelector("#study-vocab-next");
+      next.hidden=false;
+      next.onclick=()=>vocabularyQuiz(lesson,cards,index+1,correct+Number(passed));
+      next.focus();
     };
   }
 
@@ -194,6 +279,11 @@ window.createStudyLibrary = function createStudyLibrary({ app, state, save, awar
 
   function render(route){
     if(route==="study")catalog();
+    else if(route==="study-topics")pathway("topics");
+    else if(/^study-(grammar|vocabulary)(-[abc][12])?$/.test(route)){
+      const [,mode,level]=route.split("-");
+      pathway(mode,level?.toUpperCase());
+    }
     else if(route==="study-review")review();
     else if(route==="study-tools")tools();
     else if(route==="study-writing")writing();
