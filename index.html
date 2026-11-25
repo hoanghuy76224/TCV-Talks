@@ -2671,6 +2671,37 @@ function pauseAI(provider,until){
     storageWrite(AI_COOLDOWN_KEY,aiCooldown);
   }
 }
+function fmtReset(ts){return new Date(ts).toLocaleString("vi-VN",{hour:"2-digit",minute:"2-digit",day:"2-digit",month:"2-digit"})}
+function ttsErrorText(code){return code===429?"hết hạn mức":code===401||code===403?"key hoặc quyền bị từ chối":code===404?"model không còn":code==="network"?"không kết nối được":"lỗi "+code}
+function aiStatusHTML(data,now=Date.now()){
+  const p=data.providers||{},cf=p.cloudflare?.snapshot||{},g=p.groq?.snapshot||{},gm=p.gemini?.snapshot||{};
+  const cfOut=Boolean(cf.exhausted&&now<cf.resetAt);
+  const groqOut=(g.requestsRemaining===0&&now<g.requestsResetAt)||(g.tokensRemaining===0&&now<g.tokensResetAt);
+  const groqAt=g.requestsRemaining===0?g.requestsResetAt:g.tokensResetAt;
+  const gemOut=Boolean(gm.limited&&now<(gm.capturedAt||0)+120000);
+  const gt=p.groq_tts?.snapshot?.error,mt=p.gemini_tts?.snapshot?.error;
+  const chat=[["Cloudflare",cfOut,"hết hạn mức hôm nay, mở lại lúc "+fmtReset(cf.resetAt||data.resetAt)],["Groq",groqOut,"tạm hết lượt, thử lại lúc "+fmtReset(groqAt)],["Gemini",gemOut,"đang bị giới hạn tạm thời"]];
+  const cfg=data.configured||{},mo=data.month||{};
+  const capped=k=>mo[k]&&mo[k].used+50>mo[k].cap;
+  const monthTxt=k=>mo[k]?" (tháng này "+mo[k].used.toLocaleString("vi-VN")+"/"+mo[k].cap.toLocaleString("vi-VN")+" ký tự)":"";
+  const voice=[["Cloudflare",cfOut,"hết hạn mức hôm nay, mở lại lúc "+fmtReset(cf.resetAt||data.resetAt)]];
+  if(cfg.google_tts){const e=p.google_tts?.snapshot?.error;voice.push(["Google"+monthTxt("google_tts"),Boolean(e)||capped("google_tts"),capped("google_tts")?"đã chạm mức miễn phí tháng, tự dừng tới tháng sau":ttsErrorText(e)])}
+  if(cfg.azure_tts){const e=p.azure_tts?.snapshot?.error;voice.push(["Azure"+monthTxt("azure_tts"),Boolean(e)||capped("azure_tts"),capped("azure_tts")?"đã chạm mức miễn phí tháng, tự dừng tới tháng sau":ttsErrorText(e)])}
+  voice.push(["Groq",Boolean(gt),ttsErrorText(gt)],["Gemini",Boolean(mt),ttsErrorText(mt)]);
+  const line=([name,bad,why])=>"<div>"+esc(name)+": "+(bad?"<b>"+esc(why)+"</b>":"đang dùng được")+"</div>";
+  const head=(label,rows)=>"<p><b>"+label+": "+(rows.every(r=>r[1])?"đang hết hạn mức, tạm thời không dùng được":rows.some(r=>r[1])?"còn hoạt động, một số nguồn đã hết":"hoạt động bình thường")+"</b></p>"+rows.map(line).join("");
+  return head("Trợ lý AI",chat)+head("Giọng đọc AI",voice);
+}
+async function loadAIStatus(){
+  const body=$("#ai-status-body");if(!body)return;
+  body.textContent="Đang kiểm tra…";
+  try{
+    const r=await fetch(new URL("/usage",CFG.aiUrl),{cache:"no-store",signal:AbortSignal.timeout(6000)});
+    if(!r.ok)throw new Error("usage");
+    const data=await r.json();
+    if(body.isConnected)body.innerHTML=aiStatusHTML(data);
+  }catch{if(body.isConnected)body.textContent="Chưa kiểm tra được trạng thái AI. Kiểm tra kết nối rồi bấm Kiểm tra lại."}
+}
 function absorbUsage(data,now=Date.now()){
   const p=data.providers||{},cf=p.cloudflare?.snapshot,g=p.groq?.snapshot,gm=p.gemini?.snapshot;
   if(cf?.exhausted&&now<cf.resetAt)pauseAI("cloudflare",cf.resetAt);
@@ -2990,7 +3021,7 @@ function mobileVoice(text,rate,vk,signal){
         url=URL.createObjectURL(blob);player.src=url;player.playbackRate=rate;player.hidden=false;
         info.textContent="Bấm ▶ để nghe.";
         try{await player.play()}catch{}
-      }catch{if(!signal.aborted&&!usingDevice){info.textContent="Giọng đã chọn hiện chưa tải được. Bạn có thể thử lại hoặc dùng giọng thiết bị.";retryVoice.hidden=false}}
+      }catch{if(!signal.aborted&&!usingDevice){if(!strictVoice){retry.onclick();return}info.textContent="Giọng đã chọn hiện chưa tải được. Bạn có thể thử lại hoặc dùng giọng thiết bị.";retryVoice.hidden=false}}
       finally{clearTimeout(timer)}
     })();
   });
@@ -3042,7 +3073,7 @@ async function say(text,rate=1,vk="f"){
     if(cloudVoiceOn()){await mobileVoice(text,rate,vk,signal);return}
   }catch(e){}
   if(signal.aborted)return;
-  if(cloudVoiceOn()){offerVoiceRetry(text,rate,vk);return}
+  if(cloudVoiceOn()&&exactVoiceRequired()){offerVoiceRetry(text,rate,vk);return}
   voiceStatus("Đang dùng giọng trình duyệt…");
   const played=await webSay(text,rate,signal);
   if(!signal.aborted)voiceStatus(played?"":"Không phát được giọng. Bấm Nghe để thử lại.");
@@ -3199,10 +3230,12 @@ function vToday(){
     '<section class="box"><h3>Buổi học của bạn</h3><p>Nghe hoặc đọc một tình huống, luyện câu cần dùng, rồi viết câu trả lời của chính bạn. Cuối bài, xem kết quả và lưu điều cần ôn.</p><p class="sm">Bài đang làm và câu trả lời được lưu để lần sau học tiếp.</p></section>'+
     (due?'<section class="box"><h3>Ôn lại để nhớ lâu</h3><p>Có '+due+' câu đến lúc ôn.</p><a class="btn" href="#review">Ôn câu đã học</a></section>':"")+
     (S.hw?.items?.some(h=>!h.done)?'<section class="box"><h3>Bài từ buổi hội thoại trước</h3><p>Còn '+S.hw.items.filter(h=>!h.done).length+' bài để luyện thêm.</p><a class="btn" href="#chat">Xem bài luyện thêm</a></section>':"")+
-    '<details class="box"><summary>Tiến độ và công cụ luyện thêm</summary><div style="margin-top:12px"><p>Chuỗi học: '+streak()+' ngày · Hôm nay: '+t+' XP</p><div class="row"><a class="btn" href="#assessment">Nhận xét học tập</a><a class="btn" href="#history">Lịch sử</a><a class="btn" href="#practice">Luyện tự chọn</a><a class="btn" href="#start">Đổi mục tiêu</a></div>'+assessmentSummary(S.lastAssessment)+`
+    '<details class="box" id="more-tools"><summary>Tiến độ và công cụ luyện thêm</summary><div style="margin-top:12px"><p>Chuỗi học: '+streak()+' ngày · Hôm nay: '+t+' XP</p><div class="row"><a class="btn" href="#assessment">Nhận xét học tập</a><a class="btn" href="#history">Lịch sử</a><a class="btn" href="#practice">Luyện tự chọn</a><a class="btn" href="#start">Đổi mục tiêu</a></div>'+assessmentSummary(S.lastAssessment)+`
+  ${AIWEB?`<div class="box" id="ai-status"><b>Trạng thái AI</b><div id="ai-status-body" class="sm" role="status">Đang kiểm tra…</div><button type="button" id="ai-status-refresh">Kiểm tra lại</button></div>`:""}
   ${!IN_CLAUDE?`<label class="switch"><input type="checkbox" id="pm" ${S.phone?"checked":""} ${canMedia?"":"disabled"}><span><b>Chấm chi tiết từng âm như Elsa</b><br><span class="sm">Dùng mô hình nhận dạng âm vị chạy ngay trên máy bạn, không gửi giọng nói đi đâu. Lần đầu tải khoảng 355 MB, các lần sau dùng lại bản đã lưu. Nên bật trên máy tính hoặc điện thoại mạnh, dùng wifi.</span></span></label>`:`<p class="note">Bản này chạy trong Claude nên có AI sửa lỗi và hội thoại, chấm phát âm theo từ.${CFG.webUrl.startsWith("http")?` Muốn chấm chi tiết từng âm, mở <a href="${esc(CFG.webUrl)}">bản web TCV Talks</a> bằng Chrome.`:""}</p>`}
     </div></details>`;
   wireAssessment(app,S.lastAssessment,vToday);
+  if(AIWEB){const more=$("#more-tools"),refresh=$("#ai-status-refresh");if(refresh)refresh.onclick=loadAIStatus;if(more)more.addEventListener("toggle",()=>{if(more.open)loadAIStatus()},{once:true})}
   const pm=$("#pm");if(pm)pm.onchange=()=>{S.phone=pm.checked;save();if(S.phone)loadModel().catch(()=>{})};
 }
 
