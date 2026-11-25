@@ -165,9 +165,11 @@ const out = (obj, status, h) =>
 
 const SPEAKERS = new Set(["luna","orion","thalia","apollo","pandora","draco","theia","hyperion"]);
 const GROQ_TTS_MODEL = "canopylabs/orpheus-v1-english";
+const GROQ_TTS_LIMIT = 200;
 const GROQ_TTS_VOICES = { luna:"autumn", orion:"troy", thalia:"diana", apollo:"austin", pandora:"hannah", draco:"daniel", theia:"autumn", hyperion:"troy" };
 const GEMINI_TTS_MODEL = "gemini-2.5-flash-preview-tts";
 const GEMINI_TRANSCRIPT_MODEL = "gemini-flash-lite-latest";
+let geminiVoiceRetryAt = 0;
 const GEMINI_TTS_VOICES = { luna:"Kore", orion:"Charon", thalia:"Aoede", apollo:"Puck", pandora:"Leda", draco:"Fenrir", theia:"Zephyr", hyperion:"Orus" };
 
 function base64ToBytes(b64) {
@@ -199,14 +201,14 @@ function pcmToWav(pcm, sampleRate = 24000) {
   return buf;
 }
 
-async function synthesizeGroq(env, text, speaker) {
-  if (!env.GROQ_API_KEY || text.length > 200) return null;
+async function synthesizeGroq(env, text, speaker, signal = AbortSignal.timeout(12000)) {
+  if (!env.GROQ_API_KEY || text.length > GROQ_TTS_LIMIT) return null;
   try {
     const r = await fetch("https://api.groq.com/openai/v1/audio/speech", {
       method: "POST",
       headers: { "Authorization": "Bearer " + env.GROQ_API_KEY, "Content-Type": "application/json" },
       body: JSON.stringify({ model: GROQ_TTS_MODEL, voice: GROQ_TTS_VOICES[speaker] || "autumn", input: text, response_format: "wav" }),
-      signal: AbortSignal.timeout(12000)
+      signal
     });
     if (!r.ok) { await rememberUsage(env, "groq_tts", { snapshot: { error: r.status, at: Date.now() } }); return null; }
     const body = await r.arrayBuffer();
@@ -279,14 +281,14 @@ async function synthesizeAzure(env, text, speaker) {
   }
 }
 
-function geminiSegments(text, limit = 360) {
+function voiceSegments(text, limit, separateLast = false) {
   const sentences = [...new Intl.Segmenter("en", { granularity: "sentence" }).segment(text)]
     .map(({ segment }) => segment.trim()).filter(Boolean);
   const chunks = [];
   let current = "";
   for (const [index, sentence] of sentences.entries()) {
-    // Keep the final sentence separate and prefer sentence boundaries when grouping the rest.
-    if (current && (index === sentences.length - 1 || current.length + 1 + sentence.length > limit)) {
+    // Prefer sentence boundaries, with an optional separate request for the last sentence.
+    if (current && ((separateLast && index === sentences.length - 1) || current.length + 1 + sentence.length > limit)) {
       chunks.push(current);
       current = "";
     }
@@ -310,7 +312,12 @@ async function geminiCandidate(env, model, parts, generationConfig, signal) {
   for (let attempt = 0; ; attempt++) {
     try {
       const response = await fetch(url, options);
-      if (!response.ok) throw Object.assign(Error("Gemini request failed"), { status: response.status });
+      if (!response.ok) {
+        const retryAfter = response.headers.get("Retry-After");
+        const retryAt = retryAfter && /^\d+$/.test(retryAfter)
+          ? Date.now() + Number(retryAfter) * 1000 : Date.parse(retryAfter);
+        throw Object.assign(Error("Gemini request failed"), { status: response.status, retryAt });
+      }
       const candidate = (await response.json())?.candidates?.[0];
       return candidate?.finishReason === "STOP" ? candidate.content?.parts || [] : [];
     } catch (error) {
@@ -337,14 +344,24 @@ function geminiPcm(parts) {
       buffers.push(bytes);
     }
   }
-  return buffers.length ? joinGeminiPcm(buffers) : null;
+  return buffers.length ? joinVoicePcm(buffers) : null;
 }
 
-function joinGeminiPcm(buffers) {
+function joinVoicePcm(buffers) {
   const pcm = new Uint8Array(buffers.reduce((total, buffer) => total + buffer.length, 0));
   let offset = 0;
   for (const buffer of buffers) { pcm.set(buffer, offset); offset += buffer.length; }
   return pcm;
+}
+
+async function collectVoiceClips(segments, generate) {
+  const clips = [];
+  for (let i = 0; i < segments.length; i += 3) {
+    const batch = await Promise.all(segments.slice(i, i + 3).map(generate));
+    if (batch.some(clip => !clip)) return null;
+    clips.push(...batch);
+  }
+  return clips;
 }
 
 function transcriptWords(text) {
@@ -378,29 +395,24 @@ function transcriptIsComplete(text, transcript) {
 }
 
 async function synthesizeGemini(env, text, speaker) {
-  if (!env.GEMINI_KEY) return null;
+  if (!env.GEMINI_KEY || Date.now() < geminiVoiceRetryAt) return null;
   const signal = AbortSignal.timeout(38000);
   try {
-    const segments = geminiSegments(text);
+    const segments = voiceSegments(text, 360, true);
     const generation = {
       responseModalities: ["AUDIO"],
       speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: GEMINI_TTS_VOICES[speaker] || "Kore" } } }
     };
     for (let attempt = 0; attempt < 2; attempt++) {
-      const clips = [];
-      for (let i = 0; i < segments.length; i += 3) {
-        const batch = await Promise.all(segments.slice(i, i + 3).map(async segment => {
-          const parts = await geminiCandidate(env, GEMINI_TTS_MODEL, [{
-            text: "Speak the transcript verbatim in natural English from the first word to the last. Speak every sentence, including labels, notes and reminders. Do not speak the markers.\n[BEGIN TRANSCRIPT]\n" + segment + "\n[END TRANSCRIPT]"
-          }], generation, signal);
-          const pcm = geminiPcm(parts);
-          return pcm && healthyPcmVoice(pcmToWav(pcm), true) ? pcm : null;
-        }));
-        if (batch.some(clip => !clip)) break;
-        clips.push(...batch);
-      }
-      if (clips.length !== segments.length) continue;
-      const body = pcmToWav(joinGeminiPcm(clips));
+      const clips = await collectVoiceClips(segments, async segment => {
+        const parts = await geminiCandidate(env, GEMINI_TTS_MODEL, [{
+          text: "Speak the transcript verbatim in natural English from the first word to the last. Speak every sentence, including labels, notes and reminders. Do not speak the markers.\n[BEGIN TRANSCRIPT]\n" + segment + "\n[END TRANSCRIPT]"
+        }], generation, signal);
+        const pcm = geminiPcm(parts);
+        return pcm && healthyPcmVoice(pcmToWav(pcm), true) ? pcm : null;
+      });
+      if (!clips) continue;
+      const body = pcmToWav(joinVoicePcm(clips));
       const bytes = new Uint8Array(body);
       let data = "";
       if (bytes.toBase64) data = bytes.toBase64();
@@ -422,7 +434,51 @@ async function synthesizeGemini(env, text, speaker) {
     }
     await rememberUsage(env, "gemini_tts", { snapshot: { error: "incomplete_audio", at: Date.now() } });
   } catch (error) {
+    if (error.status === 429) {
+      const now = Date.now();
+      geminiVoiceRetryAt = Math.max(now + 1000, Math.min(error.retryAt || now + 60000, now + 86400000));
+    }
     await rememberUsage(env, "gemini_tts", { snapshot: { error: error.status || "network", at: Date.now() } });
+  }
+  return null;
+}
+
+async function synthesizeGroqPassage(env, text, speaker) {
+  if (!env.GROQ_API_KEY || text.length <= GROQ_TTS_LIMIT) return null;
+  const signal = AbortSignal.timeout(27000);
+  try {
+    const clips = await collectVoiceClips(voiceSegments(text, GROQ_TTS_LIMIT), async segment => {
+      const clip = await synthesizeGroq(env, segment, speaker, signal);
+      if (!clip || !healthyPcmVoice(clip.body, true)) return null;
+      const bytes = new Uint8Array(clip.body);
+      const wave = readVoiceWave(bytes);
+      if (wave.rate !== 24000 || wave.channels !== 1 || wave.bits !== 16) return null;
+      return bytes.subarray(wave.offset, wave.offset + wave.length);
+    });
+    if (!clips) return null;
+    const body = pcmToWav(joinVoicePcm(clips));
+    const form = new FormData();
+    form.set("file", new Blob([body], { type: "audio/wav" }), "teacher.wav");
+    form.set("model", "whisper-large-v3-turbo");
+    form.set("language", "en");
+    form.set("temperature", "0");
+    const response = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + env.GROQ_API_KEY },
+      body: form,
+      signal
+    });
+    if (!response.ok) {
+      await rememberUsage(env, "groq_tts", { snapshot: { error: response.status, at: Date.now() } });
+      return null;
+    }
+    const { text: transcript } = await response.json();
+    if (typeof transcript === "string" && transcriptIsComplete(text, transcript)) {
+      return { body, provider: "groq" };
+    }
+    await rememberUsage(env, "groq_tts", { snapshot: { error: "incomplete_audio", at: Date.now() } });
+  } catch {
+    await rememberUsage(env, "groq_tts", { snapshot: { error: "network", at: Date.now() } });
   }
   return null;
 }
@@ -580,6 +636,7 @@ async function synthesize(req, env, headers, ctx) {
   if (!result && !strictVoice) result = await acceptAudio(await synthesizeAzure(env, text, input.speaker));
   if (!result && !strictVoice) result = await acceptAudio(await synthesizeGroq(env, text, input.speaker));
   if (!result && !strictVoice) result = await acceptAudio(await synthesizeGemini(env, text, input.speaker));
+  if (!result && !strictVoice) result = await acceptAudio(await synthesizeGroqPassage(env, text, input.speaker));
   if (!result) return out({ error: "voice_unavailable" }, 503, headers);
 
   if (cache && cacheReq && ctx?.waitUntil) {
