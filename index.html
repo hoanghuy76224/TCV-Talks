@@ -2702,8 +2702,10 @@ async function loadAIStatus(){
     if(body.isConnected)body.innerHTML=aiStatusHTML(data);
   }catch{if(body.isConnected)body.textContent="Chưa kiểm tra được trạng thái AI. Kiểm tra kết nối rồi bấm Kiểm tra lại."}
 }
+let cfVoiceUntil=0;
 function absorbUsage(data,now=Date.now()){
   const p=data.providers||{},cf=p.cloudflare?.snapshot,g=p.groq?.snapshot,gm=p.gemini?.snapshot;
+  cfVoiceUntil=cf?.exhausted&&now<cf.resetAt?cf.resetAt:0;
   if(cf?.exhausted&&now<cf.resetAt)pauseAI("cloudflare",cf.resetAt);
   if(g?.requestsRemaining===0&&now<g.requestsResetAt)pauseAI("groq",g.requestsResetAt);
   if(g?.tokensRemaining===0&&now<g.tokensResetAt)pauseAI("groq",g.tokensResetAt);
@@ -2835,7 +2837,8 @@ const VOICE_OPTIONS=[
 ];
 const voiceChoice=()=>{
   if(S.kvoice===false)return "browser";
-  return VOICE_OPTIONS.some(([id])=>id===S.voiceSpeaker&&id!=="browser")?S.voiceSpeaker:"auto";
+  if(!VOICE_OPTIONS.some(([id])=>id===S.voiceSpeaker&&id!=="browser"))return "auto";
+  return S.voiceSpeaker!=="auto"&&Date.now()<cfVoiceUntil?"auto":S.voiceSpeaker;
 };
 const cloudVoiceOn=()=>!IN_CLAUDE&&voiceChoice()!=="browser";
 
@@ -2844,11 +2847,12 @@ function setupVoicePicker(){
   const picker=$("#voice-picker");
   const select=$("#voice-select");
   const summary=$("#voice-summary");
-  select.replaceChildren(...VOICE_OPTIONS.map(([id,name])=>new Option(name,id)));
   const sync=()=>{
+    const hidden=Date.now()<cfVoiceUntil;
+    select.replaceChildren(...VOICE_OPTIONS.filter(([id])=>!hidden||id==="auto"||id==="browser").map(([id,name])=>new Option(name,id)));
     select.value=voiceChoice();
     const name=select.selectedOptions[0].text;
-    summary.textContent="Giọng đọc · "+name;
+    summary.textContent="Giọng đọc · "+name+(hidden?" · giọng chọn riêng tạm ẩn đến "+fmtReset(cfVoiceUntil):"");
   };
   select.onchange=()=>{
     stopAudio();
@@ -2860,6 +2864,7 @@ function setupVoicePicker(){
   $("#voice-preview").onclick=()=>say("Could you give me a quick update before the meeting?");
   sync();
   picker.hidden=false;
+  if(AIWEB)setupAutomaticAI().then(sync);
 }
 const voiceBuffers=new Map();
 let voiceContext, voiceRequest;
