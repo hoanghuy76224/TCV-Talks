@@ -30,7 +30,11 @@ async function generateWithCloudflare(req, env, headers, prompt, json) {
     }
     return out({ text, model: CLOUDFLARE_MODEL }, 200, { ...headers, "Cache-Control": "no-store" });
   } catch (e) {
-    console.error("Cloudflare AI request failed", e?.message || "Unknown error");
+    const message = String(e?.message || "");
+    if (/4006|daily free allocation|10,000 neurons/i.test(message)) {
+      return out({ error: "cloudflare_quota" }, 429, headers);
+    }
+    console.error("Cloudflare AI request failed", message || "Unknown error");
     return out({ error: "cloudflare_upstream" }, 502, headers);
   }
 }
