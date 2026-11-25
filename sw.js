@@ -1,12 +1,26 @@
 // Cache the lesson shell for offline revisits. Profile/API/audio responses stay out of this cache.
-const SHELL_CACHE="tcv-shell-v1";
+const SHELL_CACHE="tcv-shell-v2";
+const STUDY_ASSETS=["/study-content.js","/study-library.js","/assets/dino-study.webp"];
 self.addEventListener("install",event=>{
-  event.waitUntil(caches.open(SHELL_CACHE).then(cache=>cache.add(new Request("/",{cache:"reload"}))).then(()=>self.skipWaiting()));
+  event.waitUntil(caches.open(SHELL_CACHE).then(cache=>cache.addAll(["/",...STUDY_ASSETS].map(path=>new Request(path,{cache:"reload"})))).then(()=>self.skipWaiting()));
 });
 self.addEventListener("activate",event=>event.waitUntil(self.clients.claim()));
 self.addEventListener("fetch",event=>{
   const request=event.request,url=new URL(request.url);
   if(request.method!=="GET"||url.origin!==self.location.origin)return;
+  if(STUDY_ASSETS.includes(url.pathname)){
+    event.respondWith((async()=>{
+      const cache=await caches.open(SHELL_CACHE);
+      try{
+        const response=await fetch(request);
+        if(response.ok){await cache.put(request,response.clone());return response}
+        return await cache.match(request)||response;
+      }catch{
+        return await cache.match(request)||Response.error();
+      }
+    })());
+    return;
+  }
   if(request.mode==="navigate"&&(url.pathname==="/"||url.pathname==="/index.html")){
     event.respondWith((async()=>{
       const cache=await caches.open(SHELL_CACHE);
