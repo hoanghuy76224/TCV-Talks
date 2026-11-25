@@ -23,5 +23,11 @@
         "period": 60
       }
     }
+  ],
+  "send_email": [
+    {
+      "name": "FEEDBACK_EMAIL",
+      "destination_address": "ntd031096@gmail.com"
+    }
   ]
 }

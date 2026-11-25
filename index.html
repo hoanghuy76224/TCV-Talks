@@ -157,6 +157,30 @@ table{border-collapse:collapse;width:100%;background:var(--card);border-radius:1
 <p id="voice-status" class="sm" role="status" hidden style="max-width:960px;margin:8px auto;padding:0 16px"></p>
 <p id="save-message" class="sm" role="status" hidden style="max-width:960px;margin:8px auto;padding:0 16px"></p>
 <main id="app"></main>
+<footer style="max-width:960px;margin:24px auto 40px;padding:0 max(4vw,14px)">
+  <details id="feedback-box" class="box">
+    <summary style="cursor:pointer;font-weight:700">Góp ý &amp; Báo lỗi</summary>
+    <form id="feedback-form" style="display:grid;gap:12px;margin-top:12px">
+      <div class="row">
+        <label class="sm" for="fb-kind">Chủ đề</label>
+        <select id="fb-kind" style="width:auto">
+          <option value="bug">Báo lỗi</option>
+          <option value="feature">Góp ý tính năng</option>
+          <option value="content">Sai nội dung bài học</option>
+          <option value="other">Khác</option>
+        </select>
+      </div>
+      <textarea id="fb-msg" rows="3" required minlength="5" maxlength="2000" placeholder="Mô tả lỗi bạn gặp hoặc điều bạn muốn cải thiện…"></textarea>
+      <input id="fb-contact" type="text" maxlength="120" placeholder="Email hoặc Zalo để mình phản hồi (không bắt buộc)">
+      <input id="fb-hp" type="text" tabindex="-1" autocomplete="off" hidden aria-hidden="true">
+      <div class="row">
+        <button type="submit" class="pri" id="fb-send">Gửi góp ý</button>
+        <a class="sm" href="mailto:ntd031096@gmail.com?subject=G%C3%B3p%20%C3%BD%20TCV%20Talks">Hoặc gửi mail trực tiếp</a>
+      </div>
+      <p id="fb-status" class="sm" role="status" style="margin:0"></p>
+    </form>
+  </details>
+</footer>
 <script>(function (global, factory) {
   typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
   typeof define === 'function' && define.amd ? define(['exports'], factory) :
@@ -4293,6 +4317,28 @@ window.addEventListener("pageshow",event=>{if(event.persisted&&!activeLearner)re
 window.addEventListener("storage",event=>{if(event.key===SESSION_KEY&&!event.newValue&&activeLearner){activeLearner=null;profileDirty=false;clearTimeout(profileTimer);location.reload()}});
 window.__ot={finishPhones,splitPh,refOf,loadModel,recognize,toPCM};
 $("#lock-profile").onclick=lockProfile;
+const fbForm=$("#feedback-form");
+if(fbForm)fbForm.onsubmit=async event=>{
+  event.preventDefault();
+  const msg=$("#fb-msg").value.trim(),status=$("#fb-status"),btn=$("#fb-send");
+  if(msg.length<5){status.textContent="Bạn viết thêm vài chữ để mình hiểu rõ hơn nhé.";return}
+  btn.disabled=true;status.textContent="Đang gửi góp ý…";
+  try{
+    const res=await fetch(new URL("/feedback",CFG.aiUrl),{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        kind:$("#fb-kind").value,message:msg,contact:$("#fb-contact").value.trim(),website:$("#fb-hp").value,
+        meta:{page:location.hash||"#today",learner:activeLearner?.id||"",voice:voiceChoice(),ai:selectedAI(),ua:navigator.userAgent.slice(0,180)}
+      })
+    });
+    const out=await res.json().catch(()=>({}));
+    if(!res.ok)throw new Error(out.error||"fail");
+    $("#fb-msg").value="";
+    status.textContent="Cảm ơn bạn! Góp ý đã được gửi thành công.";
+  }catch(e){
+    status.textContent=e.message==="rate_limited"?"Bạn gửi hơi nhanh, chờ một phút rồi thử lại nhé.":"Chưa gửi được lúc này. Bạn thử lại hoặc bấm gửi mail trực tiếp nhé.";
+  }finally{btn.disabled=false}
+};
 restoreSession();
 if("serviceWorker" in navigator&&location.protocol==="https:")navigator.serviceWorker.register("/sw.js").catch(()=>{});
 }

@@ -496,6 +496,98 @@ async function profileApi(req, env, headers, path) {
   }
 }
 
+/* ---------- góp ý & báo lỗi: lưu D1 + gửi thẳng qua Cloudflare Email ---------- */
+let feedbackReady = null;
+const initFeedback = env => feedbackReady ||= env.DB.exec(
+  "CREATE TABLE IF NOT EXISTS feedback (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, message TEXT NOT NULL, contact TEXT NOT NULL DEFAULT '', meta TEXT NOT NULL DEFAULT '{}', emailed INTEGER NOT NULL DEFAULT 0, created INTEGER NOT NULL)"
+).catch(e => { feedbackReady = null; throw e; });
+const FEEDBACK_KINDS = { bug: "Báo lỗi", feature: "Góp ý tính năng", content: "Sai nội dung bài học", other: "Góp ý khác" };
+const escHtml = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+async function feedbackApi(req, env, headers) {
+  if (req.method !== "POST") return out({ error: "method" }, 405, headers);
+  if (+(req.headers.get("Content-Length") || 0) > 16384) return out({ error: "too_big" }, 413, headers);
+  const no = { ...headers, "Cache-Control": "no-store" };
+  if (env.GROQ_RATE_LIMIT) {
+    const client = req.headers.get("CF-Connecting-IP") || "unknown";
+    const { success } = await env.GROQ_RATE_LIMIT.limit({ key: "feedback:" + client });
+    if (!success) return out({ error: "rate_limited" }, 429, no);
+  }
+  let b;
+  try { b = await req.json() } catch { return out({ error: "bad_json" }, 400, no) }
+  if (typeof b?.website === "string" && b.website.trim()) return out({ ok: true }, 200, no);
+  const kind = FEEDBACK_KINDS[b?.kind] ? b.kind : "bug";
+  const message = typeof b?.message === "string" ? b.message.trim().slice(0, 2000) : "";
+  if (message.length < 5) return out({ error: "too_short" }, 400, no);
+  const contact = typeof b?.contact === "string" ? b.contact.trim().slice(0, 120) : "";
+  const rawMeta = b?.meta && typeof b.meta === "object" ? b.meta : {};
+  const meta = {
+    page: String(rawMeta.page || "").slice(0, 80),
+    learner: String(rawMeta.learner || "").slice(0, 40),
+    voice: String(rawMeta.voice || "").slice(0, 30),
+    ai: String(rawMeta.ai || "").slice(0, 30),
+    ua: String(rawMeta.ua || "").slice(0, 180)
+  };
+  const now = Date.now();
+  let rowId = null;
+  if (env.DB) {
+    try {
+      await initFeedback(env);
+      const r = await env.DB.prepare("INSERT INTO feedback (kind, message, contact, meta, emailed, created) VALUES (?, ?, ?, ?, 0, ?)")
+        .bind(kind, message, contact, JSON.stringify(meta), now).run();
+      rowId = r?.meta?.last_row_id ?? null;
+    } catch (e) { console.error("Feedback DB insert failed", String(e?.message || e)); }
+  }
+  let emailed = false;
+  if (env.FEEDBACK_EMAIL) {
+    const label = FEEDBACK_KINDS[kind];
+    const to = env.FEEDBACK_TO || "ntd031096@gmail.com";
+    const from = env.FEEDBACK_FROM || "feedback@khunglongcon.com";
+    const timeVN = new Date(now).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
+    const subject = `[TCV Talks] ${label}${meta.learner ? " · " + meta.learner : ""}`;
+    const textBody = [
+      `Loại: ${label}`,
+      `Thời gian: ${timeVN}`,
+      `Trang: ${meta.page || "(không rõ)"}`,
+      `Hồ sơ: ${meta.learner || "(chưa đăng nhập)"}`,
+      `Liên hệ: ${contact || "(không để lại)"}`,
+      `Giọng / AI: ${meta.voice || "-"} / ${meta.ai || "-"}`,
+      `Thiết bị: ${meta.ua || "-"}`,
+      "",
+      "Nội dung:",
+      message
+    ].join("\n");
+    const htmlBody = `<div style="font-family:system-ui,sans-serif;line-height:1.5;max-width:600px">` +
+      `<h2 style="margin:0 0 12px">[TCV Talks] ${escHtml(label)}</h2>` +
+      `<p style="white-space:pre-wrap;background:#f6f7fb;padding:12px 14px;border-radius:10px">${escHtml(message)}</p>` +
+      `<table style="font-size:13px;color:#555;border-collapse:collapse">` +
+      `<tr><td style="padding:3px 10px 3px 0"><b>Thời gian:</b></td><td>${escHtml(timeVN)}</td></tr>` +
+      `<tr><td style="padding:3px 10px 3px 0"><b>Trang:</b></td><td>${escHtml(meta.page || "(không rõ)")}</td></tr>` +
+      `<tr><td style="padding:3px 10px 3px 0"><b>Hồ sơ:</b></td><td>${escHtml(meta.learner || "(chưa đăng nhập)")}</td></tr>` +
+      `<tr><td style="padding:3px 10px 3px 0"><b>Liên hệ:</b></td><td>${escHtml(contact || "(không để lại)")}</td></tr>` +
+      `<tr><td style="padding:3px 10px 3px 0"><b>Giọng / AI:</b></td><td>${escHtml((meta.voice || "-") + " / " + (meta.ai || "-"))}</td></tr>` +
+      `<tr><td style="padding:3px 10px 3px 0"><b>Thiết bị:</b></td><td>${escHtml(meta.ua || "-")}</td></tr>` +
+      `</table></div>`;
+    try {
+      await env.FEEDBACK_EMAIL.send({
+        to,
+        from: { email: from, name: "TCV Talks" },
+        subject,
+        text: textBody,
+        html: htmlBody
+      });
+      emailed = true;
+      if (env.DB && rowId != null) {
+        await env.DB.prepare("UPDATE feedback SET emailed = 1 WHERE id = ?").bind(rowId).run().catch(() => {});
+      }
+    } catch (e) {
+      console.error("Feedback email send failed", String(e?.message || e));
+    }
+  }
+  if (!emailed && rowId == null) return out({ error: "feedback_unavailable" }, 503, no);
+  return out({ ok: true, emailed }, 200, no);
+}
+
 export default {
   async fetch(req, env, ctx) {
     const origin = req.headers.get("Origin") || "";
@@ -503,6 +595,9 @@ export default {
     const h = ok ? cors(origin) : {};
     if (req.method === "OPTIONS") return new Response(null, { status: ok ? 204 : 403, headers: h });
     const path = new URL(req.url).pathname;
+    if (path === "/feedback") {
+      return ok ? feedbackApi(req, env, h) : out({ error: "origin" }, 403, h);
+    }
     if (path === "/usage") {
       if (!ok) return out({error:"origin"},403,h);
       return req.method==="GET" ? usageApi(env,h) : out({error:"method"},405,h);
