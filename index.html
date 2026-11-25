@@ -3457,7 +3457,18 @@ async function startMedia(){
     mr.start();rec.timer=setTimeout(()=>stopRec(),15000)}
   catch(e){rec.on=false;rec.done({text:"",err:"not-allowed"})}}
 function stopRec(){if(!rec.on)return;clearTimeout(rec.timer);if(rec.kind==="media"){try{rec.mr.stop()}catch(e){}}else if(rec.kind==="dict"){dict.stop().catch(()=>{})}else if(rec.web){try{rec.web.stop()}catch(e){}}}
-async function toPCM(blob){const buf=await blob.arrayBuffer();const AC=window.AudioContext||window.webkitAudioContext;const ac=new AC({sampleRate:16000});const ab=await ac.decodeAudioData(buf);let d=ab.getChannelData(0);if(ab.sampleRate!==16000){const r=ab.sampleRate/16000,o=new Float32Array(Math.floor(d.length/r));for(let i=0;i<o.length;i++)o[i]=d[Math.floor(i*r)];d=o}ac.close&&ac.close();return d}
+async function toPCM(blob){
+  const AC=window.AudioContext||window.webkitAudioContext;
+  const ac=new AC({sampleRate:16000});
+  try{
+    const decoded=await ac.decodeAudioData(await blob.arrayBuffer());
+    const channel=decoded.getChannelData(0);
+    if(decoded.sampleRate===16000)return channel;
+    const ratio=decoded.sampleRate/16000, resampled=new Float32Array(Math.floor(channel.length/ratio));
+    for(let i=0;i<resampled.length;i++)resampled[i]=channel[Math.floor(i*ratio)];
+    return resampled;
+  }finally{await ac.close?.()}
+}
 
 /* ---------- mô hình nhận dạng âm vị (chạy trong trình duyệt) ---------- */
 let pipe=null,loading=null;
@@ -4144,10 +4155,10 @@ function cancelChatMic(){
 }
 window.addEventListener("pagehide",cancelChatMic);
 
-async function transcriptFromAudio(blob,signal){
+async function speechWav(blob,signal){
   const pcm=await toPCM(blob);
   signal.throwIfAborted();
-  if(!pcm.length)return "";
+  if(!pcm.length)return null;
   const length=Math.min(pcm.length,16000*15);
   const bytes=new ArrayBuffer(44+length*2);
   const view=new DataView(bytes);
@@ -4160,7 +4171,12 @@ async function transcriptFromAudio(blob,signal){
   view.setUint16(32,2,true);view.setUint16(34,16,true);
   ascii(36,"data");view.setUint32(40,length*2,true);
   for(let i=0;i<length;i++)view.setInt16(44+i*2,Math.round(Math.max(-1,Math.min(1,pcm[i]))*32767),true);
-  const audio=await b64(new Blob([bytes],{type:"audio/wav"}));
+  return new Blob([bytes],{type:"audio/wav"});
+}
+async function transcriptFromAudio(blob,signal){
+  const wav=blob.type==="audio/wav"?blob:await speechWav(blob,signal);
+  if(!wav)return "";
+  const audio=await b64(wav);
   const request=new AbortController();
   const abort=()=>request.abort();
   signal.addEventListener("abort",abort,{once:true});
@@ -4431,15 +4447,22 @@ function vChat(){
       recorder=await recordAudio(async blob=>{
         if(!blob?.size){finishMic(session,"Chưa thu được tiếng. Bật mic và thử lại.");return}
         if(session.signal.aborted||chatMicSession!==session||!app.contains(cl))return;
-        chatMicSession=null;recorder=null;
+        recorder=null;
+        status.textContent="Đang xử lý bản thu…";
         controls();
-        const sent=await turn(null,blob);
+        let wav;
+        try{wav=await speechWav(blob,session.signal)}catch{}
+        if(session.signal.aborted||chatMicSession!==session||!app.contains(cl))return;
+        if(!wav){finishMic(session,"Không mở được bản thu. Bạn hãy ghi lại hoặc gõ câu trả lời.");return}
+        chatMicSession=null;
+        controls();
+        const sent=await turn(null,wav);
         if(sent||session.signal.aborted||!app.contains(cl)||chatMicSession)return;
         chatMicSession=session;
         status.textContent="Đang chuyển lời nói thành chữ…";
         controls();
         try{
-          const text=await transcriptFromAudio(blob,session.signal);
+          const text=await transcriptFromAudio(wav,session.signal);
           finishMic(session,text?"Sửa lại câu nếu cần, rồi bấm Gửi.":"Chưa nghe rõ. Nói lại gần mic hơn nhé.",text);
         }catch{finishMic(session,"Chưa nhận dạng được lời nói. Bạn có thể thử lại hoặc gõ câu trả lời.")}
       },session.signal);
