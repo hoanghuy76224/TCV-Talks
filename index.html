@@ -164,6 +164,7 @@ table{border-collapse:collapse;width:100%;background:var(--card);border-radius:1
       </select>
     </div>
     <p class="sm" id="ai-provider-status" role="status"></p>
+    <details id="ai-usage-panel"><summary>Usage và hạn mức còn lại</summary><div id="ai-usage" aria-live="polite" style="margin-top:12px">Mở để xem usage.</div><button type="button" id="ai-usage-refresh" class="sec" style="margin-top:8px">Cập nhật usage</button><p class="sm">Lượt và token đã dùng chỉ tính các lần gọi qua web kể từ khi bật theo dõi. Ngày thống kê theo UTC, đổi ngày lúc 7:00 giờ Việt Nam. Số dư từ nhà cung cấp là ảnh chụp ở lần gọi gần nhất, có thể thay đổi nếu dùng chung tài khoản ở nơi khác.</p></details>
   </div>
 </details></div>
 <p id="voice-status" class="sm" role="status" hidden style="max-width:960px;margin:8px auto;padding:0 16px"></p>
@@ -2401,6 +2402,41 @@ const AIWEB=!IN_CLAUDE&&/^https:/.test(CFG.aiUrl);
 const selectedAI=()=>["cloudflare","groq","gemini"].includes(S.aiProvider)?S.aiProvider:"gemini";
 const aiLabel=()=>({cloudflare:"Cloudflare Workers AI · Llama 3.3",groq:"Groq · GPT-OSS 20B",gemini:"Google Gemini"})[selectedAI()];
 
+
+let usageLoading=false;
+function renderUsage(data, now=Date.now()) {
+  const nf=n=>Number(n||0).toLocaleString("vi-VN");
+  const when=t=>new Date(t).toLocaleString("vi-VN",{timeZone:"Asia/Ho_Chi_Minh"});
+  const p=data.providers||{},cf=p.cloudflare,groq=p.groq,gemini=p.gemini;
+  const count=row=>row?nf(row.requests)+" lượt thành công · "+nf(row.tokens)+" token":"Chưa ghi nhận lượt dùng.";
+  function remaining(s,kind,label) {
+    const value=s?.[kind+"Remaining"],limit=s?.[kind+"Limit"],reset=s?.[kind+"ResetAt"];
+    if(value==null)return label+": chưa có dữ liệu từ API.";
+    if(!reset||now>=reset)return label+": số liệu đã cũ; chờ lần gọi Groq tiếp theo.";
+    return label+": "+nf(value)+(limit!=null?" / "+nf(limit):"")+" còn lại · phục hồi theo API: "+when(reset);
+  }
+  const exhausted=cf?.snapshot?.exhausted&&now<cf.snapshot.resetAt;
+  const cards=[
+    ["Cloudflare Workers AI",exhausted?"0 neurons trong hạn mức miễn phí · API đã báo hết. Đặt lại lúc "+when(cf.snapshot.resetAt)+".":"Neurons còn lại: chưa có số liệu tài khoản.",count(cf)+" Chat Llama 3.3. Giọng đọc: "+nf(p.cloudflare_tts?.requests)+" lượt · "+nf(p.cloudflare_tts?.chars)+" ký tự. Nhận diện giọng nói: "+nf(p.cloudflare_stt?.requests)+" lượt.","Chat, giọng đọc Aura-2 và nhận diện Whisper dùng chung hạn mức Cloudflare; không chia thành ba số dư.", "https://dash.cloudflare.com/e26e04fdeb991297c340ba4813ec3d1a/ai/workers-ai/usage"],
+    ["Groq · GPT-OSS 20B",remaining(groq?.snapshot,"requests","Lượt/ngày")+" "+remaining(groq?.snapshot,"tokens","Token/phút"),count(groq),groq?"Số dư do Groq trả về lúc "+when(groq.snapshot?.capturedAt||groq.updated)+".":"Số dư xuất hiện sau lần gọi Groq đầu tiên.","https://console.groq.com/dashboard/limits"],
+    ["Google Gemini","Còn lại: chưa có số liệu tài khoản.",count(gemini),gemini?.snapshot?.limited?"Lần gọi gần nhất gặp giới hạn; chưa xác định là giới hạn phút hay ngày.":"Xem hạn mức theo model và dự án trong Google AI Studio.","https://aistudio.google.com/rate-limit"]
+  ];
+  return cards.map(([name,balance,used,note,url])=>'<div class="box" style="margin:8px 0"><h3 style="margin:0 0 8px">'+esc(name)+'</h3><p>'+esc(balance)+'</p><p class="sm">'+esc(used)+'</p><p class="sm">'+esc(note)+'</p><a target="_blank" rel="noopener noreferrer" href="'+url+'">Xem usage tài khoản</a></div>').join("")+'<p class="sm">Cập nhật: '+esc(when(now))+' · Ngày UTC: '+esc(data.day)+'</p>';
+}
+async function refreshUsage() {
+  const panel=$("#ai-usage");
+  if(!AIWEB||!panel||usageLoading)return;
+  usageLoading=true;
+  const button=$("#ai-usage-refresh");if(button)button.disabled=true;
+  try{
+    const response=await fetch(new URL("/usage",CFG.aiUrl),{cache:"no-store",signal:AbortSignal.timeout(8000)});
+    const data=await response.json();
+    if(!response.ok)throw new Error("usage");
+    panel.innerHTML=renderUsage(data);
+  }catch{panel.textContent="Chưa tải được usage. Bấm Cập nhật usage để thử lại."}
+  finally{usageLoading=false;if(button)button.disabled=false}
+}
+
 function updateAIPicker(){
   const picker=$("#ai-provider");
   picker.value=selectedAI();
@@ -2410,6 +2446,8 @@ function updateAIPicker(){
 async function setupAIPicker(){
   if(!AIWEB)return;
   $("#ai-picker").hidden=false;
+  $("#ai-usage-panel").ontoggle=()=>{if($("#ai-usage-panel").open)refreshUsage()};
+  $("#ai-usage-refresh").onclick=refreshUsage;
   const picker=$("#ai-provider"),groq=picker.querySelector('[value="groq"]'),cloudflare=picker.querySelector('[value="cloudflare"]'),status=$("#ai-provider-status");
   const help="Áp dụng cho hội thoại, sửa câu và chấm bài viết. Chấm phát âm bằng bản thu dùng Gemini.";
   updateAIPicker();
@@ -2431,7 +2469,7 @@ async function setupAIPicker(){
   }catch(e){status.textContent="Chưa kiểm tra được trạng thái trợ lý AI. "+help}
 }
 async function gem(body,signal){let r;try{r=await fetch(CFG.aiUrl,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...body,provider:body.audio?"gemini":selectedAI()}),signal})}catch(e){throw{code:"network"}}
-  const j=await r.json().catch(()=>({}));if(j.error==="cloudflare_quota"){$("#ai-provider-status").textContent="Cloudflare AI đã hết hạn mức miễn phí hôm nay. Bạn có thể chọn Gemini/Groq để học tiếp.";throw{code:"rate_limited"}}if(!r.ok)throw{code:j.error==="rate_limited"?"rate_limited":(j.error||"upstream")};return j}
+  const j=await r.json().catch(()=>({}));if($("#ai-usage-panel")?.open)refreshUsage();if(j.error==="cloudflare_quota"){$("#ai-provider-status").textContent="Cloudflare AI đã hết hạn mức miễn phí hôm nay. Bạn có thể chọn Gemini/Groq để học tiếp.";throw{code:"rate_limited"}}if(!r.ok)throw{code:j.error==="rate_limited"?"rate_limited":(j.error||"upstream")};return j}
 function jparse(t){const m=String(t).match(/\{[\s\S]*\}/);return JSON.parse(m?m[0]:t)}
 if(AIWEB){ai=async(prompt,o)=>{const j=await gem({prompt});o&&o.onText&&o.onText({text:j.text});return{text:j.text}};
   ai.json=async prompt=>jparse((await gem({prompt,json:true})).text)}
