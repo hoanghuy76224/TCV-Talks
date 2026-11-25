@@ -2398,7 +2398,7 @@ function ipaText(text){const r=refOf(text);if(!r)return"";return"/"+r.map(x=>x.p
 /* ---------- đọc mẫu ---------- */
 let tts=null,dict=null,ai=null;
 const AIWEB=!IN_CLAUDE&&/^https:/.test(CFG.aiUrl);
-const selectedAI=()=>["cloudflare","groq","gemini"].includes(S.aiProvider)?S.aiProvider:"cloudflare";
+const selectedAI=()=>["cloudflare","groq","gemini"].includes(S.aiProvider)?S.aiProvider:"gemini";
 const aiLabel=()=>({cloudflare:"Cloudflare Workers AI · Llama 3.3",groq:"Groq · GPT-OSS 20B",gemini:"Google Gemini"})[selectedAI()];
 
 function updateAIPicker(){
@@ -2431,7 +2431,7 @@ async function setupAIPicker(){
   }catch(e){status.textContent="Chưa kiểm tra được trạng thái trợ lý AI. "+help}
 }
 async function gem(body,signal){let r;try{r=await fetch(CFG.aiUrl,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...body,provider:body.audio?"gemini":selectedAI()}),signal})}catch(e){throw{code:"network"}}
-  const j=await r.json().catch(()=>({}));if(!r.ok)throw{code:j.error==="rate_limited"?"rate_limited":(j.error||"upstream")};return j}
+  const j=await r.json().catch(()=>({}));if(j.error==="cloudflare_quota"){$("#ai-provider-status").textContent="Cloudflare AI đã hết hạn mức miễn phí hôm nay. Bạn có thể chọn Gemini/Groq để học tiếp.";throw{code:"rate_limited"}}if(!r.ok)throw{code:j.error==="rate_limited"?"rate_limited":(j.error||"upstream")};return j}
 function jparse(t){const m=String(t).match(/\{[\s\S]*\}/);return JSON.parse(m?m[0]:t)}
 if(AIWEB){ai=async(prompt,o)=>{const j=await gem({prompt});o&&o.onText&&o.onText({text:j.text});return{text:j.text}};
   ai.json=async prompt=>jparse((await gem({prompt,json:true})).text)}
