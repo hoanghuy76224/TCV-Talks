@@ -813,6 +813,34 @@ async function feedbackApi(req, env, headers) {
   return out({ ok: true, emailed }, 200, no);
 }
 
+async function adminApi(req, env, headers) {
+  if (req.method !== "POST") return out({ error: "method" }, 405, headers);
+  let key = "";
+  try { key = String((await req.json()).key || ""); } catch {}
+  if (!env.ADMIN_KEY || !sameText(key, String(env.ADMIN_KEY))) return out({ error: "unauthorized" }, 401, headers);
+  if (!env.DB) return out({ error: "no_db" }, 503, headers);
+  const all = async (sql, ...a) => (await env.DB.prepare(sql).bind(...a).all()).results || [];
+  try {
+    await initTable(env);
+    await initFeedback(env);
+    await initUsage(env);
+    const now = Date.now();
+    const learners = await all("SELECT id, created, updated FROM profiles ORDER BY updated DESC LIMIT 500");
+    const feedback = await all("SELECT id, kind, message, contact, created FROM feedback ORDER BY created DESC LIMIT 50");
+    const usage = await all("SELECT day, provider, requests, tokens, chars FROM ai_usage ORDER BY day DESC LIMIT 60");
+    const d1 = now - 86400000, d7 = now - 7 * 86400000;
+    return out({
+      now,
+      total: learners.length,
+      active24h: learners.filter(r => r.updated > d1).length,
+      active7d: learners.filter(r => r.updated > d7).length,
+      learners, feedback, usage
+    }, 200, { ...headers, "Cache-Control": "no-store" });
+  } catch (e) {
+    return out({ error: "admin_failed" }, 500, headers);
+  }
+}
+
 export default {
   async fetch(req, env, ctx) {
     const origin = req.headers.get("Origin") || "";
@@ -824,6 +852,9 @@ export default {
       return ok ? feedbackApi(req, env, h) : out({ error: "origin" }, 403, h);
     }
     if(path==="/email/status")return ok?out({available:recoveryMailReady(env)},200,{...h,"Cache-Control":"no-store"}):out({error:"origin"},403,h);
+    if (path === "/admin/stats") {
+      return ok ? adminApi(req, env, h) : out({ error: "origin" }, 403, h);
+    }
     if (path === "/usage") {
       if (!ok) return out({error:"origin"},403,h);
       return req.method==="GET" ? usageApi(env,h) : out({error:"method"},405,h);

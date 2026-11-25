@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><title>Admin · English with Dino</title>
+<style>
+:root{color-scheme:light dark;--bg:light-dark(#f4f6fb,#0d1626);--card:light-dark(#fff,#16223a);--ink:light-dark(#13294b,#eaf0ff);--mut:light-dark(#5d6b85,#9fb0cf);--line:light-dark(#e3e8f2,#253455)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,sans-serif;padding:16px}
+.w{max-width:980px;margin:auto}h1{font-size:22px;margin:0 0 14px}h2{font-size:16px;margin:0 0 10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px;overflow-x:auto}
+.k{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.k div{background:var(--bg);border-radius:12px;padding:12px;text-align:center}
+.k b{display:block;font-size:28px;color:#ff6b5a}.k span{color:var(--mut);font-size:13px}
+table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{color:var(--mut);font-weight:600}
+input,button{font:inherit;padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+button{background:#13294b;color:#fff;border:0;cursor:pointer}.err{color:#ff5a48;margin-top:8px}
+</style></head><body><div class="w">
+<h1>English with Dino · Admin</h1>
+<div id="login" class="card"><form id="f"><input id="key" type="password" placeholder="Mã admin" autocomplete="current-password"> <button>Xem</button></form><div id="err" class="err"></div></div>
+<div id="main" hidden>
+<div class="card"><div class="k"><div><b id="t">0</b><span>Tổng học viên</span></div><div><b id="a1">0</b><span>Hoạt động 24h</span></div><div><b id="a7">0</b><span>Hoạt động 7 ngày</span></div></div></div>
+<div class="card"><h2>Học viên</h2><table id="lt"></table></div>
+<div class="card"><h2>Góp ý gần đây</h2><table id="ft"></table></div>
+<div class="card"><h2>Lượng dùng AI theo ngày</h2><table id="ut"></table></div>
+</div></div>
+<script>
+const API="https://tcv-ai.ntd031096.workers.dev/admin/stats";
+const $=i=>document.getElementById(i);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const dt=t=>new Date(t).toLocaleString("vi-VN",{timeZone:"Asia/Ho_Chi_Minh"});
+function tbl(el,head,rows){el.innerHTML="<tr>"+head.map(h=>"<th>"+h+"</th>").join("")+"</tr>"+(rows.length?rows.map(r=>"<tr>"+r.map(c=>"<td>"+esc(c)+"</td>").join("")+"</tr>").join(""):'<tr><td colspan="'+head.length+'">Chưa có</td></tr>')}
+async function load(key){
+  const r=await fetch(API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({key})});
+  if(!r.ok)throw new Error(r.status===401?"Sai mã admin":"Lỗi "+r.status);
+  const d=await r.json();
+  $("t").textContent=d.total;$("a1").textContent=d.active24h;$("a7").textContent=d.active7d;
+  tbl($("lt"),["Hồ sơ","Tạo lúc","Hoạt động gần nhất"],d.learners.map(l=>[l.id,dt(l.created),dt(l.updated)]));
+  tbl($("ft"),["Lúc","Loại","Nội dung","Liên hệ"],d.feedback.map(f=>[dt(f.created),f.kind,f.message,f.contact]));
+  tbl($("ut"),["Ngày","Nguồn","Request","Token","Ký tự"],d.usage.map(u=>[u.day,u.provider,u.requests,u.tokens,u.chars]));
+  $("login").hidden=true;$("main").hidden=false;
+}
+$("f").onsubmit=async e=>{e.preventDefault();$("err").textContent="";try{const k=$("key").value;await load(k);sessionStorage.setItem("ak",k)}catch(x){$("err").textContent=x.message}};
+const sk=sessionStorage.getItem("ak");if(sk)load(sk).catch(()=>sessionStorage.removeItem("ak"));
+</script></body></html>
