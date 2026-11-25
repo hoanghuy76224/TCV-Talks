@@ -151,6 +151,24 @@ window.DINO_STUDY_CONTENT = {
     ]},
     {id:"c2-strategy",level:"C2",title:"Thảo luận chiến lược",details:"Cân nhắc hệ quả và tính nhất quán của quyết định.",cards:[
       ["ramification","hệ quả kéo theo","The change has wider ramifications for the team."],["inadvertent","vô tình","The delay was an inadvertent consequence of the update."],["reconcile","dung hòa hoặc đối chiếu","We must reconcile those conflicting priorities."],["tenable","có cơ sở để duy trì hoặc bảo vệ","That position is no longer tenable."],["preclude","loại trừ hoặc ngăn cản","A delay need not preclude a trial next month."],["scrutiny","sự xem xét kỹ lưỡng","The proposal is likely to face close scrutiny."]
+    ]},
+    {id:"a1-travel-to-work",level:"A1",title:"Đi lại hằng ngày",details:"Hỏi đường, lên xe và tìm điểm xuống.",cards:[
+      ["bus stop","trạm xe buýt","The bus stop is across the street."],["station","nhà ga","I will meet you at the station."],["platform","sân ga","The train leaves from platform two."],["ticket","vé","Can I buy a ticket here?"],["entrance","lối vào","The entrance is on the left."],["exit","lối ra","Use the exit next to the lift."]
+    ]},
+    {id:"a2-payments",level:"A2",title:"Chi tiêu và thanh toán",details:"Đọc biên nhận, hỏi giá và quản lý chi tiêu.",cards:[
+      ["budget","ngân sách","We have a small budget for lunch."],["receipt","biên nhận","Please keep the receipt."],["discount","khoản giảm giá","They offer a discount for large orders."],["balance","số dư","Check your balance before you pay."],["charge","khoản phí","There is an extra charge for delivery."],["cash","tiền mặt","Can I pay in cash?"]
+    ]},
+    {id:"b1-digital-security",level:"B1",title:"An toàn số",details:"Xử lý mật khẩu, đường dẫn và tệp đáng ngờ.",cards:[
+      ["password reset","đặt lại mật khẩu","Request a password reset from the login page."],["attachment","tệp đính kèm","Do not open the attachment if you do not know the sender."],["suspicious","đáng ngờ","Report any suspicious email to the support team."],["permission","quyền truy cập","You need permission to view this folder."],["backup","bản sao lưu","Make a backup before you update the software."],["verify","xác minh","Please verify the sender's address."]
+    ]},
+    {id:"b2-sustainable-operations",level:"B2",title:"Vận hành bền vững",details:"Nói về sử dụng tài nguyên và giảm rác thải.",cards:[
+      ["emissions","lượng khí thải","The new route should reduce transport emissions."],["reusable","có thể dùng lại","We switched to reusable containers."],["energy efficiency","hiệu quả sử dụng năng lượng","The audit identified ways to improve energy efficiency."],["food waste","thực phẩm bị lãng phí","The team measured food waste at each site."],["conserve","tiết kiệm hoặc bảo tồn","The new system helps conserve water."],["lifespan","tuổi thọ sử dụng","Regular maintenance extends the lifespan of the equipment."]
+    ]},
+    {id:"c1-research-findings",level:"C1",title:"Trình bày kết quả nghiên cứu",details:"Giải thích quan sát, giới hạn dữ liệu và cách diễn giải.",cards:[
+      ["outlier","giá trị ngoại lệ","One outlier affected the average."],["correlation","mối tương quan","The study found a correlation between the two variables."],["systematic bias","sai lệch có hệ thống","A narrow sample can introduce systematic bias."],["replicate","lặp lại để kiểm chứng","Another team will try to replicate the result."],["substantiate","chứng minh bằng bằng chứng","The report offers little evidence to substantiate that claim."],["preliminary","sơ bộ","These preliminary findings will need further testing."]
+    ]},
+    {id:"c2-negotiation-language",level:"C2",title:"Đàm phán điều khoản",details:"Nêu giới hạn, nhượng bộ và điểm cần làm rõ.",cards:[
+      ["concession","sự nhượng bộ","The revised deadline was a concession to the supplier."],["contingent on","phụ thuộc vào","The agreement is contingent on final approval."],["caveat","điều kiện hoặc lưu ý kèm theo","There is one caveat to the proposed arrangement."],["impasse","thế bế tắc","A mediator helped the parties break the impasse."],["relinquish","từ bỏ quyền hoặc quyền kiểm soát","We are unwilling to relinquish control of the schedule."],["stipulate","quy định rõ","The contract stipulates a thirty-day notice period."]
     ]}
   ]
 };

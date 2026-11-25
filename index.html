@@ -93,6 +93,14 @@ main{max-width:980px;margin:0 auto;padding:12px max(4vw,14px) 80px}
 .study-intro .study-tile-type{margin:0 0 7px;color:var(--study-accent)}
 .study-back{font-size:14px;font-weight:700;width:fit-content;color:var(--study-accent);text-underline-offset:4px}
 .study-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.study-page .study-modes{padding:3px;gap:8px}
+.study-modes a[aria-current="page"]{background:var(--study-bg);color:var(--study-accent);box-shadow:none;outline:1px solid var(--study-accent)}
+.study-level-tile progress{width:100%;height:8px;accent-color:var(--ok)}
+.study-level-tile strong{font-size:24px}
+.study-continue{width:fit-content}
+.today-pathways .today-shortcut{min-height:105px;border-top:4px solid light-dark(#b49acb,#8c72a9)}
+.today-pathways .today-shortcut:nth-child(2){border-top-color:light-dark(#69a891,#418e7a)}
+.today-pathways .today-shortcut:nth-child(3){border-top-color:light-dark(#d39b65,#ac753f)}
 .study-filters{display:grid;grid-template-columns:1fr .8fr 1.45fr auto;gap:9px;align-items:end}
 .study-page label{display:grid;gap:4px;font-size:14px;font-weight:600}
 .study-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
@@ -3505,8 +3513,12 @@ function vToday(){
   const t=S.days[today()]||0,due=dueCards().length;
   app.innerHTML=course.hero()+todayProgress(t)+
     (!S.recoveryReady?'<section class="box"><h3>Bảo vệ tiến độ của bạn</h3><p>Hãy lưu mã khôi phục để đặt PIN mới nếu quên.</p><a class="btn" href="#profile">Mở phần khôi phục trong hồ sơ</a></section>':"")+
-    `<section class="today-shortcuts" aria-labelledby="today-shortcut-title"><h2 id="today-shortcut-title">Học và luyện tập</h2><div class="today-shortcut-grid">
-      <a class="today-shortcut" href="#study"><b>Kho bài học <span aria-hidden="true">→</span></b><span class="sm">Ngữ pháp và từ vựng A1–C2</span></a>
+    `<section class="today-shortcuts today-pathways" aria-labelledby="today-pathway-title"><h2 id="today-pathway-title">Chọn cách học</h2><div class="today-shortcut-grid">
+      <a class="today-shortcut" href="#study-grammar"><b>Ngữ pháp theo cấp <span aria-hidden="true">→</span></b><span class="sm">Lý thuyết và bài luyện A1–C2</span></a>
+      <a class="today-shortcut" href="#study-vocabulary"><b>Từ vựng theo cấp <span aria-hidden="true">→</span></b><span class="sm">Bài và tiến độ theo trình độ</span></a>
+      <a class="today-shortcut" href="#study-topics"><b>Từ vựng theo chủ đề <span aria-hidden="true">→</span></b><span class="sm">Thẻ từ và bài kiểm tra theo tình huống</span></a>
+    </div></section>
+    <section class="today-shortcuts" aria-labelledby="today-shortcut-title"><h2 id="today-shortcut-title">Luyện thêm</h2><div class="today-shortcut-grid">
       <a class="today-shortcut" href="#path"><b>Luyện phát âm <span aria-hidden="true">→</span></b><span class="sm">Nghe mẫu và luyện nói theo</span></a>
       <a class="today-shortcut" href="#chat"><b>Hội thoại với AI <span aria-hidden="true">→</span></b><span class="sm">Thực hành tình huống công sở</span></a>
       <a class="today-shortcut" href="#review"><b>Ôn lại câu đã học <span aria-hidden="true">→</span></b><span class="sm">${due?due+" câu đến lúc ôn":"Mở bộ thẻ ôn tập"}</span></a>
