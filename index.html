@@ -2455,11 +2455,12 @@ function vAccess(){
     $("#profile-enter").disabled=true;
     message.textContent=creating?"Đang tạo hồ sơ…":"Đang mở hồ sơ…";
     try{
-      let progress,ver,session,recoveryAvailable;
+      let progress,ver,session,recoveryAvailable,trialMerged=false;
       if(creating){
         progress=claim?Object.assign(emptyProgress(),readLegacyProgress()):emptyProgress();
         if(course.hasTrial())progress.courseV1=course.db();
         const r=await profileCall("create",{id,pin,data:progress});
+        course.clearTrial();
         ver=r.ver;session=r.session;pendingRecoveryCode=r.recoveryCode||"";recoveryAvailable=Boolean(r.recoveryCode);
         if(claim)localStorage.removeItem("ot2");
         pendingRecoveryNext=progress.ui?.route||(!progress.courseV1?.level?"#start":"#today");
@@ -2470,12 +2471,18 @@ function vAccess(){
         const cached=storageRead(cacheKey(id));
         if(cached?.ver===ver&&cached?.data)progress=cached.data;
         else if(cached?.dirty)storageWrite(cacheKey(id)+".backup",cached);
+        if(course.hasTrial()){
+          const trial=course.trial(),plan=progress.courseV1;
+          if(!plan||(!plan.level&&!Object.keys(plan.work||{}).length)){progress.courseV1=JSON.parse(JSON.stringify(trial));trialMerged=true}
+          course.clearTrial();
+        }
       }
       pinInput.value="";
       if(!location.hash||location.hash==="#access"){if(progress.ui?.route)history.replaceState(null,"",progress.ui.route)}
       const cachedDirty=storageRead(cacheKey(id))?.dirty;
       initProfile({id,pin,ver,token:session?.token,expires:session?.expires,recoveryAvailable},progress);
       if(cachedDirty){profileDirty=true;flushProfile()}
+      else if(trialMerged)save();
     }catch(e){
       message.textContent=accessError(e,creating);
     }finally{
@@ -2633,6 +2640,7 @@ const save=()=>{queueProfileSave();stats()};
 function gain(n){S.xp+=n;S.days[today()]=(S.days[today()]||0)+n;save()}
 function streak(){let n=0;const d=new Date();if(!S.days[today()])d.setDate(d.getDate()-1);for(;;){const k=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");if(S.days[k]){n++;d.setDate(d.getDate()-1)}else break}return n}
 const LV=["?","Nền tảng","Giao tiếp","Nâng cao"];
+const LV_TO_CEFR={1:"A2",2:"B1",3:"B2"}, CEFR_TO_LV={"Pre-A1":1,A1:1,A2:1,B1:2,B2:2,C1:3,C2:3};
 function stats(){const me=$("#me");if(me)me.textContent=P().name||activeLearner?.id||"Tạo hồ sơ";$("#xp").textContent=S.xp;$("#streak").textContent=streak();$("#lvl").textContent=S.courseV1?.level||LV[S.lv]||"?";const n=dueCards().length,d=$("#due");d.textContent=n;d.classList.toggle("hide",!n)}
 
 /* ---------- ôn tập lặp lại ngắt quãng (FSRS) ---------- */
@@ -3208,14 +3216,14 @@ function vToday(){
 
 /* ---------- màn hình: hồ sơ cá nhân ---------- */
 function vProfile(){
-  const p=P();
+  const p=P(),plan=course.db();
   app.innerHTML=`<h2>Hồ sơ của bạn</h2><p class="lead">TCV Talks dùng hồ sơ để gợi ý bài, đặt mục tiêu mỗi ngày và cho AI đóng vai sát với công việc của bạn. Tiến độ được lưu theo hồ sơ để bạn học tiếp trên thiết bị khác.</p>
   <div class="field"><b>Tên gọi</b><input type="text" id="pn" maxlength="30" placeholder="Ví dụ: Huy" value="${esc(p.name||"")}"></div>
   <div class="field"><b>Công việc của bạn</b><div class="chips">${ROLES.map(r=>`<label><input type="radio" name="pr" value="${r[0]}" ${p.role===r[0]?"checked":""}>${esc(r[1])}</label>`).join("")}</div>
     <input type="text" id="prt" maxlength="60" placeholder="Ghi rõ công việc của bạn" value="${esc(p.roleText||"")}" style="margin-top:10px" class="${p.role==="other"?"":"hide"}"></div>
   <div class="field"><b>Bạn muốn giỏi phần nào? Chọn nhiều cũng được</b><div class="chips">${GOALS.map(g=>`<label><input type="checkbox" name="pg" value="${g[0]}" ${(p.goals||[]).includes(g[0])?"checked":""}>${esc(g[1])}</label>`).join("")}</div></div>
   <div class="field"><b>Mỗi ngày bạn học được bao lâu?</b><div class="chips">${MINS.map(m=>`<label><input type="radio" name="pm2" value="${m[0]}" ${(S.courseV1?.minutes||p.mins||15)===m[0]?"checked":""}>${m[0]} phút</label>`).join("")}</div></div>
-  <div class="field"><b>Lộ trình Pre-A1 đến C2</b> <a href="#start">Chọn mục tiêu và cấp học</a></div><div class="field"><b>Đánh giá công sở</b><span class="sm">${S.lv?LV[S.lv]+" theo bài kiểm tra đầu vào.":"Chưa kiểm tra."}</span> <a href="#test">${S.lv?"Làm lại":"Làm bài kiểm tra"}</a></div>
+  <div class="field"><b>Lộ trình Pre-A1 đến C2</b> ${plan.level?`<span class="sm">Cấp ${esc(plan.level)} · Mục tiêu ${esc(plan.goal)} · ${plan.minutes||10} phút/ngày</span> <a href="#start">Chỉnh sửa lộ trình</a>`:`<span class="sm">Chưa thiết lập.</span> <a href="#start">Chọn mục tiêu và cấp học</a>`}</div><div class="field"><b>Đánh giá công sở</b><span class="sm">${S.lv?LV[S.lv]+(S.lastAssessment?" theo bài kiểm tra đầu vào.":" theo cấp học đã chọn."):"Chưa kiểm tra."}</span> <a href="#test">${S.lv?"Làm lại":"Làm bài kiểm tra"}</a></div>
   <section class="box" data-private><h3>Email khôi phục</h3><p>Xác minh email để nhận mã đặt lại PIN nếu quên. Web không gửi lại PIN cũ.</p><form id="profile-email-form"><div class="field"><label for="profile-recovery-email">Email cá nhân của bạn</label><input id="profile-recovery-email" type="email" autocomplete="email" required maxlength="254" disabled></div><div class="field"><label for="profile-email-pin">PIN hiện tại để xác nhận</label><input id="profile-email-pin" type="password" inputmode="numeric" autocomplete="current-password" required pattern="[0-9]{4}" minlength="4" maxlength="4" disabled></div><button type="submit" id="profile-email-send" disabled>Gửi mã xác minh email</button></form><form id="profile-email-code-form" hidden><div class="field"><label for="profile-email-code">Mã xác minh 6 số trong email</label><input id="profile-email-code" inputmode="numeric" pattern="[0-9]{6}" required minlength="6" maxlength="6" autocomplete="one-time-code"></div><button type="submit" id="profile-email-confirm">Xác minh email</button></form><p id="profile-email-status" role="status">Đang kiểm tra email khôi phục…</p></section>
   <div class="box"><h3>Khôi phục mã PIN</h3><p>Tạo và lưu mã khôi phục ở nơi an toàn để đặt lại PIN khi quên. Mã mới thay thế mã cũ và chỉ dùng một lần.</p><button type="button" id="recovery-create">Tạo mã khôi phục</button><p id="recovery-output" role="status"></p></div><div class="row"><button class="pri" id="psave">Lưu hồ sơ</button><a class="btn" href="#assessment">Nhận xét học tập</a><span class="note" id="pmsg"></span></div>`;
   setupRecoveryEmail();
@@ -3427,6 +3435,7 @@ function vTest(){
     if(activeLearner!==cap)return;
     const pct=n=>byLevel[n][0]/byLevel[n][1];
     S.lv=pct(1)<.6||pct(2)<.6?1:pct(3)<.5?2:3;
+    const plan=course.db();if(CEFR_TO_LV[plan.level]!==S.lv)plan.level=LV_TO_CEFR[S.lv];
     for(const [skill,[correct,count]] of Object.entries(totals))result.scores[skill]=Math.round(correct/count*100);
     if(S.lastAssessment)S.assessmentHistory=[S.lastAssessment,...(S.assessmentHistory||[])].slice(0,9);
     S.lastAssessment=result;
@@ -3944,8 +3953,14 @@ function createCourse(rows){
   const guest=storageRead(TRIAL_KEY)||{};
   const db=()=>{
     const owner=activeLearner?S:guest;
-    return owner.courseV1??={level:"",goal:goals[0],minutes:10,current:"",work:{},notes:{},errors:{}};
+    const c=owner.courseV1??={level:"",goal:goals[0],minutes:10,current:"",work:{},notes:{},errors:{}};
+    if(activeLearner){
+      if(!c.level&&LV_TO_CEFR[S.lv])c.level=LV_TO_CEFR[S.lv];
+      else if(c.level&&!S.lv&&CEFR_TO_LV[c.level])S.lv=CEFR_TO_LV[c.level];
+    }
+    return c;
   };
+  const clearTrial=()=>{delete guest.courseV1;try{localStorage.removeItem(TRIAL_KEY)}catch{}};
   const write=()=>{if(activeLearner)save();else storageWrite(TRIAL_KEY,guest)};
   const go=hash=>{if(location.hash==="#"+hash)route();else location.hash=hash};
   const unit=id=>lessons.find(l=>l.id===id);
@@ -3963,7 +3978,8 @@ function createCourse(rows){
   }
   function hero(){
     const d=db(),l=next(),w=l&&d.work[l.id];
-    return '<section class="hero"><div><span>Buổi học hôm nay · '+(d.minutes||10)+' phút</span><h2>'+(l?esc(l.title):d.level?"Bạn đã hoàn thành cấp "+esc(d.level):"Mỗi ngày, dùng tiếng Anh tự tin hơn")+'</h2><p>'+(l?"Học xong, bạn có thể "+esc(l.outcome.charAt(0).toLowerCase()+l.outcome.slice(1)):d.level?"Bạn có thể ôn lại hoặc khám phá cấp học tiếp theo.":"Chọn cấp học một lần, lần sau chỉ cần bấm Học tiếp.")+'</p><div class="row">'+(l?link(url(l),w?"Học tiếp":"Bắt đầu buổi học",true):link(d.level?"#course-path":"#start",d.level?"Chọn bài tiếp":"Bắt đầu buổi học",true))+'</div><p class="sm" style="margin-top:14px">Hiểu tình huống → Luyện mẫu câu → Tự vận dụng → Xem kết quả</p></div></section>';
+    const meta=d.level?"Cấp "+esc(d.level)+" · "+esc(d.goal)+" · ":"",step=l&&w&&!w.finished?"Đang học dở Bước "+(w.step+1)+"/3 · ":"";
+    return '<section class="hero"><div><span>Buổi học hôm nay · '+meta+(d.minutes||10)+' phút</span><h2>'+(l?esc(l.title):d.level?"Bạn đã hoàn thành cấp "+esc(d.level):"Mỗi ngày, dùng tiếng Anh tự tin hơn")+'</h2><p>'+(l?"Học xong, bạn có thể "+esc(l.outcome.charAt(0).toLowerCase()+l.outcome.slice(1)):d.level?"Bạn có thể ôn lại hoặc khám phá cấp học tiếp theo.":"Chọn cấp học một lần, lần sau chỉ cần bấm Học tiếp.")+'</p><div class="row">'+(l?link(url(l),w?"Học tiếp":"Bắt đầu buổi học",true):link(d.level?"#course-path":"#start",d.level?"Chọn bài tiếp":"Bắt đầu buổi học",true))+(d.level?link("#course-path","Xem lộ trình"):"")+'</div><p class="sm" style="margin-top:14px">'+step+'Hiểu tình huống → Luyện mẫu câu → Tự vận dụng → Xem kết quả</p></div></section>';
   }
   function welcome(){
     const old=document.getElementById("course-welcome");if(old)old.remove();
@@ -3971,16 +3987,25 @@ function createCourse(rows){
     app.insertAdjacentHTML("afterbegin",'<section id="course-welcome" class="hero"><div><span>TCV Talks · Tiếng Anh cho mỗi ngày</span><h2>Học một chút. Dùng được ngay.</h2><p>Thử một tình huống ngắn: hiểu câu nói, luyện mẫu câu rồi tự trả lời. Bạn sẽ thấy kết quả trước khi cần tạo hồ sơ.</p><div class="row">'+link(resume?url(current):"#lesson-appointment",resume?"Học tiếp bài thử":"Học thử 5 phút",true)+link("#course-path","Chọn bài theo trình độ")+'</div><p class="sm" style="margin-top:14px">Không cần đăng ký để học thử. Kết quả được giữ trên trình duyệt này.</p></div></section>');
   }
   function start(){
-    const d=db(), opts=(items,value)=>items.map(x=>`<option ${x===value?"selected":""}>${esc(x)}</option>`).join("");
-    app.innerHTML=`<h2>Bắt đầu học</h2><form id="course-start" class="box"><label>Mục tiêu <select name="goal">${opts(goals,d.goal)}</select></label><label>Thời gian mỗi ngày (phút) <select name="minutes">${opts([5,10,15,20,30],d.minutes)}</select></label><label>Cấp muốn học <select name="level">${opts(levels,d.level)}</select></label><div class="row"><button class="pri">Lưu và bắt đầu</button>${link("#placement","Thử xếp cấp đọc hiểu")} ${activeLearner?link("#test","Đánh giá tiếng Anh công sở"):link("#access","Mở hồ sơ để lưu")}</div></form>`;
-    $("#course-start").onsubmit=e=>{e.preventDefault();const f=e.target.elements;Object.assign(d,{goal:f.goal.value,level:f.level.value,minutes:+f.minutes.value});write();go(next()?"lesson-"+next().id:"course-path")};
+    const d=db(), editing=Boolean(d.level), opts=(items,value)=>items.map(x=>`<option ${x===value?"selected":""}>${esc(x)}</option>`).join("");
+    app.innerHTML=`<h2>${editing?"Chỉnh sửa lộ trình cá nhân":"Thiết lập lộ trình học"}</h2>${editing?`<p class="lead">Đang lưu: cấp <b>${esc(d.level)}</b> · mục tiêu <b>${esc(d.goal)}</b> · <b>${d.minutes||10}</b> phút mỗi ngày. Đổi mục nào bạn muốn rồi bấm lưu.</p>`:`<p class="lead">Chọn mục tiêu, thời gian và cấp học một lần. Lần sau chỉ cần bấm Học tiếp.</p>`}<form id="course-start" class="box"><label>Mục tiêu <select name="goal">${opts(goals,d.goal)}</select></label><label>Thời gian mỗi ngày (phút) <select name="minutes">${opts([5,10,15,20,30],d.minutes)}</select></label><label>Cấp muốn học <select name="level">${opts(levels,d.level)}</select></label><div class="row"><button class="pri">${editing?"Lưu thay đổi":"Lưu và bắt đầu"}</button>${editing?link("#course-path","← Quay lại lộ trình"):""}${link("#placement","Thử xếp cấp đọc hiểu")} ${activeLearner?link("#test","Đánh giá tiếng Anh công sở"):link("#access","Mở hồ sơ để lưu")}</div></form>`;
+    $("#course-start").onsubmit=e=>{e.preventDefault();const f=e.target.elements;Object.assign(d,{goal:f.goal.value,level:f.level.value,minutes:+f.minutes.value});write();go(editing?"course-path":next()?"lesson-"+next().id:"course-path")};
   }
   function path(){
-    const d=db();
-    app.innerHTML=`<h2>Lộ trình tiếng Anh</h2><p class="lead">Chọn bài theo điều bạn muốn làm được. Mỗi bài gồm hiểu tình huống, luyện mẫu câu và tự vận dụng.</p><div class="row">${link("#start","Chọn mục tiêu")} ${link(activeLearner?"#today":"#access",activeLearner?"Học hôm nay":"Mở hồ sơ")}</div>`+levels.map(level=>`<h3 class="sec-h">${level}</h3><div class="grid">${lessons.filter(l=>l.level===level).map(l=>`<a class="box course-link" href="${url(l)}"><strong>${esc(l.title)}</strong><p>${esc(l.outcome)}</p><small>${d.work[l.id]?.finished?"Đã hoàn thành":d.work[l.id]?"Đang học":"5–10 phút"}</small></a>`).join("")}</div>`).join("");
+    const d=db(),inLevel=lessons.filter(x=>x.level===d.level),done=inLevel.filter(x=>d.work[x.id]?.finished).length,l=next(),w=l&&d.work[l.id];
+    const idx=levels.indexOf(d.level),nextLevel=idx>=0?levels[idx+1]:null,complete=inLevel.length>0&&done===inLevel.length;
+    const card=x=>`<a class="box course-link" href="${url(x)}"><strong>${esc(x.title)}</strong><p>${esc(x.outcome)}</p><small>${d.work[x.id]?.finished?"Đã hoàn thành":d.work[x.id]?"Đang học · Bước "+(d.work[x.id].step+1)+"/3":"5–10 phút"}</small></a>`;
+    const summary=d.level?`<section class="box course-summary"><h3>Lộ trình của bạn</h3><p><b>Cấp ${esc(d.level)}</b> · Mục tiêu ${esc(d.goal)} · ${d.minutes||10} phút/ngày</p><div class="prog"><i style="width:${inLevel.length?Math.round(done/inLevel.length*100):0}%"></i></div><p class="sm">Đã xong ${done}/${inLevel.length} bài của cấp ${esc(d.level)}</p>${l?`<p>Bài tiếp theo: <b>${esc(l.title)}</b> · ${w&&!w.finished?"Đang học dở Bước "+(w.step+1)+"/3":"Chưa bắt đầu"}</p>`:`<p>Bạn đã hoàn thành cấp ${esc(d.level)}.</p>`}<div class="row">${l?link(url(l),"Học tiếp",true):""}${complete&&nextLevel?`<button class="pri" id="level-up">Lên cấp ${esc(nextLevel)}</button>`:""}${link("#start","Chỉnh sửa lộ trình")}${activeLearner?link("#today","Học hôm nay"):link("#access","Mở hồ sơ để lưu")}</div></section>`:`<section class="box course-summary"><h3>Lộ trình của bạn</h3><p>Bạn chưa chọn cấp học. Thiết lập một lần, lần sau chỉ cần bấm Học tiếp.</p><div class="row">${link("#start","Thiết lập lộ trình",true)}${link("#placement","Thử xếp cấp đọc hiểu")}${activeLearner?link("#today","Học hôm nay"):link("#access","Mở hồ sơ")}</div></section>`;
+    REC=new Set(recs(4).map(u=>u.id));
+    app.innerHTML=`<h2>Lộ trình tiếng Anh</h2>${summary}`+
+      (d.level?`<h3 class="sec-h">Bài trong cấp của bạn · ${esc(d.level)}</h3><div class="grid">${inLevel.map(card).join("")}</div>`:"")+
+      (activeLearner?`<h3 class="sec-h">Gợi ý Phát âm &amp; Giao tiếp công sở</h3><div class="grid">${recs(4).map(unitCard).join("")}</div><div class="row">${link("#path","Xem tất cả bài Phát âm và Giao tiếp công sở")}</div>`:"")+
+      `<h3 class="sec-h">Toàn bộ khung lộ trình ${esc(levels[0])} → ${esc(levels[levels.length-1])}</h3>`+levels.map(level=>`<h3 class="sec-h">${level}</h3><div class="grid">${lessons.filter(x=>x.level===level).map(card).join("")}</div>`).join("");
+    app.querySelectorAll(".unit").forEach(b=>b.onclick=()=>location.hash=b.dataset.u);
+    const up=$("#level-up");if(up)up.onclick=()=>{d.level=nextLevel;d.current="";write();const n=next();go(n?"lesson-"+n.id:"course-path")};
   }
   function lesson(l){
-    const d=db();d.current=l.id;d.level=l.level;
+    const d=db();d.current=l.id;if(!d.level)d.level=l.level;
     const w=d.work[l.id]??={step:0,draft:"",choice:null,first:null};
     write();
     const head=`<div class="row">${link("#course-path","← Lộ trình")}<span>${l.level} · ${w.finished?"Đã hoàn thành":"Bước "+(w.step+1)+"/3"}</span></div><h2>${esc(l.title)}</h2><p class="lead">${esc(l.outcome)}</p>`;
@@ -4048,7 +4073,7 @@ function placement(){
       if(!item){
         let firstGap=scores.indexOf(false);const level=levels[firstGap<0?6:Math.max(0,firstGap-1)];
         app.innerHTML=`<h2>Kết quả đọc hiểu</h2><section class="box"><p>Đúng ${scores.filter(Boolean).length}/7 tình huống. Cấp đề xuất để thử bài đọc: <b>${level}</b>.</p><p>Bài ngắn này chỉ khảo sát đọc hiểu. Bạn có thể đổi cấp sau khi học thử.</p><button class="pri" id="use-level">Thử bài ${level}</button> ${link("#start","Tự chọn cấp")}</section>`;
-        $("#use-level").onclick=()=>{db().level=level;write();go(next()?"lesson-"+next().id:"course-path")};return;
+        $("#use-level").onclick=()=>{db().level=level;if(activeLearner&&CEFR_TO_LV[level])S.lv=CEFR_TO_LV[level];write();go(next()?"lesson-"+next().id:"course-path")};return;
       }
       app.innerHTML=`<h2>Khảo sát đọc hiểu</h2><section class="box"><span>Câu ${pos+1}/7 · ${item[0]}</span><p lang="en">${esc(item[1])}</p><h3>${esc(item[2])}</h3><div class="row">${buttons([...item[3],"Mình chưa biết"],"pick")}</div></section>`;
       wire("pick",i=>{scores.push(i===item[4]);pos++;draw()});
@@ -4067,7 +4092,7 @@ function placement(){
   function render(h){
     if(h==="practice")practice();else if(h==="placement")placement();else if(h==="course-path")path();else if(h==="start")start();else if(h==="notebook")notebook();else if(h.startsWith("lesson-")&&unit(h.slice(7)))lesson(unit(h.slice(7)));else return false;return true;
   }
-  return {render,welcome,hero,db,lessons,hasTrial:()=>Boolean(guest.courseV1)};
+  return {render,welcome,hero,db,lessons,hasTrial:()=>Boolean(guest.courseV1),trial:()=>guest.courseV1,clearTrial};
 }
 const course=createCourse([
  [
