@@ -210,7 +210,7 @@ async function synthesizeGroq(env, text, speaker) {
     const body = await r.arrayBuffer();
     if (!body.byteLength) return null;
     await rememberUsage(env, "groq_tts", { success: true, chars: text.length });
-    return { body, type: r.headers.get("Content-Type") || "audio/wav", provider: "groq" };
+    return { body, provider: "groq" };
   } catch {
     await rememberUsage(env, "groq_tts", { snapshot: { error: "network", at: Date.now() } });
     return null;
@@ -239,7 +239,7 @@ async function synthesizeGoogle(env, text, speaker) {
     const r = await fetch("https://texttospeech.googleapis.com/v1/text:synthesize", {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": env.GOOGLE_TTS_KEY },
-      body: JSON.stringify({ input: { text }, voice: { languageCode: "en-US", name: GOOGLE_TTS_VOICES[speaker] || "en-US-Neural2-F" }, audioConfig: { audioEncoding: "MP3" } }),
+      body: JSON.stringify({ input: { text }, voice: { languageCode: "en-US", name: GOOGLE_TTS_VOICES[speaker] || "en-US-Neural2-F" }, audioConfig: { audioEncoding: "LINEAR16" } }),
       signal: AbortSignal.timeout(12000)
     });
     if (!r.ok) { await rememberUsage(env, "google_tts", { snapshot: { error: r.status, at: Date.now() } }); return null; }
@@ -248,7 +248,7 @@ async function synthesizeGoogle(env, text, speaker) {
     const bytes = base64ToBytes(j.audioContent);
     if (!bytes.byteLength) return null;
     await rememberUsage(env, "google_tts", { success: true, chars: text.length });
-    return { body: bytes.buffer, type: "audio/mpeg", provider: "google" };
+    return { body: bytes.buffer, provider: "google" };
   } catch {
     await rememberUsage(env, "google_tts", { snapshot: { error: "network", at: Date.now() } });
     return null;
@@ -262,7 +262,7 @@ async function synthesizeAzure(env, text, speaker) {
     const voice = AZURE_TTS_VOICES[speaker] || "en-US-JennyNeural";
     const r = await fetch(`https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`, {
       method: "POST",
-      headers: { "Ocp-Apim-Subscription-Key": env.AZURE_SPEECH_KEY, "Content-Type": "application/ssml+xml", "X-Microsoft-OutputFormat": "audio-24khz-48kbitrate-mono-mp3", "User-Agent": "tcv-talks" },
+      headers: { "Ocp-Apim-Subscription-Key": env.AZURE_SPEECH_KEY, "Content-Type": "application/ssml+xml", "X-Microsoft-OutputFormat": "riff-24khz-16bit-mono-pcm", "User-Agent": "tcv-talks" },
       body: `<speak version="1.0" xml:lang="en-US"><voice xml:lang="en-US" name="${voice}">${xmlEscape(text)}</voice></speak>`,
       signal: AbortSignal.timeout(12000)
     });
@@ -270,7 +270,7 @@ async function synthesizeAzure(env, text, speaker) {
     const body = await r.arrayBuffer();
     if (!body.byteLength) return null;
     await rememberUsage(env, "azure_tts", { success: true, chars: text.length });
-    return { body, type: "audio/mpeg", provider: "azure" };
+    return { body, provider: "azure" };
   } catch {
     await rememberUsage(env, "azure_tts", { snapshot: { error: "network", at: Date.now() } });
     return null;
@@ -302,54 +302,114 @@ async function synthesizeGemini(env, text, speaker) {
     if (!bytes.byteLength) return null;
     const mime = String(media.mimeType || media.mime_type || "");
     const isRiff = bytes.length > 4 && bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46;
-    let body, type;
-    if (isRiff || /audio\/(wav|mpeg|mp3)/i.test(mime)) {
+    let body;
+    if (isRiff || /^audio\/(?:x-)?wav(?:;|$)/i.test(mime)) {
       body = bytes.buffer;
-      type = /mpeg|mp3/i.test(mime) ? "audio/mpeg" : "audio/wav";
     } else {
+      if (!/^audio\/(?:l16|pcm)(?:;|$)/i.test(mime) || bytes.byteLength % 2) return null;
       const rateMatch = mime.match(/rate=(\d+)/i);
       body = pcmToWav(bytes, rateMatch ? Number(rateMatch[1]) : 24000);
-      type = "audio/wav";
     }
     await rememberUsage(env, "gemini_tts", { success: true, chars: text.length });
-    return { body, type, provider: "gemini" };
+    return { body, provider: "gemini" };
   } catch {
     await rememberUsage(env, "gemini_tts", { snapshot: { error: "network", at: Date.now() } });
     return null;
   }
 }
 
-function healthyPcmVoice(input){
-  const bytes=input instanceof Uint8Array?input:new Uint8Array(input);
-  const tag=offset=>String.fromCharCode(...bytes.subarray(offset,offset+4));
-  if(bytes.length<12||tag(0)!=="RIFF"||tag(8)!=="WAVE")return true;
-  const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
-  let position=12,channels=0,bits=0,code=0,rate=0;
-  while(position+8<=bytes.length){
-    const name=tag(position),length=view.getUint32(position+4,true),remaining=bytes.length-position-8;
-    if(name==="fmt "){
-      if(length<16||length>remaining)return false;
-      code=view.getUint16(position+8,true);channels=view.getUint16(position+10,true);
-      rate=view.getUint32(position+12,true);bits=view.getUint16(position+22,true);
-    }
-    if(name==="data"){
-      if(!channels||!rate)return false;
-      if(code!==1||bits!==16)return true;
-      const count=Math.floor(Math.min(length,remaining)/2);
-      if(count<rate*channels/4)return count>0;
-      let zeros=0,power=0,peak=0;
-      for(let i=0;i<count;i++){
-        const sample=view.getInt16(position+8+i*2,true);
-        if(sample===0)zeros++;power+=sample*sample;peak=Math.max(peak,Math.abs(sample));
-      }
-      // A failed synthesis can contain 32-sample bursts every 80 ms and >98% zeros.
-      // Valid speech has sustained samples; never play or cache these pulse-only outputs.
-      return zeros/count<=0.94&&!(peak<32&&Math.sqrt(power/count)<2);
-    }
-    if(length>remaining)return false;
-    position+=8+length+(length%2);
+function healthyPcmVoice(input, requireWav = false) {
+  try {
+    const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
+    const wave = readVoiceWave(bytes);
+    return wave ? hasVoiceSignal(bytes, wave) : !requireWav;
+  } catch {
+    return false;
   }
-  return false;
+}
+
+function readVoiceWave(bytes) {
+  const tag = offset => String.fromCharCode(...bytes.subarray(offset, offset + 4));
+  if (tag(0) !== "RIFF") return null;
+  if (bytes.length < 12 || tag(8) !== "WAVE") throw Error("Invalid WAV header");
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const riffSize = view.getUint32(4, true);
+  const end = riffSize >= 0x7fffffff ? bytes.length : riffSize + 8;
+  if (end > bytes.length) throw Error("Truncated WAV file");
+  let format = null;
+  for (let position = 12; position + 8 <= end;) {
+    const name = tag(position);
+    const declared = view.getUint32(position + 4, true);
+    const offset = position + 8;
+    const length = name === "data" && declared >= 0x7fffffff ? end - offset : declared;
+    if (offset + length > end) throw Error("Truncated WAV chunk");
+    if (name === "fmt ") {
+      if (length < 16 || view.getUint16(offset, true) !== 1) throw Error("Unsupported WAV format");
+      const channels = view.getUint16(offset + 2, true), rate = view.getUint32(offset + 4, true);
+      const align = view.getUint16(offset + 12, true), bits = view.getUint16(offset + 14, true);
+      if (![1, 2].includes(channels) || ![8, 16, 24, 32].includes(bits) ||
+          rate < 8000 || rate > 192000 || align !== channels * bits / 8 ||
+          view.getUint32(offset + 8, true) !== rate * align) throw Error("Invalid PCM format");
+      format = { channels, rate, align, bits };
+    }
+    if (name === "data") {
+      if (!format || !length || length % format.align) throw Error("Incomplete PCM data");
+      return { ...format, offset, length };
+    }
+    position = offset + length + (length % 2);
+  }
+  throw Error("Missing WAV data");
+}
+
+function hasVoiceSignal(bytes, wave) {
+  const { channels, rate, bits, offset, length } = wave;
+  const view = new DataView(bytes.buffer, bytes.byteOffset + offset, length);
+  const stride = bits / 8, count = length / stride;
+  const sampleRate = rate * channels;
+  // A broken synthesis can leave a 1–2 ms pulse every 80 ms, even inside otherwise valid speech.
+  const groupGap = sampleRate * 0.02, pulseWidth = sampleRate * 0.003;
+  const minPeriod = sampleRate * 0.075, maxPeriod = sampleRate * 0.085;
+  let zeros = 0, power = 0, peak = 0;
+  let start = -1, last = -1, lastPulse = -Infinity, pulses = 0;
+  const countPulse = () => {
+    if (last - start > pulseWidth) { pulses = 0; lastPulse = -Infinity; return; }
+    const distance = start - lastPulse;
+    pulses = distance >= minPeriod && distance <= maxPeriod ? pulses + 1 : 1;
+    lastPulse = start;
+  };
+  for (let i = 0; i < count; i++) {
+    const byte = i * stride;
+    const sample = bits === 16 ? view.getInt16(byte, true) :
+      bits === 8 ? (view.getUint8(byte) - 128) * 256 :
+      bits === 24 ? view.getInt16(byte + 1, true) : view.getInt16(byte + 2, true);
+    if (!sample) { zeros++; continue; }
+    power += sample * sample;
+    peak = Math.max(peak, Math.abs(sample));
+    if (last < 0 || i - last >= groupGap) {
+      if (last >= 0) countPulse();
+      if (pulses >= 4) return false;
+      start = i;
+    }
+    last = i;
+  }
+  if (last >= 0) countPulse();
+  return pulses < 4 && zeros / count <= 0.94 && !(peak < 32 && Math.sqrt(power / count) < 2);
+}
+
+function finiteVoiceWave(bytes, wave) {
+  const { channels, rate, align, bits, offset, length } = wave;
+  const output = new Uint8Array(44 + length + length % 2);
+  const header = new DataView(output.buffer);
+  const ascii = (index, value) => {
+    for (let i = 0; i < value.length; i++) output[index + i] = value.charCodeAt(i);
+  };
+  ascii(0, "RIFF"); header.setUint32(4, output.length - 8, true); ascii(8, "WAVE");
+  ascii(12, "fmt "); header.setUint32(16, 16, true); header.setUint16(20, 1, true);
+  header.setUint16(22, channels, true); header.setUint32(24, rate, true);
+  header.setUint32(28, rate * align, true); header.setUint16(32, align, true);
+  header.setUint16(34, bits, true); ascii(36, "data"); header.setUint32(40, length, true);
+  output.set(bytes.subarray(offset, offset + length), 44);
+  return output;
 }
 
 async function synthesize(req, env, headers, ctx) {
@@ -367,16 +427,16 @@ async function synthesize(req, env, headers, ctx) {
   }
 
   const strictVoice = input.strictVoice === true;
-  const cache = caches?.default;
+  const cache = globalThis.caches?.default;
   let cacheReq = null;
   if (cache) {
     try {
       const hash = hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode((strictVoice ? "exact" : "auto") + "\n" + input.speaker + "\n" + text)));
-      cacheReq = new Request("https://tcv-tts-cache.internal/v3-validated/" + hash);
+      cacheReq = new Request("https://tcv-tts-cache.internal/v4-pcm/" + hash);
       const hit = await cache.match(cacheReq);
-      if (hit && healthyPcmVoice(await hit.clone().arrayBuffer())) {
+      if (hit && healthyPcmVoice(await hit.clone().arrayBuffer(), true)) {
         return new Response(hit.body, {
-          headers: { ...headers, "Content-Type": hit.headers.get("Content-Type") || "audio/mpeg", "Cache-Control": "private, max-age=604800", "X-TTS-Provider": "cache" }
+          headers: { ...headers, "Content-Type": "audio/wav", "Cache-Control": "private, max-age=604800", "X-TTS-Provider": "cache" }
         });
       }
     } catch { cacheReq = null; }
@@ -384,19 +444,23 @@ async function synthesize(req, env, headers, ctx) {
 
   let result = null;
   const acceptAudio=async candidate=>{
-    if(!candidate||healthyPcmVoice(candidate.body))return candidate;
+    if(!candidate)return null;
+    if(healthyPcmVoice(candidate.body, true)){
+      const bytes=new Uint8Array(candidate.body);
+      return {provider:candidate.provider,body:finiteVoiceWave(bytes,readVoiceWave(bytes))};
+    }
     await rememberUsage(env,candidate.provider==="cloudflare"?"cloudflare_tts":candidate.provider==="gemini"?"gemini_tts":candidate.provider+"_tts",{snapshot:{error:"invalid_audio_pulses",at:Date.now()}});
     return null;
   };
   if (env.AI && Date.now() >= cfExhaustedUntil) {
     try {
       const audio = await env.AI.run("@cf/deepgram/aura-2-en", {
-        text, speaker: input.speaker, encoding: "mp3"
+        text, speaker: input.speaker, encoding: "linear16", container: "wav", sample_rate: 24000
       });
       const body = await new Response(audio).arrayBuffer();
       if (body.byteLength) {
         await rememberUsage(env, "cloudflare_tts", { success: true, chars: text.length });
-        result = await acceptAudio({ body, type: "audio/mpeg", provider: "cloudflare" });
+        result = await acceptAudio({ body, provider: "cloudflare" });
       }
     } catch (e) {
       await rememberCloudflareError(env, e);
@@ -411,13 +475,13 @@ async function synthesize(req, env, headers, ctx) {
 
   if (cache && cacheReq && ctx?.waitUntil) {
     const toStore = new Response(result.body.slice(0), {
-      headers: { "Content-Type": result.type, "Cache-Control": "public, max-age=604800" }
+      headers: { "Content-Type": "audio/wav", "Cache-Control": "public, max-age=604800" }
     });
     ctx.waitUntil(cache.put(cacheReq, toStore).catch(() => {}));
   }
 
   return new Response(result.body, {
-    headers: { ...headers, "Content-Type": result.type, "Cache-Control": "private, max-age=604800", "X-TTS-Provider": result.provider }
+    headers: { ...headers, "Content-Type": "audio/wav", "Cache-Control": "private, max-age=604800", "X-TTS-Provider": result.provider }
   });
 }
 
