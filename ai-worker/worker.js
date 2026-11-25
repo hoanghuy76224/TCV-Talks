@@ -5,6 +5,58 @@ const DEF_MODELS = ["gemini-flash-latest", "gemini-flash-lite-latest", "gemini-3
 const MAX_BODY = 4 * 1024 * 1024;
 const GROQ_MODEL = "openai/gpt-oss-20b";
 
+
+/* Usage metadata only: never store prompts, audio, keys, or learner identities. */
+let usageReady = null;
+const usageDay = () => new Date().toISOString().slice(0,10);
+const nextUsageReset = () => Date.parse(usageDay() + "T00:00:00Z") + 86400000;
+const initUsage = env => usageReady ||= env.DB.exec(
+  "CREATE TABLE IF NOT EXISTS ai_usage (day TEXT NOT NULL, provider TEXT NOT NULL, requests INTEGER NOT NULL DEFAULT 0, tokens INTEGER NOT NULL DEFAULT 0, chars INTEGER NOT NULL DEFAULT 0, snapshot TEXT NOT NULL DEFAULT '{}', updated INTEGER NOT NULL, PRIMARY KEY(day, provider))"
+).catch(e => { usageReady = null; throw e; });
+async function rememberUsage(env, provider, data = {}) {
+  if (!env.DB) return;
+  try {
+    await initUsage(env);
+    await env.DB.prepare("INSERT INTO ai_usage(day,provider,requests,tokens,chars,snapshot,updated) VALUES(?,?,?,?,?,?,?) ON CONFLICT(day,provider) DO UPDATE SET requests=requests+excluded.requests,tokens=tokens+excluded.tokens,chars=chars+excluded.chars,snapshot=CASE WHEN excluded.updated>=updated THEN excluded.snapshot ELSE snapshot END,updated=MAX(updated,excluded.updated)")
+      .bind(usageDay(),provider,data.success?1:0,Math.max(0,Number(data.tokens)||0),Math.max(0,Number(data.chars)||0),JSON.stringify(data.snapshot || {}),Date.now()).run();
+  } catch { /* Telemetry must not break a lesson. */ }
+}
+function quotaExceeded(e) { return /4006|daily free allocation|10,000 neurons/i.test(String(e?.message || "")); }
+async function rememberCloudflareError(env, e) {
+  if (quotaExceeded(e)) await rememberUsage(env,"cloudflare",{snapshot:{exhausted:true,resetAt:nextUsageReset()}});
+}
+function rateReset(value, now) {
+  if (!value || !/^(?:\d+(?:\.\d+)?(?:ms|s|m|h|d))+$/.test(value)) return null;
+  let ms = 0;
+  for (const m of value.matchAll(/(\d+(?:\.\d+)?)(ms|s|m|h|d)/g)) ms += Number(m[1])*({ms:1,s:1000,m:60000,h:3600000,d:86400000}[m[2]]);
+  return now + ms;
+}
+function groqQuota(headers) {
+  const now=Date.now(), number=name=>{const v=headers.get(name);return v!==null&&v.trim()!==""&&Number.isFinite(Number(v))?Math.max(0,Number(v)):null};
+  return {
+    capturedAt:now,
+    requestsRemaining:number("x-ratelimit-remaining-requests"),
+    requestsLimit:number("x-ratelimit-limit-requests"),
+    requestsResetAt:rateReset(headers.get("x-ratelimit-reset-requests"),now),
+    tokensRemaining:number("x-ratelimit-remaining-tokens"),
+    tokensLimit:number("x-ratelimit-limit-tokens"),
+    tokensResetAt:rateReset(headers.get("x-ratelimit-reset-tokens"),now)
+  };
+}
+async function usageApi(env, headers) {
+  if (!env.DB) return out({error:"usage_unavailable"},503,headers);
+  try {
+    await initUsage(env);
+    const rows=await env.DB.prepare("SELECT provider,requests,tokens,chars,snapshot,updated FROM ai_usage WHERE day=?").bind(usageDay()).all();
+    const providers={};
+    for(const row of rows.results || []) {
+      let snapshot={};try{snapshot=JSON.parse(row.snapshot)}catch{}
+      providers[row.provider]={requests:row.requests,tokens:row.tokens,chars:row.chars,snapshot,updated:row.updated};
+    }
+    return out({day:usageDay(),resetAt:nextUsageReset(),providers},200,{...headers,"Cache-Control":"no-store"});
+  }catch{return out({error:"usage_unavailable"},503,headers)}
+}
+
 const CLOUDFLARE_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
 async function generateWithCloudflare(req, env, headers, prompt, json) {
@@ -23,6 +75,7 @@ async function generateWithCloudflare(req, env, headers, prompt, json) {
     };
     if (json) input.response_format = { type: "json_object" };
     const result = await env.AI.run(CLOUDFLARE_MODEL, input);
+    await rememberUsage(env,"cloudflare",{success:true,tokens:result?.usage?.total_tokens});
     const text = result?.response;
     if (typeof text !== "string" || !text.trim()) return out({ error: "empty_reply" }, 502, headers);
     if (json) {
@@ -30,6 +83,7 @@ async function generateWithCloudflare(req, env, headers, prompt, json) {
     }
     return out({ text, model: CLOUDFLARE_MODEL }, 200, { ...headers, "Cache-Control": "no-store" });
   } catch (e) {
+    await rememberCloudflareError(env,e);
     const message = String(e?.message || "");
     if (/4006|daily free allocation|10,000 neurons/i.test(message)) {
       return out({ error: "cloudflare_quota" }, 429, headers);
@@ -67,9 +121,11 @@ async function generateWithGroq(req, env, headers, prompt, json) {
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(15000)
     });
-    if (response.status === 429) return out({ error: "rate_limited" }, 429, headers);
+    const snapshot=groqQuota(response.headers);
+    if (response.status === 429) {await rememberUsage(env,"groq",{snapshot});return out({ error: "rate_limited" }, 429, headers);}
     if (!response.ok) return out({ error: "groq_upstream" }, 502, headers);
     const result = await response.json();
+    await rememberUsage(env,"groq",{success:true,tokens:result.usage?.total_tokens,snapshot});
     const text = result.choices?.[0]?.message?.content;
     if (typeof text !== "string" || !text.trim()) return out({ error: "empty_reply" }, 502, headers);
     return out({ text, model: GROQ_MODEL }, 200, headers);
@@ -90,7 +146,7 @@ function allowed(origin, env) {
 function cors(origin) {
   return {
     "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Max-Age": "86400",
     "Vary": "Origin"
@@ -120,10 +176,12 @@ async function synthesize(req, env, headers) {
     const audio = await env.AI.run("@cf/deepgram/aura-2-en", {
       text, speaker: input.speaker, encoding: "mp3"
     });
+    await rememberUsage(env,"cloudflare_tts",{success:true,chars:text.length});
     return new Response(audio, {
       headers: { ...headers, "Content-Type": "audio/mpeg", "Cache-Control": "no-store" }
     });
   } catch (e) {
+    await rememberCloudflareError(env,e);
     return out({ error: "voice_unavailable" }, 503, headers);
   }
 }
@@ -165,8 +223,10 @@ async function transcribe(req, env, headers) {
     const result = await env.AI.run("@cf/openai/whisper-large-v3-turbo", {
       audio, language: "en", task: "transcribe", vad_filter: true
     });
+    await rememberUsage(env,"cloudflare_stt",{success:true});
     return out({ text: result.text?.trim() || "" }, 200, { ...headers, "Cache-Control": "no-store" });
   } catch (e) {
+    await rememberCloudflareError(env,e);
     return out({ error: "transcription_unavailable" }, 503, headers);
   }
 }
@@ -279,6 +339,10 @@ export default {
     const h = ok ? cors(origin) : {};
     if (req.method === "OPTIONS") return new Response(null, { status: ok ? 204 : 403, headers: h });
     const path = new URL(req.url).pathname;
+    if (path === "/usage") {
+      if (!ok) return out({error:"origin"},403,h);
+      return req.method==="GET" ? usageApi(env,h) : out({error:"method"},405,h);
+    }
     if (path === "/transcribe") {
       return ok ? transcribe(req, env, h) : out({ error: "origin" }, 403, h);
     }
@@ -338,6 +402,7 @@ export default {
         body: JSON.stringify(body)
       });
       const j = await r.json().catch(() => ({}));
+      await rememberUsage(env,"gemini",{success:r.ok,tokens:r.ok?j.usageMetadata?.totalTokenCount:0,snapshot:{model:m,limited:r.status===429,capturedAt:Date.now()}});
       if (r.ok) {
         const text = ((j.candidates || [])[0]?.content?.parts || []).map(p => p.text || "").join("");
         return out({ text, model: m }, 200, h);
