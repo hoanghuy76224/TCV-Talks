@@ -16,6 +16,7 @@ button{background:#13294b;color:#fff;border:0;cursor:pointer}.err{color:#ff5a48;
 <div id="login" class="card"><form id="f"><input id="key" type="password" placeholder="Mã admin" autocomplete="current-password"> <button>Xem</button></form><div id="err" class="err"></div></div>
 <div id="main" hidden>
 <div class="card"><div class="k"><div><b id="t">0</b><span>Tổng học viên</span></div><div><b id="a1">0</b><span>Hoạt động 24h</span></div><div><b id="a7">0</b><span>Hoạt động 7 ngày</span></div></div></div>
+<div class="card"><h2>AI còn lại hôm nay <span id="rs" style="font-weight:400;color:var(--mut);font-size:13px"></span></h2><table id="qt"></table></div>
 <div class="card"><h2>Học viên</h2><table id="lt"></table></div>
 <div class="card"><h2>Góp ý gần đây</h2><table id="ft"></table></div>
 <div class="card"><h2>Lượng dùng AI theo ngày</h2><table id="ut"></table></div>
@@ -31,6 +32,15 @@ async function load(key){
   if(!r.ok)throw new Error(r.status===401?"Sai mã admin":"Lỗi "+r.status);
   const d=await r.json();
   $("t").textContent=d.total;$("a1").textContent=d.active24h;$("a7").textContent=d.active7d;
+  const T=d.today||{},n=v=>v==null?"?":Number(v).toLocaleString("vi-VN"),rows=[];
+  const cf=T.cloudflare;rows.push(["Cloudflare AI",cf&&cf.snapshot&&cf.snapshot.exhausted?"Hết hạn mức ngày":"Còn dùng được",cf?cf.requests+" request":"0 request"]);
+  const g=T.groq;if(g){const s=g.snapshot||{};rows.push(["Groq",s.requestsLimit!=null?"Request còn "+n(s.requestsRemaining)+" / "+n(s.requestsLimit)+" · Token/phút còn "+n(s.tokensRemaining)+" / "+n(s.tokensLimit):"Chưa có số liệu",g.requests+" request, "+n(g.tokens)+" token"])}else rows.push(["Groq","Chưa dùng hôm nay","0"]);
+  const gm=T.gemini;rows.push(["Gemini chat",gm?(gm.snapshot&&gm.snapshot.limited?"Đang bị giới hạn":"Chưa bị giới hạn"):"Chưa dùng hôm nay",gm?gm.requests+" request, "+n(gm.tokens)+" token":"0"]);
+  const gt=T.gemini_tts;rows.push(["Gemini giọng đọc",gt?(gt.snapshot&&gt.snapshot.error?"Lỗi "+gt.snapshot.error+" (hết quota)":"Bình thường"):"Chưa dùng hôm nay",gt?gt.requests+" request, "+n(gt.chars)+" ký tự":"0"]);
+  const gq=T.groq_tts;rows.push(["Groq giọng đọc","Bình thường",gq?gq.requests+" request, "+n(gq.chars)+" ký tự":"0"]);
+  for(const [k,v] of Object.entries(d.month||{}))rows.push([k==="google_tts"?"Google TTS (tháng)":"Azure TTS (tháng)","Còn "+n(v.cap-v.used)+" / "+n(v.cap)+" ký tự",n(v.used)+" ký tự đã dùng"]);
+  tbl($("qt"),["Nguồn","Tình trạng","Đã dùng hôm nay"],rows);
+  $("rs").textContent="· reset "+dt(d.resetAt);
   tbl($("lt"),["Hồ sơ","Tạo lúc","Hoạt động gần nhất"],d.learners.map(l=>[l.id,dt(l.created),dt(l.updated)]));
   tbl($("ft"),["Lúc","Loại","Nội dung","Liên hệ"],d.feedback.map(f=>[dt(f.created),f.kind,f.message,f.contact]));
   tbl($("ut"),["Ngày","Nguồn","Request","Token","Ký tự"],d.usage.map(u=>[u.day,u.provider,u.requests,u.tokens,u.chars]));
