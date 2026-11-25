@@ -2903,9 +2903,38 @@ function stopAudio(){
   voiceStatus();
 }
 
-const TTS_CACHE="tcv-tts-v2";
+const TTS_CACHE="tcv-tts-v3";
 const exactVoiceRequired=()=>!["auto","browser"].includes(voiceChoice());
-function ttsCacheUrl(speaker,text,strictVoice){return new URL("/__tts_cache/v2/"+(strictVoice?"exact":"auto")+"/"+encodeURIComponent(speaker)+"/"+encodeURIComponent(text),location.origin).href}
+function ttsCacheUrl(speaker,text,strictVoice){return new URL("/__tts_cache/v3/"+(strictVoice?"exact":"auto")+"/"+encodeURIComponent(speaker)+"/"+encodeURIComponent(text),location.origin).href}
+async function normalizeVoiceBlob(blob){
+  const bytes=new Uint8Array(await blob.arrayBuffer());
+  const tag=offset=>String.fromCharCode(...bytes.subarray(offset,offset+4));
+  if(bytes.length<12||tag(0)!=="RIFF"||tag(8)!=="WAVE")return blob;
+  const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
+  let position=12,format=null,dataOffset=-1,dataSize=0;
+  while(position+8<=bytes.length){
+    const name=tag(position),size=view.getUint32(position+4,true),remaining=bytes.length-position-8;
+    if(name==="fmt "){
+      if(size<16||size>remaining)throw Error("Invalid WAV format");
+      format={code:view.getUint16(position+8,true),channels:view.getUint16(position+10,true),rate:view.getUint32(position+12,true),align:view.getUint16(position+20,true),bits:view.getUint16(position+22,true)};
+    }
+    if(name==="data"){dataOffset=position+8;dataSize=Math.min(size,remaining);break}
+    if(size>remaining)throw Error("Invalid WAV chunk");
+    position+=8+size+(size%2);
+  }
+  if(!format||dataOffset<0||!dataSize||format.code!==1||![8,16,24,32].includes(format.bits)||format.channels<1||format.channels>2||format.rate<8000||!format.align)throw Error("Unsupported WAV audio");
+  // Streaming WAV uses 0xffffffff sizes. Build a finite PCM WAV for Safari/iOS.
+  dataSize-=dataSize%format.align;
+  const output=new Uint8Array(44+dataSize),header=new DataView(output.buffer);
+  const ascii=(offset,value)=>{for(let i=0;i<value.length;i++)output[offset+i]=value.charCodeAt(i)};
+  ascii(0,"RIFF");header.setUint32(4,36+dataSize,true);ascii(8,"WAVE");ascii(12,"fmt ");
+  header.setUint32(16,16,true);header.setUint16(20,1,true);header.setUint16(22,format.channels,true);
+  header.setUint32(24,format.rate,true);header.setUint32(28,format.rate*format.align,true);
+  header.setUint16(32,format.align,true);header.setUint16(34,format.bits,true);
+  ascii(36,"data");header.setUint32(40,dataSize,true);output.set(bytes.subarray(dataOffset,dataOffset+dataSize),44);
+  return new Blob([output],{type:"audio/wav"});
+}
+
 async function readTtsCache(speaker,text,strictVoice){
   if(!("caches" in window))return null;
   try{const c=await caches.open(TTS_CACHE);return await c.match(ttsCacheUrl(speaker,text,strictVoice))}catch{return null}
@@ -2944,7 +2973,7 @@ async function voiceBuffer(text,speaker,ctx,signal){
       body:JSON.stringify({text,speaker,strictVoice}),signal:controller.signal
     });
     if(!response.ok)throw new Error("TTS "+response.status);
-    const blob=await response.blob();
+    const blob=await normalizeVoiceBlob(await response.blob());
     if(!blob.size)throw new Error("TTS empty");
     writeTtsCache(speaker,text,blob,strictVoice);
     const buffer=await ctx.decodeAudioData(await blob.arrayBuffer());
@@ -3060,11 +3089,11 @@ function mobileVoice(text,rate,vk,signal){
         const content=chunks[part];let blob=null;
         const cached=await readTtsCache(speaker,content,strictVoice);
         if(current.signal.aborted||finished||usingDevice)return;
-        if(cached)blob=await cached.blob();
+        if(cached)blob=await normalizeVoiceBlob(await cached.blob());
         if(!blob?.size){
           const response=await fetch(new URL("/tts",CFG.aiUrl),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:content,speaker,strictVoice}),signal:current.signal});
           if(!response.ok)throw Error("voice unavailable");
-          blob=await response.blob();
+          blob=await normalizeVoiceBlob(await response.blob());
           if(!blob.size||!/^audio\//i.test(blob.type))throw Error("invalid audio");
           writeTtsCache(speaker,content,blob,strictVoice);
         }

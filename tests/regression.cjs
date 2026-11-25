@@ -86,6 +86,7 @@ async function audioTests(){
     const fetch=async()=>{if(fail)throw Error('unavailable');return {ok:true,blob:async()=>new Blob(['audio'],{type:'audio/mpeg'})}};
   `,audio);
   vm.runInContext(between('function voiceChunks(', 'function offerVoiceRetry'),audio);
+  vm.runInContext(between('async function normalizeVoiceBlob(', 'async function readTtsCache'),audio);
   vm.runInContext(`const request=new AbortController();let done=mobileVoice('Hello.',1,'f',request.signal);`,audio);
   await new Promise(setImmediate);
   assert.match(vm.runInContext('panel.children[0].textContent',audio), /Chua t?i du?c gi?ng gi�o vi�n/);
@@ -137,4 +138,29 @@ async function micTests(){
   assert.match(vm.runInContext('status.textContent',mic),/Safari/);
   console.log('PASS: lesson mic rendering, start/stop, append transcript, input events, repeat recording, cancellation, denied permission and unsupported browser guidance.');
 }
-Promise.all([audioTests(),micTests()]).catch(error=>{console.error(error);process.exitCode=1});
+async function wavTests(){
+  const wav=vm.createContext({Blob,console});
+  vm.runInContext(between('async function normalizeVoiceBlob(', 'async function readTtsCache'),wav);
+  // A streamed WAV includes metadata and unknown RIFF/data sizes, as returned by TTS.
+  const bytes=Buffer.alloc(70);
+  bytes.write('RIFF',0);bytes.writeUInt32LE(0xffffffff,4);bytes.write('WAVEfmt ',8);
+  bytes.writeUInt32LE(16,16);bytes.writeUInt16LE(1,20);bytes.writeUInt16LE(1,22);
+  bytes.writeUInt32LE(24000,24);bytes.writeUInt32LE(48000,28);bytes.writeUInt16LE(2,32);bytes.writeUInt16LE(16,34);
+  bytes.write('LIST',36);bytes.writeUInt32LE(4,40);bytes.write('INFO',44);
+  bytes.write('data',48);bytes.writeUInt32LE(0xffffffff,52);
+  for(let i=56;i<bytes.length;i++)bytes[i]=i;
+  wav.sample=new Blob([bytes],{type:'audio/wav'});
+  const normalized=await vm.runInContext('normalizeVoiceBlob(sample)',wav);
+  const output=Buffer.from(await normalized.arrayBuffer());
+  assert.equal(output.length,58);
+  assert.equal(output.readUInt32LE(4),output.length-8);
+  assert.equal(output.readUInt32LE(40),14);
+  assert.equal(output.readUInt32LE(24),24000);
+  assert.deepEqual(output.subarray(44),bytes.subarray(56));
+  wav.sample=normalized;
+  assert.deepEqual(Buffer.from(await (await vm.runInContext('normalizeVoiceBlob(sample)',wav)).arrayBuffer()),output);
+  wav.mp3=new Blob([Buffer.from('ID3audio')],{type:'audio/mpeg'});
+  assert.equal(await vm.runInContext('normalizeVoiceBlob(mp3)',wav),wav.mp3);
+  console.log('PASS: streaming WAV sizes, metadata removal, exact PCM preservation, idempotent normalization and MP3 passthrough.');
+}
+Promise.all([audioTests(),micTests(),wavTests()]).catch(error=>{console.error(error);process.exitCode=1});
