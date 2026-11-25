@@ -204,12 +204,13 @@ async function synthesizeGroq(env, text, speaker) {
       body: JSON.stringify({ model: GROQ_TTS_MODEL, voice: GROQ_TTS_VOICES[speaker] || "autumn", input: text, response_format: "wav" }),
       signal: AbortSignal.timeout(12000)
     });
-    if (!r.ok) return null;
+    if (!r.ok) { await rememberUsage(env, "groq_tts", { snapshot: { error: r.status, at: Date.now() } }); return null; }
     const body = await r.arrayBuffer();
     if (!body.byteLength) return null;
     await rememberUsage(env, "groq_tts", { success: true, chars: text.length });
     return { body, type: r.headers.get("Content-Type") || "audio/wav", provider: "groq" };
   } catch {
+    await rememberUsage(env, "groq_tts", { snapshot: { error: "network", at: Date.now() } });
     return null;
   }
 }
@@ -229,7 +230,7 @@ async function synthesizeGemini(env, text, speaker) {
       }),
       signal: AbortSignal.timeout(15000)
     });
-    if (!r.ok) return null;
+    if (!r.ok) { await rememberUsage(env, "gemini_tts", { snapshot: { error: r.status, at: Date.now() } }); return null; }
     const j = await r.json().catch(() => null);
     const parts = j?.candidates?.[0]?.content?.parts || [];
     const inline = parts.find(p => (p.inlineData || p.inline_data)?.data);
@@ -251,6 +252,7 @@ async function synthesizeGemini(env, text, speaker) {
     await rememberUsage(env, "gemini_tts", { success: true, chars: text.length });
     return { body, type, provider: "gemini" };
   } catch {
+    await rememberUsage(env, "gemini_tts", { snapshot: { error: "network", at: Date.now() } });
     return null;
   }
 }
