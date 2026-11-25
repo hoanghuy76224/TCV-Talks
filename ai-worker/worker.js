@@ -269,12 +269,13 @@ async function synthesize(req, env, headers, ctx) {
     return out({ error: "invalid_voice_input" }, 400, headers);
   }
 
+  const strictVoice = input.strictVoice === true;
   const cache = caches?.default;
   let cacheReq = null;
   if (cache) {
     try {
-      const hash = hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input.speaker + "\n" + text)));
-      cacheReq = new Request("https://tcv-tts-cache.internal/v1/" + hash);
+      const hash = hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode((strictVoice ? "exact" : "auto") + "\n" + input.speaker + "\n" + text)));
+      cacheReq = new Request("https://tcv-tts-cache.internal/v2/" + hash);
       const hit = await cache.match(cacheReq);
       if (hit) {
         return new Response(hit.body, {
@@ -300,8 +301,8 @@ async function synthesize(req, env, headers, ctx) {
     }
   }
 
-  if (!result) result = await synthesizeGroq(env, text, input.speaker);
-  if (!result) result = await synthesizeGemini(env, text, input.speaker);
+  if (!result && !strictVoice) result = await synthesizeGroq(env, text, input.speaker);
+  if (!result && !strictVoice) result = await synthesizeGemini(env, text, input.speaker);
   if (!result) return out({ error: "voice_unavailable" }, 503, headers);
 
   if (cache && cacheReq && ctx?.waitUntil) {
