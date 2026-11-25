@@ -1,7 +1,7 @@
 const fs = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
-const html = fs.readFileSync(require('node:path').join(__dirname, '../index.html'), 'utf8');
+const html = fs.readFileSync(require('node:path').join(__dirname, '../index.html'), 'utf8').replace(/\r\n/g, '\n');
 for (const match of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)) {
   if (match[1].trim()) new vm.Script(match[1]);
 }
@@ -36,7 +36,7 @@ vm.runInContext(between('function explanationNeedsVietnamese(', 'function assess
 vm.runInContext(between('function voiceChunks(', 'function mobileVoice'), context);
 vm.runInContext(between('function createCourse(', 'function route(){'), context);
 vm.runInContext(`
-  S.courseV1={level:'A2',minutes:10,goal:'Giao ti?p',current:'appointment',notes:{},errors:{},work:{appointment:{step:2,draft:'abc',choice:0,first:0}}};
+  S.courseV1={level:'A2',minutes:10,goal:'Giao tiếp',current:'appointment',notes:{},errors:{},work:{appointment:{step:2,draft:'abc',choice:0,first:0}}};
   S.days={};
   course.render('lesson-appointment');
   if(!$('#course-mic')||!$('#course-mic-status'))throw Error('Lesson microphone missing');
@@ -56,10 +56,10 @@ vm.runInContext(`
 const evaluate = code => vm.runInContext(code, context);
 assert.equal(evaluate(`groundedFeedback({corrections:[{wrong:'practise',right:'practice',why:'Sai',rule:'Sai'}]},'Could we practise today?').corrections.length`), 0);
 assert.equal(evaluate(`groundedFeedback({corrections:[]},'I look forward to hear from you.').corrections[0].right`), 'look forward to hearing');
-assert.match(evaluate(`groundedFeedback({corrections:[{wrong:'on Friday',right:'to Friday',why:'Sai',rule:'to + ng�y'}]},'Could we move it on Friday?').corrections[0].rule`), /on \+ ng�y/);
+assert.match(evaluate(`groundedFeedback({corrections:[{wrong:'on Friday',right:'to Friday',why:'Sai',rule:'to + ngày'}]},'Could we move it on Friday?').corrections[0].rule`), /on \+ ngày/);
 assert.equal(evaluate(`groundedFeedback({corrections:[{wrong:'invented quote',right:'fixed',why:'Sai',rule:'Sai'}]},'A correct answer.').corrections.length`), 0);
-assert.equal(evaluate(`writingResult({scores:{task:5,grammar:5,clarity:5,tone:5},strength:'D�ng',weakness:'Kh�ng c� l?i.',rewrite:'One merged sentence.',corrections:[]},'One. Two. Three. Four. Five. Six. Seven.').rewrite`), 'One. Two. Three. Four. Five. Six. Seven.');
-assert.equal(evaluate(`writingResult({scores:{task:5,grammar:3,clarity:5,tone:5},strength:'Ro',weakness:'S?a',rewrite:'I look forward to hearing from you.',corrections:[]},'I look forward to hear from you.').rewrite`), 'I look forward to hearing from you.');
+assert.equal(evaluate(`writingResult({scores:{task:5,grammar:5,clarity:5,tone:5},strength:'Đúng',weakness:'Không có lỗi.',rewrite:'One merged sentence.',corrections:[]},'One. Two. Three. Four. Five. Six. Seven.').rewrite`), 'One. Two. Three. Four. Five. Six. Seven.');
+assert.equal(evaluate(`writingResult({scores:{task:5,grammar:3,clarity:5,tone:5},strength:'Rõ',weakness:'Sửa',rewrite:'I look forward to hearing from you.',corrections:[]},'I look forward to hear from you.').rewrite`), 'I look forward to hearing from you.');
 const text = 'A sentence that the teacher reads. '.repeat(90);
 context.sample = text;
 assert.equal(evaluate(`voiceChunks(sample).every(part=>part.length<=700)`), true);
@@ -90,7 +90,7 @@ async function audioTests(){
   vm.runInContext(between('async function normalizeVoiceBlob(', 'async function readTtsCache'),audio);
   vm.runInContext(`const request=new AbortController();let done=mobileVoice('Hello.',1,'f',request.signal);`,audio);
   await new Promise(setImmediate);
-  assert.match(vm.runInContext('panel.children[0].textContent',audio), /Chua t?i du?c gi?ng gi�o vi�n/);
+  assert.match(vm.runInContext('panel.children[0].textContent',audio), /Chưa tải được giọng giáo viên/);
   assert.equal(vm.runInContext('panel.children[2].hidden',audio),false);
   vm.runInContext('request.abort()',audio);
   await vm.runInContext('done',audio);
@@ -98,7 +98,7 @@ async function audioTests(){
   vm.runInContext(`fail=false;const request2=new AbortController();done=mobileVoice('Hello.',1,'f',request2.signal);`,audio);
   await new Promise(setImmediate);
   assert.equal(vm.runInContext('panel.children[1].hidden',audio),false);
-  assert.match(vm.runInContext('panel.children[0].textContent',audio), /ch?n t? ph�t/);
+  assert.match(vm.runInContext('panel.children[0].textContent',audio), /chặn tự phát/);
   vm.runInContext('panel.children[4].onclick()',audio);
   await vm.runInContext('done',audio);
   assert.equal(vm.runInContext('timers.size',audio),0);
@@ -124,7 +124,7 @@ async function micTests(){
   `,mic);
   vm.runInContext(between('let textMicSession=', 'const HWT='),mic);
   await vm.runInContext('wireTextMic(button,input,status);button.onclick()',mic);
-  assert.match(vm.runInContext('button.innerHTML',mic),/D?ng ghi/);
+  assert.match(vm.runInContext('button.innerHTML',mic),/Dừng ghi/);
   vm.runInContext('button.onclick()',mic);
   await vm.runInContext('complete',mic);
   assert.equal(vm.runInContext('input.value',mic),'Hello. Water, please.');
@@ -132,9 +132,9 @@ async function micTests(){
   await vm.runInContext('button.onclick()',mic);
   assert.equal(vm.runInContext('count',mic),2);
   vm.runInContext('cancelTextMic()',mic);
-  assert.match(vm.runInContext('status.textContent',mic),/Da h?y/);
+  assert.match(vm.runInContext('status.textContent',mic),/Đã hủy/);
   await vm.runInContext('deny=true;button.onclick()',mic);
-  assert.match(vm.runInContext('status.textContent',mic),/dang b? ch?n/);
+  assert.match(vm.runInContext('status.textContent',mic),/đang bị chặn/);
   await vm.runInContext('deny=false;canMedia=false;button.onclick()',mic);
   assert.match(vm.runInContext('status.textContent',mic),/Safari/);
   console.log('PASS: lesson mic rendering, start/stop, append transcript, input events, repeat recording, cancellation, denied permission and unsupported browser guidance.');
@@ -189,7 +189,7 @@ async function qualityTests(){
   const ctx=vm.createContext({Blob,console,Response,Request,TextEncoder,crypto:require('node:crypto').webcrypto});
   const helper=between('function healthyPcmVoice(', 'async function normalizeVoiceBlob');
   vm.runInContext(helper,ctx);
-  const worker=fs.readFileSync(require('node:path').join(__dirname,'../ai-worker/worker.js'),'utf8');
+  const worker=fs.readFileSync(require('node:path').join(__dirname,'../ai-worker/worker.js'),'utf8').replace(/\r\n/g, '\n');
   assert.equal(worker.slice(worker.indexOf('function healthyPcmVoice('),worker.indexOf('async function synthesize(req')),helper.trimEnd()+'\n\n');
   const makeWav=pulse=>{
     const b=Buffer.alloc(44+24000*2);b.write('RIFF',0);b.writeUInt32LE(b.length-8,4);b.write('WAVEfmt ',8);
@@ -198,8 +198,22 @@ async function qualityTests(){
     return b.buffer.slice(b.byteOffset,b.byteOffset+b.length);
   };
   ctx.bad=makeWav(true);ctx.good=makeWav(false);
+  // A mixed file has enough speech to pass a whole-file silence threshold.
+  const mixed=Buffer.from(ctx.good.slice(0));
+  const failed=Buffer.from(ctx.bad);
+  failed.copy(mixed,44+4800*2,44+4800*2,44+18240*2);
+  ctx.mixed=Uint8Array.from(mixed).buffer;
+  const naturalPause=Buffer.from(ctx.good.slice(0));
+  naturalPause.fill(0,44+4800*2,44+18240*2);
+  ctx.pause=Uint8Array.from(naturalPause).buffer;
+  ctx.truncated=ctx.good.slice(0,-2);
+  ctx.encoded=new Uint8Array([0xff,0xfb,0x90,0x64]).buffer;
   assert.equal(vm.runInContext('healthyPcmVoice(bad)',ctx),false);
   assert.equal(vm.runInContext('healthyPcmVoice(good)',ctx),true);
+  assert.equal(vm.runInContext('healthyPcmVoice(mixed,true)',ctx),false);
+  assert.equal(vm.runInContext('healthyPcmVoice(pause,true)',ctx),true);
+  assert.equal(vm.runInContext('healthyPcmVoice(truncated,true)',ctx),false);
+  assert.equal(vm.runInContext('healthyPcmVoice(encoded,true)',ctx),false);
   vm.runInContext(`
     const SPEAKERS=new Set(['luna']);const caches={default:null};let errors=[];
     const out=(body,status,headers)=>new Response(JSON.stringify(body),{status,headers});
@@ -212,7 +226,9 @@ async function qualityTests(){
   vm.runInContext(worker.slice(start,end),ctx);
   const response=await vm.runInContext(`synthesize(new Request('https://example.test/tts',{method:'POST',body:JSON.stringify({text:'Hello there.',speaker:'luna'})}),{GROQ_API_KEY:'test',GEMINI_KEY:'test'},{},null)`,ctx);
   assert.equal(response.status,200);assert.equal(response.headers.get('X-TTS-Provider'),'gemini');
+  assert.equal(response.headers.get('Content-Type'),'audio/wav');
+  assert.deepEqual(Buffer.from(await response.arrayBuffer()),Buffer.from(ctx.good));
   assert.equal(vm.runInContext('errors[0].event.snapshot.error',ctx),'invalid_audio_pulses');
-  console.log('PASS: pulse-only synthesis rejected by client and server, valid speech accepted, bad provider routes to a healthy fallback.');
+  console.log('PASS: pulse-only and mixed dropouts rejected, natural pauses accepted, invalid WAV rejected, fallback WAV preserves every PCM sample.');
 }
 Promise.all([audioTests(),micTests(),wavTests(),mp3Tests(),qualityTests()]).catch(error=>{console.error(error);process.exitCode=1});
