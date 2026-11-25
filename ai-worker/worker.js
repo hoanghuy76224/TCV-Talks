@@ -21,9 +21,13 @@ async function rememberUsage(env, provider, data = {}) {
       .bind(usageDay(),provider,data.success?1:0,Math.max(0,Number(data.tokens)||0),Math.max(0,Number(data.chars)||0),JSON.stringify(data.snapshot || {}),Date.now()).run();
   } catch { /* Telemetry must not break a lesson. */ }
 }
+let cfExhaustedUntil = 0;
 function quotaExceeded(e) { return /4006|daily free allocation|10,000 neurons/i.test(String(e?.message || "")); }
 async function rememberCloudflareError(env, e) {
-  if (quotaExceeded(e)) await rememberUsage(env,"cloudflare",{snapshot:{exhausted:true,resetAt:nextUsageReset()}});
+  if (quotaExceeded(e)) {
+    cfExhaustedUntil = nextUsageReset();
+    await rememberUsage(env,"cloudflare",{snapshot:{exhausted:true,resetAt:cfExhaustedUntil}});
+  }
 }
 function rateReset(value, now) {
   if (!value || !/^(?:\d+(?:\.\d+)?(?:ms|s|m|h|d))+$/.test(value)) return null;
@@ -148,6 +152,7 @@ function cors(origin) {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Expose-Headers": "X-TTS-Provider",
     "Access-Control-Max-Age": "86400",
     "Vary": "Origin"
   };
@@ -157,10 +162,102 @@ const out = (obj, status, h) =>
   new Response(JSON.stringify(obj), { status, headers: { ...h, "Content-Type": "application/json; charset=utf-8" } });
 
 const SPEAKERS = new Set(["luna","orion","thalia","apollo","pandora","draco","theia","hyperion"]);
+const GROQ_TTS_MODEL = "canopylabs/orpheus-v1-english";
+const GROQ_TTS_VOICES = { luna:"autumn", orion:"troy", thalia:"diana", apollo:"austin", pandora:"hannah", draco:"daniel", theia:"autumn", hyperion:"troy" };
+const GEMINI_TTS_MODEL = "gemini-2.5-flash-preview-tts";
+const GEMINI_TTS_VOICES = { luna:"Kore", orion:"Charon", thalia:"Aoede", apollo:"Puck", pandora:"Leda", draco:"Fenrir", theia:"Zephyr", hyperion:"Orus" };
 
-async function synthesize(req, env, headers) {
+function base64ToBytes(b64) {
+  const bin = atob(b64);
+  const outBytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) outBytes[i] = bin.charCodeAt(i);
+  return outBytes;
+}
+
+function pcmToWav(pcm, sampleRate = 24000) {
+  const buf = new ArrayBuffer(44 + pcm.byteLength);
+  const v = new DataView(buf);
+  const write = (off, str) => { for (let i = 0; i < str.length; i++) v.setUint8(off + i, str.charCodeAt(i)); };
+  write(0, "RIFF");
+  v.setUint32(4, 36 + pcm.byteLength, true);
+  write(8, "WAVE");
+  write(12, "fmt ");
+  v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true);
+  v.setUint16(22, 1, true);
+  v.setUint32(24, sampleRate, true);
+  v.setUint32(28, sampleRate * 2, true);
+  v.setUint16(32, 2, true);
+  v.setUint16(34, 16, true);
+  write(36, "data");
+  v.setUint32(40, pcm.byteLength, true);
+  new Uint8Array(buf, 44).set(pcm);
+  return buf;
+}
+
+async function synthesizeGroq(env, text, speaker) {
+  if (!env.GROQ_API_KEY || text.length > 200) return null;
+  try {
+    const r = await fetch("https://api.groq.com/openai/v1/audio/speech", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + env.GROQ_API_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: GROQ_TTS_MODEL, voice: GROQ_TTS_VOICES[speaker] || "autumn", input: text, response_format: "wav" }),
+      signal: AbortSignal.timeout(12000)
+    });
+    if (!r.ok) return null;
+    const body = await r.arrayBuffer();
+    if (!body.byteLength) return null;
+    await rememberUsage(env, "groq_tts", { success: true, chars: text.length });
+    return { body, type: r.headers.get("Content-Type") || "audio/wav", provider: "groq" };
+  } catch {
+    return null;
+  }
+}
+
+async function synthesizeGemini(env, text, speaker) {
+  if (!env.GEMINI_KEY) return null;
+  try {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_TTS_MODEL}:generateContent`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_KEY },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: "Read aloud naturally in English, without adding extra words:\n" + text }] }],
+        generationConfig: {
+          responseModalities: ["AUDIO"],
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: GEMINI_TTS_VOICES[speaker] || "Kore" } } }
+        }
+      }),
+      signal: AbortSignal.timeout(15000)
+    });
+    if (!r.ok) return null;
+    const j = await r.json().catch(() => null);
+    const parts = j?.candidates?.[0]?.content?.parts || [];
+    const inline = parts.find(p => (p.inlineData || p.inline_data)?.data);
+    const media = inline?.inlineData || inline?.inline_data;
+    if (!media?.data) return null;
+    const bytes = base64ToBytes(media.data);
+    if (!bytes.byteLength) return null;
+    const mime = String(media.mimeType || media.mime_type || "");
+    const isRiff = bytes.length > 4 && bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46;
+    let body, type;
+    if (isRiff || /audio\/(wav|mpeg|mp3)/i.test(mime)) {
+      body = bytes.buffer;
+      type = /mpeg|mp3/i.test(mime) ? "audio/mpeg" : "audio/wav";
+    } else {
+      const rateMatch = mime.match(/rate=(\d+)/i);
+      body = pcmToWav(bytes, rateMatch ? Number(rateMatch[1]) : 24000);
+      type = "audio/wav";
+    }
+    await rememberUsage(env, "gemini_tts", { success: true, chars: text.length });
+    return { body, type, provider: "gemini" };
+  } catch {
+    return null;
+  }
+}
+
+async function synthesize(req, env, headers, ctx) {
   if (req.method !== "POST") return out({ error: "method" }, 405, headers);
-  if (!env.AI) return out({ error: "voice_unavailable" }, 503, headers);
+  if (!env.AI && !env.GROQ_API_KEY && !env.GEMINI_KEY) return out({ error: "voice_unavailable" }, 503, headers);
   if (+(req.headers.get("Content-Length") || 0) > 8192) {
     return out({ error: "too_big" }, 413, headers);
   }
@@ -172,18 +269,51 @@ async function synthesize(req, env, headers) {
     return out({ error: "invalid_voice_input" }, 400, headers);
   }
 
-  try {
-    const audio = await env.AI.run("@cf/deepgram/aura-2-en", {
-      text, speaker: input.speaker, encoding: "mp3"
-    });
-    await rememberUsage(env,"cloudflare_tts",{success:true,chars:text.length});
-    return new Response(audio, {
-      headers: { ...headers, "Content-Type": "audio/mpeg", "Cache-Control": "no-store" }
-    });
-  } catch (e) {
-    await rememberCloudflareError(env,e);
-    return out({ error: "voice_unavailable" }, 503, headers);
+  const cache = caches?.default;
+  let cacheReq = null;
+  if (cache) {
+    try {
+      const hash = hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input.speaker + "\n" + text)));
+      cacheReq = new Request("https://tcv-tts-cache.internal/v1/" + hash);
+      const hit = await cache.match(cacheReq);
+      if (hit) {
+        return new Response(hit.body, {
+          headers: { ...headers, "Content-Type": hit.headers.get("Content-Type") || "audio/mpeg", "Cache-Control": "private, max-age=604800", "X-TTS-Provider": "cache" }
+        });
+      }
+    } catch { cacheReq = null; }
   }
+
+  let result = null;
+  if (env.AI && Date.now() >= cfExhaustedUntil) {
+    try {
+      const audio = await env.AI.run("@cf/deepgram/aura-2-en", {
+        text, speaker: input.speaker, encoding: "mp3"
+      });
+      const body = await new Response(audio).arrayBuffer();
+      if (body.byteLength) {
+        await rememberUsage(env, "cloudflare_tts", { success: true, chars: text.length });
+        result = { body, type: "audio/mpeg", provider: "cloudflare" };
+      }
+    } catch (e) {
+      await rememberCloudflareError(env, e);
+    }
+  }
+
+  if (!result) result = await synthesizeGroq(env, text, input.speaker);
+  if (!result) result = await synthesizeGemini(env, text, input.speaker);
+  if (!result) return out({ error: "voice_unavailable" }, 503, headers);
+
+  if (cache && cacheReq && ctx?.waitUntil) {
+    const toStore = new Response(result.body.slice(0), {
+      headers: { "Content-Type": result.type, "Cache-Control": "public, max-age=604800" }
+    });
+    ctx.waitUntil(cache.put(cacheReq, toStore).catch(() => {}));
+  }
+
+  return new Response(result.body, {
+    headers: { ...headers, "Content-Type": result.type, "Cache-Control": "private, max-age=604800", "X-TTS-Provider": result.provider }
+  });
 }
 
 async function transcribe(req, env, headers) {
@@ -362,7 +492,7 @@ async function profileApi(req, env, headers, path) {
 }
 
 export default {
-  async fetch(req, env) {
+  async fetch(req, env, ctx) {
     const origin = req.headers.get("Origin") || "";
     const ok = allowed(origin, env);
     const h = ok ? cors(origin) : {};
@@ -379,7 +509,7 @@ export default {
       return ok ? profileApi(req, env, h, path) : out({ error: "origin" }, 403, h);
     }
     if (path === "/tts") {
-      return ok ? synthesize(req, env, h) : out({ error: "origin" }, 403, h);
+      return ok ? synthesize(req, env, h, ctx) : out({ error: "origin" }, 403, h);
     }
     if (req.method === "GET") return out({
       ok: true,

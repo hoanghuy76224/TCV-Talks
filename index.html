@@ -2546,8 +2546,8 @@ function renderUsage(data, now=Date.now()) {
   const exhausted=cf?.snapshot?.exhausted&&now<cf.snapshot.resetAt;
   const cards=[
     ["Cloudflare Workers AI",exhausted?"0 neurons trong hạn mức miễn phí · API đã báo hết. Đặt lại lúc "+when(cf.snapshot.resetAt)+".":"Neurons còn lại: chưa có số liệu tài khoản.",count(cf)+" Chat Llama 3.3. Giọng đọc: "+nf(p.cloudflare_tts?.requests)+" lượt · "+nf(p.cloudflare_tts?.chars)+" ký tự. Nhận diện giọng nói: "+nf(p.cloudflare_stt?.requests)+" lượt.","Chat, giọng đọc Aura-2 và nhận diện Whisper dùng chung hạn mức Cloudflare; không chia thành ba số dư.", "https://dash.cloudflare.com/e26e04fdeb991297c340ba4813ec3d1a/ai/workers-ai/usage"],
-    ["Groq · GPT-OSS 20B",remaining(groq?.snapshot,"requests","Lượt/ngày")+" "+remaining(groq?.snapshot,"tokens","Token/phút"),count(groq),groq?"Số dư do Groq trả về lúc "+when(groq.snapshot?.capturedAt||groq.updated)+".":"Số dư xuất hiện sau lần gọi Groq đầu tiên.","https://console.groq.com/dashboard/limits"],
-    ["Google Gemini","Còn lại: chưa có số liệu tài khoản.",count(gemini),gemini?.snapshot?.limited?"Lần gọi gần nhất gặp giới hạn; chưa xác định là giới hạn phút hay ngày.":"Xem hạn mức theo model và dự án trong Google AI Studio.","https://aistudio.google.com/rate-limit"]
+    ["Groq · GPT-OSS 20B",remaining(groq?.snapshot,"requests","Lượt/ngày")+" "+remaining(groq?.snapshot,"tokens","Token/phút"),count(groq)+(p.groq_tts?.requests?" · Giọng dự phòng: "+nf(p.groq_tts.requests)+" lượt":""),groq?"Số dư do Groq trả về lúc "+when(groq.snapshot?.capturedAt||groq.updated)+".":"Số dư xuất hiện sau lần gọi Groq đầu tiên.","https://console.groq.com/dashboard/limits"],
+    ["Google Gemini","Còn lại: chưa có số liệu tài khoản.",count(gemini)+(p.gemini_tts?.requests?" · Giọng dự phòng: "+nf(p.gemini_tts.requests)+" lượt":""),gemini?.snapshot?.limited?"Lần gọi gần nhất gặp giới hạn; chưa xác định là giới hạn phút hay ngày.":"Xem hạn mức theo model và dự án trong Google AI Studio.","https://aistudio.google.com/rate-limit"]
   ];
   return cards.map(([name,balance,used,note,url])=>'<div class="box" style="margin:8px 0"><h3 style="margin:0 0 8px">'+esc(name)+'</h3><p>'+esc(balance)+'</p><p class="sm">'+esc(used)+'</p><p class="sm">'+esc(note)+'</p><a target="_blank" rel="noopener noreferrer" href="'+url+'">Xem usage tài khoản</a></div>').join("")+'<p class="sm">Cập nhật: '+esc(when(now))+' · Ngày UTC: '+esc(data.day)+'</p>';
 }
@@ -2717,21 +2717,49 @@ function stopAudio(){
   voiceStatus();
 }
 
+const TTS_CACHE="tcv-tts-v1";
+function ttsCacheUrl(speaker,text){return new URL("/__tts_cache/"+encodeURIComponent(speaker)+"/"+encodeURIComponent(text),location.origin).href}
+async function readTtsCache(speaker,text){
+  if(!("caches" in window))return null;
+  try{const c=await caches.open(TTS_CACHE);return await c.match(ttsCacheUrl(speaker,text))}catch{return null}
+}
+async function writeTtsCache(speaker,text,blob){
+  if(!("caches" in window)||!blob?.size)return;
+  try{
+    const c=await caches.open(TTS_CACHE);
+    const keys=await c.keys();
+    if(keys.length>=80)await c.delete(keys[0]);
+    await c.put(ttsCacheUrl(speaker,text),new Response(blob,{headers:{"Content-Type":blob.type||"audio/mpeg"}}));
+  }catch{}
+}
+
 async function voiceBuffer(text,speaker,ctx,signal){
   const key=JSON.stringify([speaker,text]);
   if(voiceBuffers.has(key))return voiceBuffers.get(key);
+  const cached=await readTtsCache(speaker,text);
+  if(cached){
+    try{
+      const buffer=await ctx.decodeAudioData(await cached.arrayBuffer());
+      voiceBuffers.set(key,buffer);
+      if(voiceBuffers.size>24)voiceBuffers.delete(voiceBuffers.keys().next().value);
+      return buffer;
+    }catch{}
+  }
   const controller=new AbortController();
   const cancel=()=>controller.abort();
   signal.addEventListener("abort",cancel,{once:true});
   if(signal.aborted)cancel();
-  const timer=setTimeout(cancel,12000);
+  const timer=setTimeout(cancel,18000);
   try{
     const response=await fetch(new URL("/tts",CFG.aiUrl),{
       method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({text,speaker}),signal:controller.signal
     });
     if(!response.ok)throw new Error("TTS "+response.status);
-    const buffer=await ctx.decodeAudioData(await response.arrayBuffer());
+    const blob=await response.blob();
+    if(!blob.size)throw new Error("TTS empty");
+    writeTtsCache(speaker,text,blob);
+    const buffer=await ctx.decodeAudioData(await blob.arrayBuffer());
     voiceBuffers.set(key,buffer);
     if(voiceBuffers.size>24)voiceBuffers.delete(voiceBuffers.keys().next().value);
     return buffer;
@@ -2790,7 +2818,7 @@ function mobileVoice(text,rate,vk,signal){
   if(focused?.tagName==="BUTTON"&&focused.closest("main"))focused.parentElement.after(panel);else status.after(panel);
   return new Promise(resolve=>{
     const controller=new AbortController();
-    const timer=setTimeout(()=>controller.abort(),15000);
+    const timer=setTimeout(()=>controller.abort(),20000);
     let url="",usingDevice=false;
     function finish(){clearTimeout(timer);controller.abort();player.pause();player.removeAttribute("src");player.load();panel.remove();if(url)URL.revokeObjectURL(url);signal.removeEventListener("abort",finish);resolve()}
     signal.addEventListener("abort",finish,{once:true});
@@ -2805,10 +2833,16 @@ function mobileVoice(text,rate,vk,signal){
     player.onerror=()=>{if(url&&panel.isConnected)info.textContent="Thiết bị không đọc được bản nghe. Bạn có thể dùng giọng của thiết bị."};
     (async()=>{
       try{
-        const choice=voiceChoice(),speaker=VOICE_SPEAKERS[vk]||"luna";
-        const response=await fetch(new URL("/tts",CFG.aiUrl),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text,speaker:["auto","browser"].includes(choice)?speaker:choice}),signal:controller.signal});
-        if(!response.ok)throw Error();
-        const blob=await response.blob();if(!blob.size)throw Error();
+        const choice=voiceChoice(),speaker=["auto","browser"].includes(choice)?(VOICE_SPEAKERS[vk]||"luna"):choice;
+        let blob=null;
+        const cached=await readTtsCache(speaker,text);
+        if(cached)blob=await cached.blob();
+        if(!blob?.size){
+          const response=await fetch(new URL("/tts",CFG.aiUrl),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text,speaker}),signal:controller.signal});
+          if(!response.ok)throw Error();
+          blob=await response.blob();if(!blob.size)throw Error();
+          writeTtsCache(speaker,text,blob);
+        }
         if(signal.aborted||usingDevice)return;
         url=URL.createObjectURL(blob);player.src=url;player.playbackRate=rate;player.hidden=false;
         info.textContent="Bấm ▶ để nghe.";
@@ -2826,9 +2860,10 @@ async function say(text,rate=1,vk="f"){
   const request=new AbortController();
   voiceRequest=request;
   const {signal}=request;
+  let cloudFailed=false;
   try{
     if(tts){await tts.speak(text,{language:"en",rate});return}
-    if(/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1)||matchMedia("(pointer: coarse)").matches){
+    if(cloudVoiceOn()&&(/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1)||matchMedia("(pointer: coarse)").matches)){
       await mobileVoice(text,rate,vk,signal);
       return;
     }
@@ -2845,9 +2880,9 @@ async function say(text,rate=1,vk="f"){
       if(!signal.aborted)voiceStatus();
       return;
     }
-  }catch(e){}
+  }catch(e){cloudFailed=true}
   if(signal.aborted)return;
-  voiceStatus("Đang dùng giọng trình duyệt…");
+  voiceStatus(cloudFailed?"Giọng AI tạm hết hạn mức, đang dùng giọng trình duyệt…":"Đang dùng giọng trình duyệt…");
   const played=await webSay(text,rate,signal);
   if(!signal.aborted)voiceStatus(played?"":"Không phát được giọng. Bấm Nghe để thử lại.");
 }
