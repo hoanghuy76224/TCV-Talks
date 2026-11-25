@@ -319,6 +319,39 @@ async function synthesizeGemini(env, text, speaker) {
   }
 }
 
+function healthyPcmVoice(input){
+  const bytes=input instanceof Uint8Array?input:new Uint8Array(input);
+  const tag=offset=>String.fromCharCode(...bytes.subarray(offset,offset+4));
+  if(bytes.length<12||tag(0)!=="RIFF"||tag(8)!=="WAVE")return true;
+  const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
+  let position=12,channels=0,bits=0,code=0,rate=0;
+  while(position+8<=bytes.length){
+    const name=tag(position),length=view.getUint32(position+4,true),remaining=bytes.length-position-8;
+    if(name==="fmt "){
+      if(length<16||length>remaining)return false;
+      code=view.getUint16(position+8,true);channels=view.getUint16(position+10,true);
+      rate=view.getUint32(position+12,true);bits=view.getUint16(position+22,true);
+    }
+    if(name==="data"){
+      if(!channels||!rate)return false;
+      if(code!==1||bits!==16)return true;
+      const count=Math.floor(Math.min(length,remaining)/2);
+      if(count<rate*channels/4)return count>0;
+      let zeros=0,power=0,peak=0;
+      for(let i=0;i<count;i++){
+        const sample=view.getInt16(position+8+i*2,true);
+        if(sample===0)zeros++;power+=sample*sample;peak=Math.max(peak,Math.abs(sample));
+      }
+      // A failed synthesis can contain 32-sample bursts every 80 ms and >98% zeros.
+      // Valid speech has sustained samples; never play or cache these pulse-only outputs.
+      return zeros/count<=0.94&&!(peak<32&&Math.sqrt(power/count)<2);
+    }
+    if(length>remaining)return false;
+    position+=8+length+(length%2);
+  }
+  return false;
+}
+
 async function synthesize(req, env, headers, ctx) {
   if (req.method !== "POST") return out({ error: "method" }, 405, headers);
   if (!env.AI && !env.GROQ_API_KEY && !env.GEMINI_KEY && !env.GOOGLE_TTS_KEY && !env.AZURE_SPEECH_KEY) return out({ error: "voice_unavailable" }, 503, headers);
@@ -339,9 +372,9 @@ async function synthesize(req, env, headers, ctx) {
   if (cache) {
     try {
       const hash = hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode((strictVoice ? "exact" : "auto") + "\n" + input.speaker + "\n" + text)));
-      cacheReq = new Request("https://tcv-tts-cache.internal/v2/" + hash);
+      cacheReq = new Request("https://tcv-tts-cache.internal/v3-validated/" + hash);
       const hit = await cache.match(cacheReq);
-      if (hit) {
+      if (hit && healthyPcmVoice(await hit.clone().arrayBuffer())) {
         return new Response(hit.body, {
           headers: { ...headers, "Content-Type": hit.headers.get("Content-Type") || "audio/mpeg", "Cache-Control": "private, max-age=604800", "X-TTS-Provider": "cache" }
         });
@@ -350,6 +383,11 @@ async function synthesize(req, env, headers, ctx) {
   }
 
   let result = null;
+  const acceptAudio=async candidate=>{
+    if(!candidate||healthyPcmVoice(candidate.body))return candidate;
+    await rememberUsage(env,candidate.provider==="cloudflare"?"cloudflare_tts":candidate.provider==="gemini"?"gemini_tts":candidate.provider+"_tts",{snapshot:{error:"invalid_audio_pulses",at:Date.now()}});
+    return null;
+  };
   if (env.AI && Date.now() >= cfExhaustedUntil) {
     try {
       const audio = await env.AI.run("@cf/deepgram/aura-2-en", {
@@ -358,17 +396,17 @@ async function synthesize(req, env, headers, ctx) {
       const body = await new Response(audio).arrayBuffer();
       if (body.byteLength) {
         await rememberUsage(env, "cloudflare_tts", { success: true, chars: text.length });
-        result = { body, type: "audio/mpeg", provider: "cloudflare" };
+        result = await acceptAudio({ body, type: "audio/mpeg", provider: "cloudflare" });
       }
     } catch (e) {
       await rememberCloudflareError(env, e);
     }
   }
 
-  if (!result && !strictVoice) result = await synthesizeGoogle(env, text, input.speaker);
-  if (!result && !strictVoice) result = await synthesizeAzure(env, text, input.speaker);
-  if (!result && !strictVoice) result = await synthesizeGroq(env, text, input.speaker);
-  if (!result && !strictVoice) result = await synthesizeGemini(env, text, input.speaker);
+  if (!result && !strictVoice) result = await acceptAudio(await synthesizeGoogle(env, text, input.speaker));
+  if (!result && !strictVoice) result = await acceptAudio(await synthesizeAzure(env, text, input.speaker));
+  if (!result && !strictVoice) result = await acceptAudio(await synthesizeGroq(env, text, input.speaker));
+  if (!result && !strictVoice) result = await acceptAudio(await synthesizeGemini(env, text, input.speaker));
   if (!result) return out({ error: "voice_unavailable" }, 503, headers);
 
   if (cache && cacheReq && ctx?.waitUntil) {

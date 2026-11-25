@@ -86,6 +86,7 @@ async function audioTests(){
     const fetch=async()=>{if(fail)throw Error('unavailable');return {ok:true,blob:async()=>new Blob(['audio'],{type:'audio/mpeg'})}};
   `,audio);
   vm.runInContext(between('function voiceChunks(', 'function offerVoiceRetry'),audio);
+  vm.runInContext(between('function healthyPcmVoice(', 'async function normalizeVoiceBlob'),audio);
   vm.runInContext(between('async function normalizeVoiceBlob(', 'async function readTtsCache'),audio);
   vm.runInContext(`const request=new AbortController();let done=mobileVoice('Hello.',1,'f',request.signal);`,audio);
   await new Promise(setImmediate);
@@ -140,6 +141,7 @@ async function micTests(){
 }
 async function wavTests(){
   const wav=vm.createContext({Blob,console});
+  vm.runInContext(between('function healthyPcmVoice(', 'async function normalizeVoiceBlob'),wav);
   vm.runInContext(between('async function normalizeVoiceBlob(', 'async function readTtsCache'),wav);
   // A streamed WAV includes metadata and unknown RIFF/data sizes, as returned by TTS.
   const bytes=Buffer.alloc(70);
@@ -163,4 +165,54 @@ async function wavTests(){
   assert.equal(await vm.runInContext('normalizeVoiceBlob(mp3)',wav),wav.mp3);
   console.log('PASS: streaming WAV sizes, metadata removal, exact PCM preservation, idempotent normalization and MP3 passthrough.');
 }
-Promise.all([audioTests(),micTests(),wavTests()]).catch(error=>{console.error(error);process.exitCode=1});
+async function mp3Tests(){
+  const ctx=vm.createContext({Blob,console,setTimeout,clearTimeout,DOMException});
+  vm.runInContext(fs.readFileSync(require('node:path').join(__dirname,'../vendor/lame.min.js'),'utf8'),ctx);
+  vm.runInContext('const window={lamejs};',ctx);
+  vm.runInContext(between('function healthyPcmVoice(', 'async function normalizeVoiceBlob'),ctx);
+  vm.runInContext(between('async function normalizeVoiceBlob(', 'async function readTtsCache'),ctx);
+  const pcm=Buffer.alloc(44+24000*2);
+  pcm.write('RIFF',0);pcm.writeUInt32LE(pcm.length-8,4);pcm.write('WAVEfmt ',8);pcm.writeUInt32LE(16,16);
+  pcm.writeUInt16LE(1,20);pcm.writeUInt16LE(1,22);pcm.writeUInt32LE(24000,24);pcm.writeUInt32LE(48000,28);
+  pcm.writeUInt16LE(2,32);pcm.writeUInt16LE(16,34);pcm.write('data',36);pcm.writeUInt32LE(pcm.length-44,40);
+  for(let i=0;i<24000;i++)pcm.writeInt16LE(Math.round(8000*Math.sin(2*Math.PI*440*i/24000)),44+i*2);
+  ctx.wav=new Blob([pcm],{type:'audio/wav'});
+  const result=await vm.runInContext('playableVoiceBlob(wav)',ctx);
+  const bytes=Buffer.from(await result.arrayBuffer());
+  assert.equal(result.type,'audio/mpeg');assert.ok(bytes.length>1000&&bytes.length<pcm.length);
+  assert.equal(bytes[0],255);assert.equal(bytes[1]&224,224);
+  ctx.mp3=result;assert.equal(await vm.runInContext('playableVoiceBlob(mp3)',ctx),result);
+  ctx.cancelled={aborted:true};await assert.rejects(vm.runInContext('playableVoiceBlob(wav,cancelled)',ctx),/cancelled/);
+  console.log('PASS: real MP3 encoder, valid MPEG frames, PCM-to-MP3 compression, MP3 passthrough, cancelled conversion.');
+}
+async function qualityTests(){
+  const ctx=vm.createContext({Blob,console,Response,Request,TextEncoder,crypto:require('node:crypto').webcrypto});
+  const helper=between('function healthyPcmVoice(', 'async function normalizeVoiceBlob');
+  vm.runInContext(helper,ctx);
+  const worker=fs.readFileSync(require('node:path').join(__dirname,'../ai-worker/worker.js'),'utf8');
+  assert.equal(worker.slice(worker.indexOf('function healthyPcmVoice('),worker.indexOf('async function synthesize(req')),helper.trimEnd()+'\n\n');
+  const makeWav=pulse=>{
+    const b=Buffer.alloc(44+24000*2);b.write('RIFF',0);b.writeUInt32LE(b.length-8,4);b.write('WAVEfmt ',8);
+    b.writeUInt32LE(16,16);b.writeUInt16LE(1,20);b.writeUInt16LE(1,22);b.writeUInt32LE(24000,24);b.writeUInt32LE(48000,28);b.writeUInt16LE(2,32);b.writeUInt16LE(16,34);b.write('data',36);b.writeUInt32LE(b.length-44,40);
+    for(let i=0;i<24000;i++)b.writeInt16LE(pulse&&i%1920>=32?0:Math.round(8000*Math.sin(2*Math.PI*440*i/24000)),44+i*2);
+    return b.buffer.slice(b.byteOffset,b.byteOffset+b.length);
+  };
+  ctx.bad=makeWav(true);ctx.good=makeWav(false);
+  assert.equal(vm.runInContext('healthyPcmVoice(bad)',ctx),false);
+  assert.equal(vm.runInContext('healthyPcmVoice(good)',ctx),true);
+  vm.runInContext(`
+    const SPEAKERS=new Set(['luna']);const caches={default:null};let errors=[];
+    const out=(body,status,headers)=>new Response(JSON.stringify(body),{status,headers});
+    const rememberUsage=async(env,provider,event)=>errors.push({provider,event});
+    const synthesizeGoogle=async()=>null,synthesizeAzure=async()=>null;
+    const synthesizeGroq=async()=>({body:bad,type:'audio/wav',provider:'groq'});
+    const synthesizeGemini=async()=>({body:good,type:'audio/wav',provider:'gemini'});
+  `,ctx);
+  const start=worker.indexOf('async function synthesize(req'),end=worker.indexOf('async function transcribe',start);
+  vm.runInContext(worker.slice(start,end),ctx);
+  const response=await vm.runInContext(`synthesize(new Request('https://example.test/tts',{method:'POST',body:JSON.stringify({text:'Hello there.',speaker:'luna'})}),{GROQ_API_KEY:'test',GEMINI_KEY:'test'},{},null)`,ctx);
+  assert.equal(response.status,200);assert.equal(response.headers.get('X-TTS-Provider'),'gemini');
+  assert.equal(vm.runInContext('errors[0].event.snapshot.error',ctx),'invalid_audio_pulses');
+  console.log('PASS: pulse-only synthesis rejected by client and server, valid speech accepted, bad provider routes to a healthy fallback.');
+}
+Promise.all([audioTests(),micTests(),wavTests(),mp3Tests(),qualityTests()]).catch(error=>{console.error(error);process.exitCode=1});
