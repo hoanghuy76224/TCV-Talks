@@ -158,13 +158,13 @@ table{border-collapse:collapse;width:100%;background:var(--card);border-radius:1
     <div class="row">
       <label class="sm" for="ai-provider">Chọn trợ lý</label>
       <select id="ai-provider">
-        <option value="cloudflare" disabled>Cloudflare Workers AI · Llama 3.3</option>
+        <option value="cloudflare" disabled>Cloudflare</option>
         <option value="gemini">Google Gemini</option>
-        <option value="groq" disabled>Groq · GPT-OSS 20B</option>
+        <option value="groq" disabled>Groq</option>
       </select>
     </div>
     <p class="sm" id="ai-provider-status" role="status"></p>
-    <details id="ai-usage-panel"><summary>Usage và hạn mức còn lại</summary><div id="ai-usage" aria-live="polite" style="margin-top:12px">Mở để xem usage.</div><button type="button" id="ai-usage-refresh" class="sec" style="margin-top:8px">Cập nhật usage</button><p class="sm">Lượt và token đã dùng chỉ tính các lần gọi qua web kể từ khi bật theo dõi. Ngày thống kê theo UTC, đổi ngày lúc 7:00 giờ Việt Nam. Số dư từ nhà cung cấp là ảnh chụp ở lần gọi gần nhất, có thể thay đổi nếu dùng chung tài khoản ở nơi khác.</p></details>
+    <details id="ai-usage-panel"><summary>Hạn mức sử dụng AI</summary><div id="ai-usage" aria-live="polite" style="margin-top:12px">Mở để xem hạn mức.</div><button type="button" id="ai-usage-refresh" class="sec" style="margin-top:8px">Cập nhật</button><p class="sm">Hạn mức dùng chung cho website, không phải số lượt riêng của bạn.</p></details>
   </div>
 </details></div>
 <p id="voice-status" class="sm" role="status" hidden style="max-width:960px;margin:8px auto;padding:0 16px"></p>
@@ -2528,30 +2528,68 @@ function ipaText(text){const r=refOf(text);if(!r)return"";return"/"+r.map(x=>x.p
 let tts=null,dict=null,ai=null;
 const AIWEB=!IN_CLAUDE&&/^https:/.test(CFG.aiUrl);
 const selectedAI=()=>["cloudflare","groq","gemini"].includes(S.aiProvider)?S.aiProvider:"gemini";
-const aiLabel=()=>({cloudflare:"Cloudflare Workers AI · Llama 3.3",groq:"Groq · GPT-OSS 20B",gemini:"Google Gemini"})[selectedAI()];
+const aiLabel=()=>({cloudflare:"Cloudflare",groq:"Groq",gemini:"Gemini"})[selectedAI()];
 
 
-let usageLoading=false;
-function renderUsage(data, now=Date.now()) {
-  const nf=n=>Number(n||0).toLocaleString("vi-VN");
-  const when=t=>new Date(t).toLocaleString("vi-VN",{timeZone:"Asia/Ho_Chi_Minh"});
-  const p=data.providers||{},cf=p.cloudflare,groq=p.groq,gemini=p.gemini;
-  const count=row=>row?nf(row.requests)+" lượt thành công · "+nf(row.tokens)+" token":"Chưa ghi nhận lượt dùng.";
-  function remaining(s,kind,label) {
-    const value=s?.[kind+"Remaining"],limit=s?.[kind+"Limit"],reset=s?.[kind+"ResetAt"];
-    if(value==null)return label+": chưa có dữ liệu từ API.";
-    if(!reset||now>=reset)return label+": số liệu đã cũ; chờ lần gọi Groq tiếp theo.";
-    return label+": "+nf(value)+(limit!=null?" / "+nf(limit):"")+" còn lại · phục hồi theo API: "+when(reset);
-  }
-  const exhausted=cf?.snapshot?.exhausted&&now<cf.snapshot.resetAt;
-  const cards=[
-    ["Cloudflare Workers AI",exhausted?"0 neurons trong hạn mức miễn phí · API đã báo hết. Đặt lại lúc "+when(cf.snapshot.resetAt)+".":"Neurons còn lại: chưa có số liệu tài khoản.",count(cf)+" Chat Llama 3.3. Giọng đọc: "+nf(p.cloudflare_tts?.requests)+" lượt · "+nf(p.cloudflare_tts?.chars)+" ký tự. Nhận diện giọng nói: "+nf(p.cloudflare_stt?.requests)+" lượt.","Chat, giọng đọc Aura-2 và nhận diện Whisper dùng chung hạn mức Cloudflare; không chia thành ba số dư.", "https://dash.cloudflare.com/e26e04fdeb991297c340ba4813ec3d1a/ai/workers-ai/usage"],
-    ["Groq · GPT-OSS 20B",remaining(groq?.snapshot,"requests","Lượt/ngày")+" "+remaining(groq?.snapshot,"tokens","Token/phút"),count(groq)+(p.groq_tts?.requests?" · Giọng dự phòng: "+nf(p.groq_tts.requests)+" lượt":""),groq?"Số dư do Groq trả về lúc "+when(groq.snapshot?.capturedAt||groq.updated)+".":"Số dư xuất hiện sau lần gọi Groq đầu tiên.","https://console.groq.com/dashboard/limits"],
-    ["Google Gemini","Còn lại: chưa có số liệu tài khoản.",count(gemini)+(p.gemini_tts?.requests?" · Giọng dự phòng: "+nf(p.gemini_tts.requests)+" lượt":""),gemini?.snapshot?.limited?"Lần gọi gần nhất gặp giới hạn; chưa xác định là giới hạn phút hay ngày.":"Xem hạn mức theo model và dự án trong Google AI Studio.","https://aistudio.google.com/rate-limit"]
-  ];
-  return cards.map(([name,balance,used,note,url])=>'<div class="box" style="margin:8px 0"><h3 style="margin:0 0 8px">'+esc(name)+'</h3><p>'+esc(balance)+'</p><p class="sm">'+esc(used)+'</p><p class="sm">'+esc(note)+'</p><a target="_blank" rel="noopener noreferrer" href="'+url+'">Xem usage tài khoản</a></div>').join("")+'<p class="sm">Cập nhật: '+esc(when(now))+' · Ngày UTC: '+esc(data.day)+'</p>';
+let usageLoading=false, latestUsage=null, aiAvailability=null;
+const aiLastSuccess={};
+function usageResetLabel(timestamp, now=Date.now()){
+  const options={timeZone:"Asia/Ho_Chi_Minh"};
+  const day=t=>new Date(t).toLocaleDateString("en-CA",options);
+  const time=new Date(timestamp).toLocaleTimeString("vi-VN",{...options,hour:"2-digit",minute:"2-digit"});
+  if(day(timestamp)===day(now))return time+" hôm nay";
+  if(day(timestamp)===day(now+86400000))return time+" mai";
+  return time+" ngày "+new Date(timestamp).toLocaleDateString("vi-VN",options);
 }
-async function refreshUsage() {
+function learnerUsageRows(data, now=Date.now()){
+  const p=data.providers||{}, cf=p.cloudflare?.snapshot, g=p.groq?.snapshot;
+  const rows=[
+    {id:"cloudflare",name:"Cloudflare",text:"Chưa có thông tin hạn mức"},
+    {id:"groq",name:"Groq",text:"Chưa có thông tin hạn mức"},
+    {id:"gemini",name:"Gemini",text:"Chưa có thông tin hạn mức"}
+  ];
+  if(cf?.exhausted&&now<cf.resetAt)Object.assign(rows[0],{blocked:true,text:"Hết lượt hôm nay",detail:"Dùng lại lúc "+usageResetLabel(cf.resetAt,now)});
+  if(g?.requestsRemaining!=null&&now<g.requestsResetAt){
+    if(g.requestsRemaining===0)Object.assign(rows[1],{blocked:true,text:"Hết lượt hôm nay",detail:"Dùng lại lúc "+usageResetLabel(g.requestsResetAt,now)});
+    else rows[1].text="Còn "+Number(g.requestsRemaining).toLocaleString("vi-VN")+" lượt hôm nay";
+  }
+  if(!rows[1].blocked&&g?.tokensRemaining===0&&now<g.tokensResetAt)
+    Object.assign(rows[1],{blocked:true,text:"Tạm chạm giới hạn",detail:"Thử lại lúc "+usageResetLabel(g.tokensResetAt,now)});
+  const gemini=p.gemini?.snapshot;
+  if(gemini?.limited&&now-(gemini.capturedAt||0)<120000)
+    Object.assign(rows[2],{blocked:true,text:"Tạm chạm giới hạn",detail:"Bạn có thể đổi trợ lý hoặc thử lại sau."});
+  for(const row of rows){
+    if(aiAvailability&&aiAvailability[row.id]!==true)Object.assign(row,{blocked:false,unavailable:true,text:"Chưa khả dụng",detail:"Bạn hãy chọn trợ lý khác."});
+    else if(!row.blocked&&row.text==="Chưa có thông tin hạn mức"&&now-(aiLastSuccess[row.id]||0)<300000){
+      row.text="Đang sẵn sàng";row.detail="Chưa có số lượt còn lại.";
+    }
+  }
+  return rows;
+}
+function renderUsage(data, now=Date.now()){
+  const rows=learnerUsageRows(data,now), current=selectedAI();
+  const switchNeeded=rows.some(row=>row.id===current&&(row.blocked||row.unavailable));
+  return '<div style="display:grid;gap:0">'+rows.map(row=>
+    '<div style="padding:12px 0;border-bottom:1px solid #e7ebf2;display:flex;justify-content:space-between;gap:12px;align-items:baseline;flex-wrap:wrap">'+
+    '<span style="font-weight:600">'+esc(row.name)+(row.id===current?' <span class="sm" style="font-weight:400">· Đang chọn</span>':'')+'</span>'+
+    '<span style="flex:1 1 210px;text-align:right">'+esc(row.text)+(row.detail?'<span class="sm" style="display:block;margin-top:4px">'+esc(row.detail)+'</span>':'')+'</span></div>'
+  ).join("")+'</div>'+
+  (switchNeeded?'<button type="button" id="ai-switch-helper" class="pri" style="margin-top:12px">Đổi trợ lý để học tiếp</button>':'')+
+  '<p class="sm" style="margin-top:10px">Cập nhật lúc '+esc(new Date(now).toLocaleTimeString("vi-VN",{timeZone:"Asia/Ho_Chi_Minh",hour:"2-digit",minute:"2-digit"}))+'.</p>';
+}
+function drawUsage(){
+  const panel=$("#ai-usage");
+  if(!panel||!latestUsage)return;
+  panel.innerHTML=renderUsage(latestUsage);
+  const change=$("#ai-switch-helper");
+  if(change)change.onclick=()=>{
+    const picker=$("#ai-provider"),rows=learnerUsageRows(latestUsage);
+    const next=rows.find(row=>row.id!==selectedAI()&&!row.blocked&&!row.unavailable&&picker.querySelector('option[value="'+row.id+'"]')?.disabled===false);
+    if(next){picker.value=next.id;picker.onchange();$("#ai-provider-status").textContent="Đã chuyển sang "+aiLabel()+". Bạn có thể tiếp tục học."}
+    else{$("#ai-provider-status").textContent="Chưa có trợ lý khác khả dụng. Bạn hãy thử lại sau.";picker.focus()}
+  };
+}
+async function refreshUsage(){
   const panel=$("#ai-usage");
   if(!AIWEB||!panel||usageLoading)return;
   usageLoading=true;
@@ -2560,8 +2598,8 @@ async function refreshUsage() {
     const response=await fetch(new URL("/usage",CFG.aiUrl),{cache:"no-store",signal:AbortSignal.timeout(8000)});
     const data=await response.json();
     if(!response.ok)throw new Error("usage");
-    panel.innerHTML=renderUsage(data);
-  }catch{panel.textContent="Chưa tải được usage. Bấm Cập nhật usage để thử lại."}
+    latestUsage=data;drawUsage();
+  }catch{panel.textContent="Chưa kiểm tra được hạn mức. Bấm Cập nhật để thử lại."}
   finally{usageLoading=false;if(button)button.disabled=false}
 }
 
@@ -2569,6 +2607,7 @@ function updateAIPicker(){
   const picker=$("#ai-provider");
   picker.value=selectedAI();
   $("#ai-summary").textContent="Trợ lý AI · "+aiLabel();
+  drawUsage();
 }
 
 async function setupAIPicker(){
@@ -2589,15 +2628,17 @@ async function setupAIPicker(){
     const response=await fetch(CFG.aiUrl,{cache:"no-store",signal:AbortSignal.timeout(5000)});
     const config=await response.json();
     if(!response.ok)throw new Error("AI status");
+    aiAvailability=config.providers||{};
+    picker.querySelector('[value="gemini"]').disabled=config.providers?.gemini!==true;
     groq.disabled=config.providers?.groq!==true;
     cloudflare.disabled=config.providers?.cloudflare!==true;
     if(selectedAI()==="cloudflare"&&cloudflare.disabled){S.aiProvider="gemini";save();}
     updateAIPicker();
-    status.textContent=(cloudflare.disabled?"Cloudflare AI chưa được triển khai. ":"Cloudflare AI đã sẵn sàng. ")+help;
+    status.textContent=help;
   }catch(e){status.textContent="Chưa kiểm tra được trạng thái trợ lý AI. "+help}
 }
 async function gem(body,signal){let r;try{r=await fetch(CFG.aiUrl,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...body,provider:body.audio?"gemini":selectedAI()}),signal})}catch(e){throw{code:"network"}}
-  const j=await r.json().catch(()=>({}));if($("#ai-usage-panel")?.open)refreshUsage();if(j.error==="cloudflare_quota"){$("#ai-provider-status").textContent="Cloudflare AI đã hết hạn mức miễn phí hôm nay. Bạn có thể chọn Gemini/Groq để học tiếp.";throw{code:"rate_limited"}}if(!r.ok)throw{code:j.error==="rate_limited"?"rate_limited":(j.error||"upstream")};return j}
+  const j=await r.json().catch(()=>({}));if(r.ok)aiLastSuccess[body.audio?"gemini":selectedAI()]=Date.now();if($("#ai-usage-panel")?.open)refreshUsage();if(j.error==="cloudflare_quota"){$("#ai-provider-status").textContent="Cloudflare AI đã hết hạn mức miễn phí hôm nay. Bạn có thể chọn Gemini/Groq để học tiếp.";throw{code:"rate_limited"}}if(!r.ok)throw{code:j.error==="rate_limited"?"rate_limited":(j.error||"upstream")};return j}
 function jparse(t){const m=String(t).match(/\{[\s\S]*\}/);return JSON.parse(m?m[0]:t)}
 if(AIWEB){ai=async(prompt,o)=>{const j=await gem({prompt});o&&o.onText&&o.onText({text:j.text});return{text:j.text}};
   ai.json=async prompt=>jparse((await gem({prompt,json:true})).text)}
