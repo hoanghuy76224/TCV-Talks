@@ -205,7 +205,7 @@ body:has(.today-overview,.study-page) main {max-width:1180px}
   body:has(.today-overview,.study-page) main {padding-top:10px}
   .today-overview .dino-daily {
     grid-template-columns:minmax(0,1fr);
-    min-height:226px;
+    min-height:234px;
     padding:19px 16px;
   }
   .dino-daily h1 {font-size:clamp(27px,7.2vw,36px)}
@@ -214,9 +214,9 @@ body:has(.today-overview,.study-page) main {max-width:1180px}
   .dino-daily .dino-hero-links {gap:10px;margin-top:8px;padding-right:69px}
   .dino-daily .dino-hero-image {
     position:absolute;
-    width:112px;
+    width:97px;
     right:-2px;
-    bottom:-5px;
+    bottom:-6px;
     margin:0;
     pointer-events:none;
   }
@@ -224,6 +224,7 @@ body:has(.today-overview,.study-page) main {max-width:1180px}
   .today-overview .today-streak {padding:10px 0 0;border:0;border-top:1px solid var(--dino-line)}
   .today-shortcut-grid {grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
   .today-shortcut,.today-pathways .today-shortcut {min-height:82px;padding:10px}
+  .today-pathways .today-shortcut:last-child {grid-column:1/-1;min-height:64px}
   .today-shortcut b {font-size:13px;line-height:1.35}
   .today-shortcut .sm {font-size:11px}
 }
