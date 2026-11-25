@@ -1,4 +1,4 @@
-body:has(.today-overview,.study-page) {
+body:is(.dino-learning,:has(.today-overview,.study-page)) {
   --dino-paper:light-dark(#f5f5ed,#14201d);
   --dino-surface:light-dark(#fffef9,#1d2d28);
   --dino-ink:light-dark(#163124,#f0f6ed);
@@ -9,24 +9,24 @@ body:has(.today-overview,.study-page) {
   --dino-mint:light-dark(#e4f0e2,#273e34);
   background:var(--dino-paper);
 }
-body:has(.today-overview,.study-page)>header {
+body:is(.dino-learning,:has(.today-overview,.study-page))>header {
   border-bottom:1px solid var(--dino-line);
   background:color-mix(in srgb,var(--dino-paper) 96%,transparent);
 }
-body:has(.today-overview,.study-page) #nav {border-bottom:0}
-body:has(.today-overview,.study-page) #nav a,
-body:has(.today-overview,.study-page) #nav-more,
-body:has(.today-overview,.study-page) .profile-menu>summary {
+body:is(.dino-learning,:has(.today-overview,.study-page)) #nav {border-bottom:0}
+body:is(.dino-learning,:has(.today-overview,.study-page)) #nav a,
+body:is(.dino-learning,:has(.today-overview,.study-page)) #nav-more,
+body:is(.dino-learning,:has(.today-overview,.study-page)) .profile-menu>summary {
   background:var(--dino-surface);
   color:var(--dino-ink);
   box-shadow:none;
 }
-body:has(.today-overview,.study-page) #nav a.on {
+body:is(.dino-learning,:has(.today-overview,.study-page)) #nav a.on {
   background:var(--dino-green);
   color:var(--dino-on-green);
 }
-body:has(.today-overview,.study-page) .brand {color:var(--dino-ink)}
-body:has(.today-overview,.study-page) main {max-width:1180px}
+body:is(.dino-learning,:has(.today-overview,.study-page)) .brand {color:var(--dino-ink)}
+body:is(.dino-learning,:has(.today-overview,.study-page)) main {max-width:1180px}
 
 .today-overview {
   display:grid;
@@ -202,7 +202,7 @@ body:has(.today-overview,.study-page) main {max-width:1180px}
   .today-overview .today-streak {border:0;border-left:1px solid var(--dino-line);padding:0 0 0 13px}
 }
 @media(max-width:600px) {
-  body:has(.today-overview,.study-page) main {padding-top:10px}
+  body:is(.dino-learning,:has(.today-overview,.study-page)) main {padding-top:10px}
   .today-overview .dino-daily {
     grid-template-columns:minmax(0,1fr);
     min-height:234px;
@@ -231,4 +231,138 @@ body:has(.today-overview,.study-page) main {max-width:1180px}
 @media(max-width:355px) {
   .dino-daily .dino-hero-image {width:88px}
   .dino-daily .dino-hero-links {padding-right:45px}
+}
+.dino-learning {
+  --bg:var(--dino-paper);
+  --card:var(--dino-surface);
+  --ink:var(--dino-ink);
+  --mut:var(--dino-muted);
+  --line:var(--dino-line);
+  --pale:var(--dino-mint);
+}
+.dino-learning main :is(.btn.pri,button.pri) {
+  background:var(--dino-green);
+  color:var(--dino-on-green);
+  box-shadow:none;
+}
+.dino-learning main :is(.btn.pri,button.pri):hover:not(:disabled) {
+  background:color-mix(in srgb,var(--dino-green) 85%,var(--dino-ink));
+}
+.workspace-view {display:grid;gap:14px;color:var(--dino-ink)}
+.workspace-intro {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:12px 22px;
+  padding:clamp(17px,3.2vw,31px);
+  border:1px solid var(--dino-line);
+  border-radius:23px;
+  background:linear-gradient(115deg,var(--dino-mint),var(--dino-surface));
+}
+.workspace-intro h1 {font-size:clamp(28px,4vw,43px);letter-spacing:-.035em}
+.workspace-intro p,.workspace-panel p {margin:7px 0 0;color:var(--dino-muted)}
+.workspace-intro p {max-width:57ch}
+.workspace-actions {display:flex;flex-wrap:wrap;gap:8px}
+.workspace-actions .btn {box-shadow:none;border:1px solid var(--dino-line)}
+.workspace-group,.workspace-grid {display:grid;gap:10px}
+.workspace-group h2 {font-size:21px}
+.workspace-group-heading {display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px}
+.workspace-group-heading span,.workspace-muted {color:var(--dino-muted);font-size:13px;margin:0}
+.workspace-grid {grid-template-columns:repeat(auto-fit,minmax(min(100%,245px),1fr))}
+.workspace-panel {
+  display:block;
+  margin:0;
+  padding:15px;
+  border:1px solid var(--dino-line);
+  border-radius:17px;
+  background:var(--dino-surface);
+  color:var(--dino-ink);
+  overflow-wrap:anywhere;
+}
+.workspace-panel h2 {font-size:21px}
+.workspace-panel :is(p,.row)+:is(.btn,.row) {margin-top:10px}
+a.workspace-panel:hover {border-color:var(--dino-green)}
+.workspace-link {
+  position:relative;
+  display:grid;
+  align-content:start;
+  justify-items:start;
+  gap:5px;
+  padding-right:30px;
+  text-decoration:none;
+}
+.workspace-link::after {
+  position:absolute;
+  top:14px;
+  right:12px;
+  content:"→";
+  color:var(--dino-green);
+}
+.workspace-link>span:not(.workspace-chip) {color:var(--dino-muted);font-size:14px}
+.workspace-chip {
+  padding:3px 8px;
+  border-radius:7px;
+  background:var(--dino-mint);
+  color:var(--dino-green);
+  font-size:12px;
+  font-weight:700;
+}
+.workspace-chip[data-complete] {background:var(--dino-green);color:var(--dino-on-green)}
+.practice-tools {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.practice-tools .workspace-link {align-content:center;min-height:48px;font-size:14px;font-weight:700;padding-block:8px}
+.practice-filters {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.practice-filters label,.notebook-correction label {display:grid;gap:4px;font-size:14px;font-weight:700}
+.workspace-empty {grid-column:1/-1}
+.workspace-empty .btn {margin-top:11px}
+.review-queues {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.review-queues>.workspace-panel {text-decoration:none}
+.review-queues b {display:block;color:var(--dino-green);font-size:26px;line-height:1.15}
+.review-queues span {display:block;margin-top:4px;font-size:13px;line-height:1.35}
+.review-queues .review-current {background:var(--dino-mint)}
+.notebook-metrics {grid-template-columns:repeat(2,minmax(0,1fr))}
+.notebook-correction label {margin:8px 0}
+.notebook-correction [role=status]:empty {display:none}
+.review-controls {margin-top:10px}
+.chat-layout {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2.35fr);gap:12px;align-items:start}
+.chat-settings {display:grid;gap:8px}
+.chat-settings label {font-size:14px;font-weight:700}
+.chat-settings .row {gap:6px}
+.chat-settings .row button {min-height:42px;padding-inline:13px;font-size:13px}
+.chat-room {padding:0}
+.chat-room .chat {
+  min-height:200px;
+  margin:0;
+  padding:14px;
+  border-radius:17px 17px 0 0;
+  background:transparent;
+  box-shadow:none;
+}
+.chat-room .chat>.sm {margin:auto;text-align:center}
+.chat-room .msg {overflow-wrap:anywhere}
+.chat-room .msg.ai {background:var(--dino-mint)}
+.chat-room .msg.me {background:var(--dino-green);color:var(--dino-on-green)}
+.chat-room .chat-composer {
+  padding:12px;
+  border-radius:0 0 17px 17px;
+  background:var(--dino-surface);
+}
+.chat-send {display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px}
+.chat-voice {display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:8px}
+.chat-voice .chat-mic {width:auto;min-width:0;min-height:44px;padding-inline:13px;font-size:14px;box-shadow:none;border:1px solid var(--dino-line)}
+.chat-voice .chat-mic[aria-pressed="true"] {color:#fff}
+.chat-voice details {flex:1 1 115px;font-size:13px}
+.chat-voice summary {cursor:pointer;color:var(--dino-muted)}
+.chat-room #chat-status:empty,.workspace-view>#rv:empty,.workspace-view>#hw:empty {display:none}
+.workspace-view>#rv {scroll-margin-top:126px}
+
+@media(max-width:760px) {
+  .practice-tools,.practice-filters {grid-template-columns:repeat(2,minmax(0,1fr))}
+  .chat-layout {grid-template-columns:minmax(0,1fr)}
+  .workspace-view {gap:11px}
+  .workspace-panel {padding:12px}
+  .chat-room {padding:0}
+  .chat-room .chat {min-height:145px}
+  .review-queues b {font-size:23px}
+  .review-queues span {font-size:12px}
 }

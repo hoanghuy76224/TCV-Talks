@@ -280,7 +280,7 @@ table{border-collapse:collapse;width:100%;background:var(--card);border-radius:1
 .course-room{display:grid;gap:16px}.course-room h3,.course-room p{margin:0}.course-room textarea{display:block;width:100%;margin-top:8px}.course-copy,#course-feedback{white-space:pre-line}.course-link{display:block;color:inherit;text-decoration:none;border:1px solid var(--line)}.course-link:hover,.course-link:focus-visible{border-color:var(--sl)}#course-start{display:grid;gap:18px;max-width:620px}#course-start label{display:grid;gap:6px}#course-start select,.course-room select{font:inherit;padding:8px}.course-room summary{cursor:pointer}#course-welcome{margin-bottom:20px}
 @media(max-width:600px){.course-room .row,.course-room .row button{width:100%}.course-room .row button{min-height:46px}.course-room textarea,.course-room input,#course-start select{font-size:16px;max-width:100%}.course-link{min-width:0}.kpi{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
-<link rel="stylesheet" href="./dino-design.css?v=2">
+<link rel="stylesheet" href="./dino-design.css?v=3">
 </head>
 <body class="profile-locked">
 <header>
@@ -2431,7 +2431,7 @@ function viewHistory(){
 function rememberView(){
   if(!activeLearner)return;
   S.ui??={};S.ui.route=location.hash||"#today";
-  const title=app.querySelector("h2")?.textContent||({"#speak":"Nói và phát âm","#today":"Học hôm nay"})[S.ui.route]||S.ui.route.slice(1);
+  const title=(app.querySelector("h1")||app.querySelector("h2"))?.textContent||({"#speak":"Nói và phát âm","#today":"Học hôm nay"})[S.ui.route]||S.ui.route.slice(1);
   const visits=S.ui.visits??=[];
   if(visits[visits.length-1]?.hash!==S.ui.route)visits.push({hash:S.ui.route,title,date:Date.now()});
   S.ui.visits=visits.slice(-100);
@@ -3571,6 +3571,9 @@ function recordScore(en,sc,stat){const k=en;const prev=S.best[k]||0;if(sc>prev){
 
 /* ---------- màn hình: Hôm nay ---------- */
 const HERO=`<svg viewBox="0 0 320 220" aria-hidden="true"><ellipse cx="160" cy="205" rx="130" ry="10" fill="#0b1a33" opacity=".35"/><rect x="40" y="150" width="240" height="14" rx="7" fill="#2d64b8"/><rect x="70" y="164" width="10" height="38" fill="#2d64b8"/><rect x="240" y="164" width="10" height="38" fill="#2d64b8"/><rect x="110" y="104" width="100" height="58" rx="8" fill="#e9eef8"/><rect x="118" y="112" width="84" height="42" rx="4" fill="#4f8cff"/><path d="M126 140l14-12 12 8 16-16 22 20" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><rect x="150" y="162" width="20" height="8" fill="#e9eef8"/><g class="bub"><rect x="14" y="24" width="124" height="62" rx="20" fill="#ff6b5a"/><path d="M50 86l-8 18 24-18z" fill="#ff6b5a"/><text x="76" y="62" text-anchor="middle" font-family="Be Vietnam Pro,sans-serif" font-weight="800" font-size="22" fill="#fff">Hello!</text></g><g class="bub b2"><rect x="186" y="8" width="120" height="76" rx="22" fill="#ffc845"/><path d="M262 84l12 18-30-18z" fill="#ffc845"/><g stroke="#13294b" stroke-width="6" stroke-linecap="round"><path d="M214 46v0"/><path d="M230 34v24"/><path d="M246 26v40"/><path d="M262 36v20"/><path d="M278 42v8"/></g></g><circle cx="300" cy="120" r="10" fill="#19b39b"/><circle cx="22" cy="130" r="7" fill="#4f8cff"/><circle cx="290" cy="160" r="5" fill="#ff6b5a"/></svg>`;
+function workspaceIntro(title,description,actions=""){
+  return `<section class="workspace-intro"><div><h1>${esc(title)}</h1><p>${esc(description)}</p></div>${actions?'<div class="workspace-actions">'+actions+'</div>':""}</section>`;
+}
 function vToday(){
   const t=S.days[today()]||0,due=dueCards().length;
   app.innerHTML='<div class="today-overview">'+course.hero()+todayProgress(t)+'</div>'+
@@ -4010,12 +4013,16 @@ function vReview(){
   const due=dueCards();
   const writingDue=(S.learningErrors||[]).filter(item=>!item.done||item.due<=Date.now()).length;
   const vocabDue=dinoStudy?.due().length||0;
-  const writingLink='<p class="row"><a class="btn" href="#study-review">'+(vocabDue?"Ôn "+vocabDue+" từ đến hạn":"Mở bộ thẻ từ vựng")+'</a>'+
-    (writingDue?'<a class="btn" href="#notebook">Ôn '+writingDue+' lỗi trong bài viết và hội thoại</a>':"")+'</p>';
+  const overview=workspaceIntro("Ôn tập","Ôn câu luyện nói, thẻ từ và những lỗi đã gặp.")+
+    `<div class="review-queues"><div class="workspace-panel review-current"><b>${due.length}</b><span>Câu luyện nói đến hạn</span></div>
+      <a class="workspace-panel" href="#study-review"><b>${vocabDue}</b><span>Thẻ từ đến hạn →</span></a>
+      <a class="workspace-panel" href="#notebook"><b>${writingDue}</b><span>Lỗi viết và nói cần ôn →</span></a></div>`;
   if(!due.length){const nx=Object.values(S.cards).map(c=>new Date(c.due)).sort((a,b)=>a-b)[0];
-    app.innerHTML=`<h2>Ôn tập</h2><p class="lead">${Object.keys(S.cards).length?"Hết câu luyện nói đến hạn rồi."+(nx?" Câu tiếp theo đến hạn lúc "+nx.toLocaleString("vi-VN",{hour:"2-digit",minute:"2-digit",day:"2-digit",month:"2-digit"})+".":""):"Chưa có câu nào để ôn. Luyện nói vài câu trong lộ trình, chúng sẽ tự xuất hiện ở đây đúng lúc bạn sắp quên."}</p>${writingLink}<a class="btn pri" href="#path">Học bài mới</a>`;return}
+    app.innerHTML=`<div class="workspace-view">${overview}<section class="workspace-panel workspace-empty"><h2>${nx?"Bạn đã ôn hết câu đến hạn":"Chưa có câu luyện nói"}</h2>
+      <p>${nx?"Câu tiếp theo đến hạn lúc "+esc(nx.toLocaleString("vi-VN",{hour:"2-digit",minute:"2-digit",day:"2-digit",month:"2-digit"}))+".":"Câu bạn luyện sẽ xuất hiện ở đây khi đến lúc ôn."}</p>
+      <a class="btn pri" href="#path">Học bài mới</a></section></div>`;return}
   const en=due[0],s=SENT.find(x=>x.en===en)||S.mine.find(x=>x.en===en)||{en,vi:""};
-  app.innerHTML=`<h2>Ôn tập</h2><p class="lead">Còn ${due.length} câu. Nói lại từng câu, điểm càng cao câu càng lâu quay lại.</p>${writingLink}<div id="sc"></div><div class="row between" style="margin-top:14px"><button id="skip">Để sau</button><button class="pri hide" id="nx">Câu tiếp →</button></div>`;
+  app.innerHTML=`<div class="workspace-view">${overview}<section aria-label="Ôn câu luyện nói"><div id="sc"></div><div class="row between review-controls"><button id="skip">Để sau</button><button class="pri hide" id="nx">Câu tiếp →</button></div></section></div>`;
   speakCard($("#sc"),s,{onScore:(sc,R)=>{recordScore(en,sc,R.stat);$("#nx").classList.remove("hide")}});
   $("#nx").onclick=vReview;$("#skip").onclick=()=>{const c=S.cards[en];c.due=new Date(Date.now()+36e5).toISOString();save();vReview()}}
 
@@ -4269,16 +4276,21 @@ function vChat(){
   const localMic=Boolean(dict||WSR);
   const cloudMic=AIWEB&&canMedia;
   const canUseMic=cloudMic||localMic;
-  app.innerHTML=`<h2>Hội thoại với AI</h2><p class="lead">Nói chuyện 1-1 với giáo viên AI hoặc chọn một tình huống khác. AI nghe giọng thật của bạn, sửa câu và phát âm ngay trong lúc nói. Cuối buổi bấm Kết thúc để nhận nhận xét điểm mạnh, điểm yếu và bài về nhà.</p>${ai?"":noAI()}
-  <label class="sm" for="cs">Tình huống</label>
-  <select id="cs">${SCN.map((s,i)=>`<option value="${i}" ${i===chat.s?"selected":""}>${esc(s[0])}</option>`).join("")}</select>
-  <div class="chat" id="cl"></div>
-  <section class="chat-composer" aria-label="Trả lời giáo viên"><div class="row"><button id="cm" class="pri chat-mic" type="button" aria-pressed="false" aria-describedby="chat-mic-help">${I.mic}<span id="cm-label">Bấm để nói</span></button></div>
-  <div class="row"><input type="text" id="ci" placeholder="Trả lời bằng tiếng Anh" autocomplete="off" style="flex:1 1 220px">
-    <button class="pri" id="cg">Gửi</button></div>
-  <p class="sm" id="chat-status" role="status"></p>
-  <p class="sm" id="chat-mic-help">${canUseMic?"Bấm mic, cho phép dùng micro, nói rồi bấm Dừng ghi. Mỗi lượt tối đa 15 giây.":"Trình duyệt này chưa hỗ trợ ghi âm. Mở trang bằng Safari trên iPhone hoặc Chrome trên Android/máy tính để dùng micro; bạn vẫn có thể gõ câu trả lời."}</p></section>
-  <div class="row"><button id="cr" class="sec">${chat.log.length?"Bắt đầu lại":"Bắt đầu"}</button><button id="ce" class="pri">Kết thúc và xem kết quả</button></div><div id="rv"></div><div id="hw"></div>`;
+  app.innerHTML=`<div class="workspace-view">${workspaceIntro("Hội thoại với AI","Chọn tình huống, trả lời bằng giọng nói hoặc bằng chữ, rồi nhận góp ý cuối buổi.",'<a class="btn" href="#history">Lịch sử học</a>')}${ai?"":noAI()}
+  <div class="chat-layout"><section class="workspace-panel chat-settings" aria-label="Thiết lập hội thoại">
+    <label for="cs">Tình huống</label>
+    <select id="cs">${SCN.map((s,i)=>`<option value="${i}" ${i===chat.s?"selected":""}>${esc(s[0])}</option>`).join("")}</select>
+    <div class="row"><button id="cr" class="pri">${chat.log.length?"Bắt đầu lại":"Bắt đầu"}</button><button id="ce">Kết thúc và xem kết quả</button></div>
+  </section>
+  <section class="workspace-panel chat-room" aria-label="Hội thoại">
+    <div class="chat" id="cl" role="log" aria-label="Tin nhắn hội thoại"></div>
+    <section class="chat-composer" aria-label="Trả lời giáo viên">
+      <div class="chat-send"><input type="text" id="ci" aria-label="Trả lời bằng tiếng Anh" placeholder="Trả lời bằng tiếng Anh" autocomplete="off"><button class="pri" id="cg">Gửi</button></div>
+      <div class="chat-voice"><button id="cm" class="chat-mic" type="button" aria-pressed="false" aria-describedby="chat-mic-help">${I.mic}<span id="cm-label">Bấm để nói</span></button>
+        <details><summary>Cách dùng micro</summary><p class="sm" id="chat-mic-help">${canUseMic?"Bấm mic, cho phép dùng micro, nói rồi bấm Dừng ghi. Mỗi lượt tối đa 15 giây.":"Mở trang bằng Safari trên iPhone hoặc Chrome trên Android để dùng micro. Bạn vẫn có thể gõ câu trả lời."}</p></details></div>
+      <p class="sm" id="chat-status" role="status"></p>
+    </section>
+  </section></div><div id="rv"></div><div id="hw"></div></div>`;
   const input=$("#ci"),cm=$("#cm"),status=$("#chat-status"),start=$("#cr"),sendButton=$("#cg"),scenario=$("#cs"),cl=$("#cl"),endBtn=$("#ce"),rv=$("#rv");
   let recorder,working=false;
   function draw(){
@@ -4502,8 +4514,18 @@ function createCourse(rows){
     $("#course-start").onsubmit=e=>{e.preventDefault();const f=e.target.elements;Object.assign(d,{goal:f.goal.value,level:f.level.value,minutes:+f.minutes.value});write();go(next()?"lesson-"+next().id:"course-path")};
   }
   function path(){
-    const d=db();
-    app.innerHTML=`<h2>Lộ trình tiếng Anh</h2><p class="lead">Chọn bài theo điều bạn muốn làm được. Mỗi bài gồm hiểu tình huống, luyện mẫu câu và tự vận dụng.</p><div class="row">${link("#start","Chọn mục tiêu")} ${link(activeLearner?"#today":"#access",activeLearner?"Học hôm nay":"Mở hồ sơ")}</div>`+levels.map(level=>`<h3 class="sec-h">${level}</h3><div class="grid">${lessons.filter(l=>l.level===level).map(l=>`<a class="box course-link" href="${url(l)}"><strong>${esc(l.title)}</strong><p>${esc(l.outcome)}</p><small>${d.work[l.id]?.finished?"Đã hoàn thành":d.work[l.id]?"Đang học":"5–10 phút"}</small></a>`).join("")}</div>`).join("");
+    const d=db(), upcoming=next();
+    const sections=levels.map(level=>{
+      const units=lessons.filter(l=>l.level===level);
+      const finished=units.filter(l=>d.work[l.id]?.finished).length;
+      return `<section class="workspace-group" aria-label="Cấp ${level}">
+        <div class="workspace-group-heading"><h2>${level}</h2><span>${finished}/${units.length} bài đã hoàn thành</span></div>
+        <div class="workspace-grid">${units.map(l=>`<a class="workspace-panel workspace-link" href="${url(l)}">
+          <span class="workspace-chip"${d.work[l.id]?.finished?' data-complete':""}>${d.work[l.id]?.finished?"Đã hoàn thành":d.work[l.id]?"Đang học":"5–10 phút"}</span>
+          <strong>${esc(l.title)}</strong><span>${esc(l.outcome)}</span></a>`).join("")}</div></section>`;
+    }).join("");
+    const actions=(upcoming?link(url(upcoming),"Học tiếp",true):link(activeLearner?"#today":"#access",activeLearner?"Học hôm nay":"Mở hồ sơ",true))+link("#start","Chọn mục tiêu");
+    app.innerHTML=`<div class="workspace-view">${workspaceIntro("Lộ trình tiếng Anh","Chọn bài theo trình độ. Mỗi bài có tình huống, mẫu câu và phần tự vận dụng.",actions)}${sections}</div>`;
   }
   function lesson(l){
     const d=db();d.current=l.id;d.level=l.level;
@@ -4554,13 +4576,19 @@ function createCourse(rows){
   }
   function notebook(){
     const d=db(),finished=Object.values(d.work).filter(w=>w.finished),attempted=Object.values(d.work).filter(w=>w.first!=null);
-    app.innerHTML=`<h2>Sổ tay và tiến độ</h2><p>${finished.length} bài đã hoàn thành · Hiểu tình huống đúng lần đầu ở ${attempted.filter(w=>{const l=lessons.find(l=>d.work[l.id]===w);return l&&w.first===l.key}).length}/${attempted.length} bài đã trả lời.</p><h3>Cụm từ đã lưu</h3>`+
-    (lessons.filter(l=>d.notes[l.id]).map(l=>`<section class="box"><b>${esc(l.phrase)}</b><p>${esc(l.source.replaceAll(" | "," "))}</p>${link(url(l),l.title)}</section>`).join("")||"<p>Trong bước luyện mẫu câu, bấm “Lưu cụm từ”.</p>")+
-    `<h3>Ôn lỗi trong ngữ cảnh mới</h3>`+(lessons.filter(l=>d.errors[l.id]).map(l=>{const error=d.errors[l.id],due=error.due<=Date.now();return `<section class="box"><b>${esc(l.title)}</b><p>Bạn từng chọn “${esc(error.original)}”. ${esc(l.reason)}</p>${due?`<p>${esc(l.transfer)}</p><div class="row">${l.options.map((o,i)=>`<button data-review="${l.id}" data-index="${i}">${esc(o)}</button>`).join("")}</div>`:`<small>Ôn lại ngày ${esc(new Date(error.due).toLocaleDateString("vi-VN"))}</small>`}<p role="status"></p></section>`}).join("")||"<p>Những câu cần luyện lại sẽ xuất hiện ở đây.</p>")+link("#course-path","Về lộ trình");
     const writingErrors=activeLearner?(S.learningErrors||[]):[];
+    const firstCorrect=lessons.filter(l=>d.work[l.id]?.first===l.key).length;
+    app.innerHTML=`<div class="workspace-view">${workspaceIntro("Sổ tay","Xem lại cụm từ đã lưu và luyện những chỗ mình từng sai.",link("#course-path","Về lộ trình"))}
+      <div class="review-queues notebook-metrics"><div class="workspace-panel"><b>${finished.length}</b><span>Bài đã hoàn thành</span></div>
+        <div class="workspace-panel"><b>${firstCorrect}/${attempted.length}</b><span>Hiểu đúng lần đầu</span></div></div>
+      <section class="workspace-group"><h2>Cụm từ đã lưu</h2><div class="workspace-grid">${lessons.filter(l=>d.notes[l.id]).map(l=>`<section class="workspace-panel"><b>${esc(l.phrase)}</b><p>${esc(l.source.replaceAll(" | "," "))}</p>${link(url(l),l.title)}</section>`).join("")||'<p class="workspace-panel workspace-empty">Trong bước luyện mẫu câu, bấm “Lưu cụm từ”.</p>'}</div></section>
+      <section class="workspace-group"><h2>Ôn lỗi trong ngữ cảnh mới</h2>${lessons.filter(l=>d.errors[l.id]).map(l=>{
+        const error=d.errors[l.id],due=error.due<=Date.now();
+        return `<section class="workspace-panel"><b>${esc(l.title)}</b><p>Bạn từng chọn “${esc(error.original)}”. ${esc(l.reason)}</p>${due?`<p>${esc(l.transfer)}</p><div class="row">${l.options.map((o,i)=>`<button data-review="${l.id}" data-index="${i}">${esc(o)}</button>`).join("")}</div>`:`<small>Ôn lại ngày ${esc(new Date(error.due).toLocaleDateString("vi-VN"))}</small>`}<p role="status"></p></section>`;
+      }).join("")||'<p class="workspace-panel workspace-empty">Những câu cần luyện lại sẽ xuất hiện ở đây.</p>'}</section></div>`;
     if(writingErrors.length){
-      const section=document.createElement("section");section.innerHTML='<h3>Lỗi trong bài viết và hội thoại</h3>'+writingErrors.map((error,i)=>'<section class="box"><p>Viết lại cụm sau cho đúng: <b lang="en">'+esc(error.wrong)+'</b></p><label>Câu sửa của bạn<input data-error-answer="'+i+'" autocomplete="off"></label><button data-error-check="'+i+'">Kiểm tra</button><p role="status" data-error-result="'+i+'">'+(error.done?"Đã ôn đúng. Lần tới: "+esc(new Date(error.due).toLocaleDateString("vi-VN")):"")+'</p></section>').join("");
-      app.append(section);
+      const section=document.createElement("section");section.className="workspace-group";section.innerHTML='<h2>Lỗi trong bài viết và hội thoại</h2>'+writingErrors.map((error,i)=>'<section class="workspace-panel notebook-correction"><p>Viết lại cụm sau cho đúng: <b lang="en">'+esc(error.wrong)+'</b></p><label>Câu sửa của bạn<input type="text" data-error-answer="'+i+'" autocomplete="off"></label><button class="pri" data-error-check="'+i+'">Kiểm tra</button><p role="status" data-error-result="'+i+'">'+(error.done?"Đã ôn đúng. Lần tới: "+esc(new Date(error.due).toLocaleDateString("vi-VN")):"")+'</p></section>').join("");
+      app.querySelector(".workspace-view").append(section);
       section.querySelectorAll("[data-error-check]").forEach(button=>button.onclick=()=>{
         const i=+button.dataset.errorCheck,error=writingErrors[i],answer=section.querySelector('[data-error-answer="'+i+'"]').value;
         const correct=evidenceText(answer)===evidenceText(error.right);
@@ -4595,10 +4623,18 @@ function placement(){
   function practice(){
     const attrs=l=>({topic:({water:"Ăn uống",menu:"Ăn uống",booking:"Ăn uống",order:"Ăn uống",remedy:"Ăn uống",letter:"Dịch vụ",critic:"Văn hóa",hello:"Đời sống",train:"Du lịch",appointment:"Đời sống",handover:"Công việc",evidence:"Học thuật",research:"Học thuật",policy:"Xã hội"})[l.id],skill:["water","hello","booking","appointment","order","handover","remedy"].includes(l.id)?"Nghe":"Đọc",minutes:["Pre-A1","A1"].includes(l.level)?5:10});
     const field=(id,label,options)=>'<label>'+label+' <select id="'+id+'"><option value="">Tất cả</option>'+options.map(x=>'<option>'+esc(x)+'</option>').join("")+'</select></label>';
-    app.innerHTML='<h2>Luyện tập tự chọn</h2><div class="box row">'+field("filter-level","Cấp",levels)+field("filter-topic","Chủ đề",[...new Set(lessons.map(l=>attrs(l).topic))])+field("filter-skill","Kỹ năng",["Nghe","Đọc","Viết","Từ vựng"])+field("filter-time","Phút",[5,10])+'</div><div class="grid" id="filtered"></div>'+(activeLearner?'<h3 class="sec-h">Phòng luyện chuyên sâu</h3><div class="row">'+link("#speak","Nói và phát âm")+link("#quiz","Ngữ pháp")+link("#chat","Hội thoại theo vai")+link("#listen","Luyện nghe")+link("#trans","Dịch câu")+link("#fix","Sửa câu")+link("#path","Phát âm và công sở")+link("#history","Lịch sử học")+'</div>':"");
+    const tools=[["speak","Nói và phát âm"],["quiz","Ngữ pháp"],["chat","Hội thoại theo vai"],["listen","Luyện nghe"],["trans","Dịch câu"],["fix","Sửa câu"],["path","Phát âm và công sở"],["history","Lịch sử học"]];
+    app.innerHTML=`<div class="workspace-view">${workspaceIntro("Luyện tập","Chọn một bài theo cấp độ, chủ đề, kỹ năng và thời gian bạn có.")}
+      ${activeLearner?`<section class="workspace-group"><h2>Luyện theo kỹ năng</h2><div class="practice-tools">${tools.map(([href,title])=>`<a class="workspace-panel workspace-link" href="#${href}">${title}</a>`).join("")}</div></section>`:""}
+      <div class="workspace-panel practice-filters">${field("filter-level","Cấp độ",levels)+field("filter-topic","Chủ đề",[...new Set(lessons.map(l=>attrs(l).topic))])+field("filter-skill","Kỹ năng",["Nghe","Đọc","Viết","Từ vựng"])+field("filter-time","Thời lượng",[5,10])}</div>
+      <p id="practice-count" class="workspace-muted" role="status"></p><div class="workspace-grid" id="filtered"></div></div>`;
     function list(){const val=id=>$("#filter-"+id).value;
       const filtered=lessons.filter(l=>{const a=attrs(l);return (!val("level")||l.level===val("level"))&&(!val("topic")||a.topic===val("topic"))&&(!val("time")||a.minutes===+val("time"))&&(!val("skill")||[a.skill,"Viết","Từ vựng"].includes(val("skill")))});
-      $("#filtered").innerHTML=filtered.map(l=>'<a class="box course-link" href="'+url(l)+'"><small>'+l.level+' · '+attrs(l).topic+' · '+attrs(l).minutes+' phút</small><h3>'+esc(l.title)+'</h3><p>'+esc(l.outcome)+'</p></a>').join("")||"<p>Chưa có bài khớp các bộ lọc này.</p>";
+      $("#practice-count").textContent=filtered.length+" bài phù hợp";
+      $("#filtered").innerHTML=filtered.map(l=>{
+        const {topic,minutes}=attrs(l);
+        return `<a class="workspace-panel workspace-link" href="${url(l)}"><span class="workspace-chip">${l.level} · ${esc(topic)} · ${minutes} phút</span><strong>${esc(l.title)}</strong><span>${esc(l.outcome)}</span></a>`;
+      }).join("")||'<p class="workspace-panel workspace-empty">Chưa có bài khớp. Hãy thử đổi bộ lọc.</p>';
     }
     app.querySelectorAll("select").forEach(el=>el.onchange=list);list();
   }
@@ -4939,6 +4975,7 @@ function route(){
   profileMenu.open=false;
   cancelTextMic();
   const h=(location.hash||"#today").slice(1);
+  document.body.classList.toggle("dino-learning",["course-path","start","placement","practice","path","speak","listen","trans","quiz","fix","chat","notebook","history","review"].includes(h)||h.startsWith("lesson-")||/^[po]\d+$/.test(h));
   if(!activeLearner){
     document.body.classList.add("profile-locked");
     stopAudio();
