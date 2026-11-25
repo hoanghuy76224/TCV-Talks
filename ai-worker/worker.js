@@ -863,6 +863,11 @@ export default {
       return generateWithGroq(req, env, h, prompt, b.json);
     }
     if (!env.GEMINI_KEY) return out({ error: "no_key" }, 500, h);
+    if (env.GROQ_RATE_LIMIT) {
+      const client = req.headers.get("CF-Connecting-IP") || "unknown";
+      const { success } = await env.GROQ_RATE_LIMIT.limit({ key: "gemini:" + client });
+      if (!success) return out({ error: "rate_limited" }, 429, h);
+    }
 
     const parts = [];
     if (b.audio && b.audio.data) {
@@ -881,16 +886,25 @@ export default {
     let last = null;
     for (const m of models) for (let tr = 0; tr < 2; tr++) {
       if (tr) await new Promise(r => setTimeout(r, 1200));
-      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_KEY },
-        body: JSON.stringify(body)
-      });
+      let r;
+      try {
+        r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_KEY },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(b.audio ? 30000 : 12000)
+        });
+      } catch {
+        last = { status: 504, msg: "network" };
+        continue;
+      }
       const j = await r.json().catch(() => ({}));
       await rememberUsage(env,"gemini",{success:r.ok,tokens:r.ok?j.usageMetadata?.totalTokenCount:0,snapshot:{model:m,limited:r.status===429,capturedAt:Date.now()}});
       if (r.ok) {
         const text = ((j.candidates || [])[0]?.content?.parts || []).map(p => p.text || "").join("");
-        return out({ text, model: m }, 200, h);
+        if (text.trim()) return out({ text, model: m }, 200, h);
+        last = { status: 502, msg: "empty_reply" };
+        break; // text rỗng (bị chặn hoặc cắt token): sang model dự phòng
       }
       last = { status: r.status, msg: j.error && j.error.message };
       if (r.status === 503 || r.status === 500) continue; // quá tải: thử lại model này một lần
