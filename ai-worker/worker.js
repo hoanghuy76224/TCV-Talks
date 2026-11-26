@@ -1124,6 +1124,10 @@ async function adminApi(req, env, headers) {
   if (req.method !== "POST") return out({ error: "method" }, 405, headers);
   let key = "";
   try { key = String((await req.json()).key || ""); } catch {}
+  if (env.GROQ_RATE_LIMIT) {
+    const ip = req.headers.get("CF-Connecting-IP") || "unknown";
+    if (!(await env.GROQ_RATE_LIMIT.limit({ key: "admin:" + ip })).success) return out({ error: "rate_limited" }, 429, headers);
+  }
   if (!env.ADMIN_KEY || !sameText(key, String(env.ADMIN_KEY))) return out({ error: "unauthorized" }, 401, headers);
   if (!env.DB) return out({ error: "no_db" }, 503, headers);
   const all = async (sql, ...a) => (await env.DB.prepare(sql).bind(...a).all()).results || [];
@@ -1333,6 +1337,10 @@ export default {
       return generateWithGroq(req, env, h, prompt, b.json);
     }
     if (!env.GEMINI_KEY) return out({ error: "no_key" }, 500, h);
+    if (env.GROQ_RATE_LIMIT) {
+      const ip = req.headers.get("CF-Connecting-IP") || "unknown";
+      if (!(await env.GROQ_RATE_LIMIT.limit({ key: "gemini:" + ip })).success) return out({ error: "rate_limited" }, 429, h);
+    }
 
     const parts = [];
     if (b.audio && b.audio.data) {
